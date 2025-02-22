@@ -1,76 +1,61 @@
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { serve } from 'https://deno.fresh.dev/server.ts'
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+const GITHUB_API_URL = 'https://api.github.com';
 
-interface GithubRepo {
-  id: number;
-  name: string;
-  html_url: string;
-}
-
-serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
-  }
-
+serve(async (req: Request) => {
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
-
-    const token = Deno.env.get('GITHUB_ACCESS_TOKEN')
-    if (!token) {
-      throw new Error('GitHub token not found')
+    const githubToken = Deno.env.get('GITHUB_ACCESS_TOKEN');
+    
+    if (!githubToken) {
+      return new Response(
+        JSON.stringify({ error: 'GitHub token not configured' }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
-    const { data: { user } } = await supabase.auth.getUser(
-      req.headers.get('Authorization')?.split('Bearer ')[1] ?? ''
-    )
-
-    if (!user) {
-      throw new Error('No user found')
-    }
-
-    // Get repositories from GitHub
-    const response = await fetch('https://api.github.com/user/repos', {
+    // Get authenticated user's repositories
+    const response = await fetch(`${GITHUB_API_URL}/user/repos?sort=updated`, {
       headers: {
-        'Authorization': `token ${token}`,
-        'Accept': 'application/vnd.github.v3+json'
-      }
-    })
+        'Authorization': `Bearer ${githubToken}`,
+        'Accept': 'application/vnd.github.v3+json',
+      },
+    });
 
     if (!response.ok) {
-      throw new Error('Failed to fetch GitHub repositories')
+      throw new Error(`GitHub API error: ${response.statusText}`);
     }
 
-    const repos: GithubRepo[] = await response.json()
+    const repositories = await response.json();
     
+    // Transform the data to match our interface
+    const repos = repositories.map((repo: any) => ({
+      id: repo.id.toString(),
+      name: repo.full_name,
+      url: repo.html_url,
+    }));
+
     return new Response(
-      JSON.stringify({
-        repos: repos.map(repo => ({
-          id: repo.id.toString(),
-          name: repo.name,
-          url: repo.html_url
-        }))
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      },
-    )
+      JSON.stringify({ repos }),
+      { 
+        status: 200, 
+        headers: { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        } 
+      }
+    );
   } catch (error) {
     return new Response(
       JSON.stringify({ error: error.message }),
-      {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      },
-    )
+      { 
+        status: 500, 
+        headers: { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        } 
+      }
+    );
   }
-})
+});
