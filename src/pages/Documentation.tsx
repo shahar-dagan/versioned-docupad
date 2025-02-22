@@ -1,4 +1,3 @@
-
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -8,6 +7,7 @@ import { DocumentationSearch } from '@/components/documentation/DocumentationSea
 import { DocumentationNav } from '@/components/documentation/DocumentationNav';
 import { DocumentationContent } from '@/components/documentation/DocumentationContent';
 import { MobileNav } from '@/components/documentation/MobileNav';
+import { DocumentationGenerator } from '@/components/documentation/DocumentationGenerator';
 
 interface DocumentationSuggestion {
   type: 'technical' | 'user';
@@ -126,6 +126,11 @@ export default function Documentation() {
         {/* Main Content */}
         <main className="overflow-y-auto pb-16">
           <div className="max-w-3xl mx-auto px-6 py-10">
+            {selectedFeature && (
+              <div className="mb-8">
+                <DocumentationGenerator featureId={selectedFeature} />
+              </div>
+            )}
             <DocumentationContent feature={selectedFeatureData} />
           </div>
         </main>
