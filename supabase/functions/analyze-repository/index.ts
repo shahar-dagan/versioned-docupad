@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
@@ -152,7 +151,7 @@ ${fileDescriptions}`;
 
     console.log('Calling Claude API...');
 
-    // Call Claude API
+    // Call Claude API with updated request format
     const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -162,19 +161,20 @@ ${fileDescriptions}`;
       },
       body: JSON.stringify({
         model: 'claude-3-opus-20240229',
-        max_tokens: 1000,
         messages: [{
-          role: 'system',
-          content: 'You are a software development expert. ONLY respond with valid JSON following the exact format specified in the user prompt. Do not include any additional text or explanations.'
-        }, {
           role: 'user',
           content: prompt
-        }]
+        }],
+        max_tokens: 1000,
+        temperature: 0.7,
+        system: 'You are a software development expert. ONLY respond with valid JSON following the exact format specified in the user prompt. Do not include any additional text or explanations.'
       })
     });
 
     if (!claudeResponse.ok) {
-      throw new Error(`Claude API error: ${claudeResponse.statusText}`);
+      const errorText = await claudeResponse.text();
+      console.error('Claude API error response:', errorText);
+      throw new Error(`Claude API error: ${claudeResponse.statusText}. Details: ${errorText}`);
     }
 
     const analysisResult = await claudeResponse.json();
