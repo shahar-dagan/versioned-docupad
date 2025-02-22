@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -51,37 +50,62 @@ export default function Features() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
 
+  const { data: authData } = useQuery({
+    queryKey: ['auth-session'],
+    queryFn: async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) {
+        console.error('Auth error:', error);
+        throw error;
+      }
+      return session;
+    },
+  });
+
   const { data: product, isLoading: isLoadingProduct } = useQuery({
     queryKey: ['product', productId],
     queryFn: async () => {
+      console.log('Fetching product with ID:', productId);
       const { data, error } = await supabase
         .from('products')
         .select('*')
         .eq('id', productId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching product:', error);
+        throw error;
+      }
+      console.log('Product data:', data);
       return data as Product;
     },
+    enabled: !!authData,
   });
 
   const { data: repository } = useQuery({
     queryKey: ['repository', productId],
     queryFn: async () => {
+      console.log('Fetching repository for product:', productId);
       const { data, error } = await supabase
         .from('github_repositories')
         .select('*')
         .eq('product_id', productId)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching repository:', error);
+        throw error;
+      }
+      console.log('Repository data:', data);
       return data as Repository;
     },
+    enabled: !!authData,
   });
 
   const { data: features, isLoading: isLoadingFeatures, error: featuresError, refetch } = useQuery({
     queryKey: ['features', productId],
     queryFn: async () => {
+      console.log('Fetching features for product:', productId);
       const { data, error } = await supabase
         .from('features')
         .select('*')
@@ -92,8 +116,10 @@ export default function Features() {
         console.error('Error fetching features:', error);
         throw error;
       }
+      console.log('Features data:', data);
       return data as Feature[];
     },
+    enabled: !!authData && !!productId,
   });
 
   const analyzeRepositoryMutation = useMutation({
@@ -138,27 +164,27 @@ export default function Features() {
   const handleCreateFeature = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
+    if (!authData?.user) {
       toast.error('You must be logged in to create a feature');
       return;
     }
 
     try {
+      console.log('Creating feature:', { name, description, productId });
       const { error } = await supabase.from('features').insert([
         {
           name,
           description,
           product_id: productId,
-          author_id: user.id,
+          author_id: authData.user.id,
           status: 'active',
         },
       ]);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error creating feature:', error);
+        throw error;
+      }
 
       toast.success('Feature created successfully');
       setOpen(false);
@@ -170,6 +196,18 @@ export default function Features() {
       toast.error('Failed to create feature');
     }
   };
+
+  if (!authData) {
+    return (
+      <div className="container mx-auto py-10">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-lg text-red-500">
+            Please log in to view features
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoadingProduct || isLoadingFeatures) {
     return (
