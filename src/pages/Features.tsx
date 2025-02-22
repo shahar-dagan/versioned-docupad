@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -41,7 +40,7 @@ interface Product {
 
 interface Repository {
   id: string;
-  full_name: string;
+  repository_name: string;
   product_id: string;
 }
 
@@ -96,13 +95,13 @@ export default function Features() {
 
   const analyzeRepositoryMutation = useMutation({
     mutationFn: async () => {
-      if (!repository?.full_name) {
+      if (!repository?.repository_name) {
         throw new Error('No repository linked to this product');
       }
 
       const response = await supabase.functions.invoke('analyze-repository', {
         body: {
-          repoFullName: repository.full_name,
+          repoFullName: repository.repository_name,
           productId,
         },
       });
