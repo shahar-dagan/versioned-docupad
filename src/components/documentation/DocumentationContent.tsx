@@ -1,6 +1,7 @@
-import { Book, Code, User, Image, PlayCircle } from 'lucide-react';
+import { Book, Code, User, Image, PlayCircle, LightbulbIcon } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 
 interface CodeSnippet {
   language: string;
@@ -12,6 +13,13 @@ interface VisualAid {
   type: 'screenshot' | 'video';
   url: string;
   caption: string;
+}
+
+interface DocumentationSuggestion {
+  type: 'technical' | 'user';
+  category: string;
+  suggestion: string;
+  priority: 'high' | 'medium' | 'low';
 }
 
 interface Feature {
@@ -32,7 +40,7 @@ interface Feature {
     visuals?: VisualAid[];
     faq?: Array<{ question: string; answer: string }>;
   };
-  suggestions?: string[];
+  suggestions?: DocumentationSuggestion[];
 }
 
 interface DocumentationContentProps {
@@ -48,6 +56,47 @@ export function DocumentationContent({ feature, viewMode = 'user' }: Documentati
       </div>
     );
   }
+
+  const renderSuggestions = () => {
+    if (!feature.suggestions?.length) return null;
+
+    const filteredSuggestions = feature.suggestions.filter(
+      (suggestion) => suggestion.type === viewMode
+    );
+
+    if (!filteredSuggestions.length) return null;
+
+    return (
+      <div className="mb-8">
+        <div className="flex items-center gap-2 mb-4">
+          <LightbulbIcon className="h-5 w-5 text-yellow-500" />
+          <h2 className="text-lg font-semibold">Documentation Suggestions</h2>
+        </div>
+        <div className="grid gap-4">
+          {filteredSuggestions.map((suggestion, index) => (
+            <Card key={index}>
+              <CardContent className="p-4">
+                <div className="flex items-start gap-4">
+                  <div className="flex-1">
+                    <div className="font-medium mb-1">{suggestion.category}</div>
+                    <p className="text-sm text-muted-foreground">{suggestion.suggestion}</p>
+                  </div>
+                  <div className={`
+                    px-2 py-1 rounded-full text-xs font-medium
+                    ${suggestion.priority === 'high' ? 'bg-red-100 text-red-800' : ''}
+                    ${suggestion.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' : ''}
+                    ${suggestion.priority === 'low' ? 'bg-green-100 text-green-800' : ''}
+                  `}>
+                    {suggestion.priority}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   const renderCodeSnippet = (snippet: CodeSnippet) => (
     <div className="my-4 rounded-lg bg-slate-950 p-4">
@@ -83,7 +132,15 @@ export function DocumentationContent({ feature, viewMode = 'user' }: Documentati
 
   const renderTechnicalDocs = () => {
     const tech = feature.technical_docs;
-    if (!tech) return null;
+    if (!tech) {
+      return (
+        <Alert>
+          <AlertDescription>
+            No technical documentation available yet. Use the suggestions above to start documenting this feature.
+          </AlertDescription>
+        </Alert>
+      );
+    }
 
     return (
       <div className="space-y-6">
@@ -135,7 +192,15 @@ export function DocumentationContent({ feature, viewMode = 'user' }: Documentati
 
   const renderUserDocs = () => {
     const user = feature.user_docs;
-    if (!user) return null;
+    if (!user) {
+      return (
+        <Alert>
+          <AlertDescription>
+            No user documentation available yet. Use the suggestions above to start documenting this feature.
+          </AlertDescription>
+        </Alert>
+      );
+    }
 
     return (
       <div className="space-y-6">
@@ -234,6 +299,7 @@ export function DocumentationContent({ feature, viewMode = 'user' }: Documentati
         {feature.description}
       </p>
 
+      {renderSuggestions()}
       {viewMode === 'technical' ? renderTechnicalDocs() : renderUserDocs()}
 
       <div className="mt-12 p-6 border rounded-lg bg-slate-50">
