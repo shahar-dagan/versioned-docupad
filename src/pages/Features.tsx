@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -50,7 +51,7 @@ export default function Features() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
 
-  const { data: product } = useQuery({
+  const { data: product, isLoading: isLoadingProduct } = useQuery({
     queryKey: ['product', productId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -78,7 +79,7 @@ export default function Features() {
     },
   });
 
-  const { data: features, refetch } = useQuery({
+  const { data: features, isLoading: isLoadingFeatures, error: featuresError, refetch } = useQuery({
     queryKey: ['features', productId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -87,7 +88,10 @@ export default function Features() {
         .eq('product_id', productId)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching features:', error);
+        throw error;
+      }
       return data as Feature[];
     },
   });
@@ -110,12 +114,9 @@ export default function Features() {
         body: {
           repoFullName: repository.repository_name,
           productId,
-          userId: user.id  // Add the user ID to the request
+          userId: user.id
         },
       });
-
-      // Log the full response for debugging
-      console.log('Analysis response:', response);
 
       if (response.error) {
         console.error('Analysis error:', response.error);
@@ -169,6 +170,28 @@ export default function Features() {
       toast.error('Failed to create feature');
     }
   };
+
+  if (isLoadingProduct || isLoadingFeatures) {
+    return (
+      <div className="container mx-auto py-10">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-lg text-muted-foreground">Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (featuresError) {
+    return (
+      <div className="container mx-auto py-10">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-lg text-red-500">
+            Error loading features. Please try again later.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto py-10">
