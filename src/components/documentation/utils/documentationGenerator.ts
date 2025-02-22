@@ -2,55 +2,55 @@
 import { ExtendedFeature, FeatureContext, DocumentationPatterns, UserDocs } from '../types';
 
 const analyzeFeature = (feature: ExtendedFeature): string[] => {
-  // Step 1: Examine the Code (internal analysis)
-  const coreComponents = [
-    'Feature Management',
-    'Documentation Generation',
+  // Step 1: Examine the Code (based on actual codebase)
+  const mainFeatures = [
+    'Documentation Management',
+    'Feature Tracking',
     'GitHub Integration',
-    'Change Tracking'
+    'Change History'
   ];
 
-  // Step 2: List Overall Functionalities
-  const allFunctionalities = [
-    'Feature creation and management',
-    'Automatic documentation generation',
-    'Version control integration',
-    'Team collaboration tools',
-    'Change history tracking',
-    'Documentation sharing'
+  // Step 2: List Overall Functionalities (from actual implementation)
+  const actualFunctionalities = [
+    'View and generate documentation',
+    'Switch between technical and user views',
+    'Track feature changes and updates',
+    'Integrate with GitHub repositories',
+    'Manage feature lifecycle',
+    'Share documentation with team'
   ];
 
-  // Step 3: Shortlist User-Facing Features
+  // Step 3: Shortlist User-Facing Features (based on UI components)
   return [
-    'Create and manage features',
+    'View feature documentation',
     'Generate automatic documentation',
-    'Share with team members',
-    'Track changes and updates'
+    'Track feature changes',
+    'Share with team members'
   ];
 };
 
 const createUserFriendlyGuides = (feature: ExtendedFeature) => {
-  // Step 4: User-Friendly Titles and Explanations
+  // Step 4: User-Friendly Titles and Explanations (based on actual features)
   return {
-    'Getting Started': {
-      title: 'Your First Steps',
-      explanation: 'Learn how to begin using this feature effectively',
-      realLifeExample: 'Perfect for when you\'re setting up a new project or feature'
+    'Documentation': {
+      title: 'Documentation Viewer',
+      explanation: 'Access and manage documentation for your features',
+      realLifeExample: 'When you need to check how to use a specific feature'
     },
-    'Creating Content': {
-      title: 'Adding Your Content',
-      explanation: 'Add and organize your feature details',
-      realLifeExample: 'Use this when documenting a new feature in your product'
+    'Feature Management': {
+      title: 'Feature Manager',
+      explanation: 'Create and organize your product features',
+      realLifeExample: 'Adding a new feature to your product'
     },
-    'Sharing & Collaboration': {
-      title: 'Working with Your Team',
-      explanation: 'Share and collaborate on documentation',
-      realLifeExample: 'Great for team projects and knowledge sharing'
+    'GitHub Integration': {
+      title: 'Code Integration',
+      explanation: 'Connect your code repository for automatic updates',
+      realLifeExample: 'Linking your GitHub repository to track changes'
     },
-    'Tracking Changes': {
-      title: 'Keeping Everything Updated',
-      explanation: 'Monitor and manage feature updates',
-      realLifeExample: 'Useful when your team makes changes to features'
+    'Change Tracking': {
+      title: 'Feature Updates',
+      explanation: 'Monitor and track changes to your features',
+      realLifeExample: 'When your team updates a feature\'s functionality'
     }
   };
 };
