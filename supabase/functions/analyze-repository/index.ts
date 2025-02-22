@@ -23,13 +23,19 @@ serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get GitHub token from environment variables
-    const githubToken = Deno.env.get('GITHUB_ACCESS_TOKEN');
-    if (!githubToken) {
-      console.error('No GitHub token found in environment');
-      throw new Error('GitHub token not found in environment variables');
+    // Get GitHub token from secrets table
+    const { data: secretData, error: secretError } = await supabase
+      .from('secrets')
+      .select('value')
+      .eq('name', 'GITHUB_ACCESS_TOKEN')
+      .single();
+
+    if (secretError || !secretData) {
+      console.error('Failed to get GitHub token:', secretError);
+      throw new Error('Failed to get GitHub token: ' + (secretError?.message || 'Token not found'));
     }
 
+    const githubToken = secretData.value;
     console.log('Successfully retrieved GitHub token');
 
     // Analyze files in the repository
