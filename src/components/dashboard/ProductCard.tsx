@@ -1,4 +1,3 @@
-
 import { Link } from 'react-router-dom';
 import { Github, Trash2, CheckCircle, Book } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -117,96 +116,77 @@ export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps)
         </div>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          <p className="text-muted-foreground">{product.description}</p>
-          
-          {repository && (
-            <div className="p-2 bg-muted rounded-md flex items-center gap-2">
-              <Github className="h-4 w-4" />
-              <span className="text-sm font-medium">{repository.repository_name}</span>
-            </div>
-          )}
-
-          <div className="grid gap-2">
-            <Dialog open={isLinkRepoDialogOpen} onOpenChange={setIsLinkRepoDialogOpen}>
-              <DialogTrigger asChild>
-                <Button 
-                  variant="outline" 
-                  className="w-full"
-                  disabled={!!repository}
-                >
-                  <Github className="mr-2 h-4 w-4" />
-                  {repository ? 'Repository Linked' : 'Link GitHub Repo'}
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Link GitHub Repository</DialogTitle>
-                  <DialogDescription>
-                    Choose a repository to link to {product.name}. This will help us:
-                    • Track changes automatically
-                    • Generate documentation
-                    • Keep your product up to date
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="py-4">
-                  <GitHubRepoSelector 
-                    onSelect={handleLinkRepo}
-                  />
-                </div>
-              </DialogContent>
-            </Dialog>
-
-            <Button variant="outline" className="w-full" asChild>
-              <Link to={`/products/${product.id}/features`}>
-                View Features & Documentation
-              </Link>
-            </Button>
-
-            <Link to={`/products/${product.id}/docs`} className="w-full">
-              <Button variant="outline" className="w-full">
-                <Book className="mr-2 h-4 w-4" />
-                Product Documentation
+        <p className="text-muted-foreground mb-4">{product.description}</p>
+        {repository && (
+          <div className="mb-4 p-2 bg-muted rounded-md flex items-center gap-2">
+            <Github className="h-4 w-4" />
+            <span className="text-sm font-medium">{repository.repository_name}</span>
+          </div>
+        )}
+        <div className="flex flex-col space-y-2">
+          <Dialog open={isLinkRepoDialogOpen} onOpenChange={setIsLinkRepoDialogOpen}>
+            <DialogTrigger asChild>
+              <Button 
+                variant="outline" 
+                className="w-full"
+                disabled={!!repository}
+              >
+                <Github className="mr-2 h-4 w-4" />
+                {repository ? 'Repository Linked' : 'Link GitHub Repo'}
               </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Link GitHub Repository</DialogTitle>
+                <DialogDescription>
+                  Choose a repository to link to {product.name}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <GitHubRepoSelector 
+                  onSelect={handleLinkRepo}
+                />
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Button variant="outline" className="w-full" asChild>
+            <Link to={`/products/${product.id}/features`}>
+              View Features
             </Link>
-
-            <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-              <DialogTrigger asChild>
-                <Button 
-                  variant="outline" 
-                  className="w-full text-red-600 hover:text-red-600 hover:bg-red-50"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
+          </Button>
+          <Link to={`/products/${product.id}/docs`}>
+            <Button variant="outline">
+              <Book className="mr-2 h-4 w-4" />
+              View Documentation
+            </Button>
+          </Link>
+          <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <DialogTrigger asChild>
+              <Button 
+                variant="outline" 
+                className="w-full text-red-600 hover:text-red-600 hover:bg-red-50"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Product
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Delete Product</DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to delete {product.name}? This action cannot be undone and all associated features will be deleted.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setIsDeleteDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button variant="destructive" onClick={handleDelete}>
                   Delete Product
                 </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Delete Product</DialogTitle>
-                  <DialogDescription>
-                    Are you sure you want to delete {product.name}? This action cannot be undone and all associated features and documentation will be deleted.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <Button variant="ghost" onClick={() => setIsDeleteDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button variant="destructive" onClick={handleDelete}>
-                    Delete Product
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-
-          <div className="mt-4 text-sm text-muted-foreground">
-            <h4 className="font-medium mb-2">Quick Tips:</h4>
-            <ul className="list-disc list-inside space-y-1">
-              <li>Link a GitHub repo to enable automatic documentation</li>
-              <li>Add features to organize your product functionality</li>
-              <li>Generate documentation for better team collaboration</li>
-            </ul>
-          </div>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </CardContent>
     </Card>
