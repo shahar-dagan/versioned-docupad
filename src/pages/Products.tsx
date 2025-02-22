@@ -1,7 +1,7 @@
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Plus, Trash2 } from 'lucide-react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { Plus, Trash2, Github } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import {
@@ -41,12 +41,19 @@ interface Product {
   created_at: string;
 }
 
+interface Repository {
+  id: string;
+  name: string;
+  url: string;
+}
+
 export default function Products() {
   const [open, setOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteProductId, setDeleteProductId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const { toast } = useToast();
 
   const { data: products, refetch } = useQuery({
@@ -59,6 +66,18 @@ export default function Products() {
 
       if (error) throw error;
       return data as Product[];
+    },
+  });
+
+  const { data: repositories } = useQuery({
+    queryKey: ['github-repos'],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('github', {
+        method: 'GET',
+      });
+      
+      if (error) throw error;
+      return data.repos as Repository[];
     },
   });
 
@@ -148,6 +167,36 @@ export default function Products() {
     }
   };
 
+  const linkRepoMutation = useMutation({
+    mutationFn: async ({ productId, repo }: { productId: string, repo: Repository }) => {
+      const { error } = await supabase
+        .from('github_repositories')
+        .insert({
+          product_id: productId,
+          repository_name: repo.name,
+          repository_url: repo.url,
+          repository_id: repo.id,
+        });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Success',
+        description: 'Repository linked successfully',
+      });
+      setSelectedProduct(null);
+      refetch();
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error',
+        description: 'Failed to link repository: ' + error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
   return (
     <div className="container mx-auto py-10">
       <div className="flex justify-between items-center mb-8">
@@ -221,13 +270,53 @@ export default function Products() {
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">{product.description}</p>
-              <div className="mt-4">
+              <p className="text-muted-foreground mb-4">{product.description}</p>
+              <div className="space-y-2">
                 <Button variant="outline" className="w-full" asChild>
                   <Link to={`/products/${product.id}/features`}>
                     View Features
                   </Link>
                 </Button>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => setSelectedProduct(product.id)}
+                    >
+                      <Github className="mr-2 h-4 w-4" />
+                      Link GitHub Repo
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Link GitHub Repository</DialogTitle>
+                      <DialogDescription>
+                        Choose a repository to link to {product.name}
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      {repositories?.map((repo) => (
+                        <div key={repo.id} className="flex items-center gap-4">
+                          <Github className="h-4 w-4" />
+                          <span className="flex-grow">{repo.name}</span>
+                          <Button
+                            onClick={() => {
+                              if (selectedProduct) {
+                                linkRepoMutation.mutate({
+                                  productId: selectedProduct,
+                                  repo,
+                                });
+                              }
+                            }}
+                          >
+                            Link
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
             </CardContent>
           </Card>
