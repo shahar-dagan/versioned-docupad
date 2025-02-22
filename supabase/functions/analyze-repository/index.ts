@@ -69,12 +69,26 @@ serve(async (req) => {
     }
 
     const repoData = await repoResponse.json();
+    
+    // Check if repository is empty
+    if (repoData.size === 0) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'This repository appears to be empty. Please make sure you have committed some code to the repository before analyzing it.'
+        }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
     const defaultBranch = repoData.default_branch;
     console.log('Default branch:', defaultBranch);
 
-    // Get the repository contents directly
+    // Try to get contents using the contents API first
     console.log(`Fetching repository contents...`);
-    const contentsResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`, {
+    const contentsResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents?ref=${defaultBranch}`, {
       headers: {
         'Authorization': `Bearer ${githubToken}`,
         'Accept': 'application/vnd.github.v3+json'
@@ -84,14 +98,63 @@ serve(async (req) => {
     if (!contentsResponse.ok) {
       const errorText = await contentsResponse.text();
       console.error('Contents response error:', errorText);
+      
+      // If repository is empty, return a friendly error message
+      if (contentsResponse.status === 409) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'This repository appears to be empty. Please make sure you have committed some code to the repository before analyzing it.'
+          }),
+          { 
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
+      }
+      
       throw new Error(`GitHub API error: ${contentsResponse.statusText} when fetching contents. Details: ${errorText}`);
     }
 
-    const treeData = await contentsResponse.json();
-    console.log('Found repository tree with', treeData.tree.length, 'items');
+    const contents = await contentsResponse.json();
     
+    // Process the contents recursively to build a tree-like structure
+    async function processDirectory(path = '') {
+      const dirResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${defaultBranch}`, {
+        headers: {
+          'Authorization': `Bearer ${githubToken}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+      
+      if (!dirResponse.ok) {
+        console.error(`Failed to fetch contents for path ${path}`);
+        return [];
+      }
+      
+      const items = await dirResponse.json();
+      let allFiles = [];
+      
+      for (const item of items) {
+        if (item.type === 'dir') {
+          const subFiles = await processDirectory(item.path);
+          allFiles = allFiles.concat(subFiles);
+        } else if (item.type === 'file') {
+          allFiles.push({
+            path: item.path,
+            sha: item.sha,
+            type: 'blob'
+          });
+        }
+      }
+      
+      return allFiles;
+    }
+
+    const allFiles = await processDirectory();
+    console.log('Found files:', allFiles.length);
+
     // Filter relevant files
-    const relevantFiles = treeData.tree
+    const relevantFiles = allFiles
       .filter((item: any) => {
         return item.type === 'blob' && (
           item.path.endsWith('.ts') ||
