@@ -2,76 +2,77 @@
 import { ExtendedFeature, FeatureContext, DocumentationPatterns, UserDocs } from '../types';
 
 export const generateOverview = (feature: ExtendedFeature, context: FeatureContext): string => {
-  return `This ${context.subFeature} helps you ${feature.description?.toLowerCase() || 'manage your product features'}. ` +
-         `As part of the ${context.mainFeature}, it provides tools for ${context.userFlows.map(f => f.action.toLowerCase()).join(' and ')}. ` +
-         `You can use it alongside ${context.relatedFeatures.join(', ')} to effectively manage your product.`;
+  return `${feature.name} helps you ${feature.description?.toLowerCase() || 'manage your product'}. ` +
+         `Here's what you can do with this feature:\n\n` +
+         `• Create and configure settings\n` +
+         `• Track changes and updates\n` +
+         `• Generate documentation automatically\n` +
+         `• Collaborate with your team`;
 };
 
 export const generateSteps = (userFlows: FeatureContext['userFlows']): string[] => {
-  const steps: string[] = [];
-  userFlows.forEach(flow => {
-    // Add prerequisites as a checklist
-    if (flow.prerequisites?.length) {
-      steps.push('Before you begin, make sure you have:');
-      flow.prerequisites.forEach(prereq => 
-        steps.push(`✓ ${prereq}`)
-      );
-      steps.push(''); // Add spacing
-    }
+  const commonSteps = [
+    'Getting Started:',
+    '1. Go to the Products page',
+    '2. Select your product',
+    '3. Navigate to the Features section',
+    '',
+    'To add a new feature:',
+    '1. Click the "Add Feature" button',
+    '2. Enter the feature name and description',
+    '3. Click Create to save your feature',
+    '',
+    'To manage existing features:',
+    '1. Find your feature in the list',
+    '2. Click on it to view details',
+    '3. Use the available actions to make changes',
+    '',
+    'To generate documentation:',
+    '1. Select your feature',
+    '2. Click "Generate Documentation"',
+    '3. Review the generated docs',
+    '4. Make any necessary adjustments',
+  ];
 
-    // Add main steps with clear actions
-    steps.push(`To ${flow.action.toLowerCase()}:`);
-    flow.steps.forEach((step, index) => 
-      steps.push(`${index + 1}. ${step}`)
-    );
-    steps.push(`Expected outcome: ${flow.expectedOutcome}`);
-    steps.push(''); // Add spacing between flows
-  });
-  return steps;
+  return [...commonSteps, '', ...userFlows.map(flow => `${flow.action}:`).concat(
+    flow.steps.map((step, i) => `${i + 1}. ${step}`)
+  )];
 };
 
 export const generateUseCases = (context: FeatureContext): string[] => {
   return [
-    ...context.userFlows.map(flow => 
-      `When you need to ${flow.action.toLowerCase()}`
-    ),
-    `When managing multiple product features`,
-    `When updating product configurations`,
-    `When collaborating with team members on product management`
+    'When you want to add a new product feature',
+    'When you need to document existing functionality',
+    'When tracking changes to your product',
+    'When collaborating with team members',
+    'When organizing product documentation',
+    'When updating feature configurations'
   ];
 };
 
 export const generateFAQ = (context: FeatureContext, patterns: DocumentationPatterns): Array<{ question: string; answer: string }> => {
-  const faq: Array<{ question: string; answer: string }> = [
+  return [
     {
-      question: `What is the purpose of ${context.subFeature}?`,
-      answer: `This feature helps you ${context.userFlows[0].action.toLowerCase()}. It's designed to streamline your product management workflow.`
+      question: "How do I get started with a new feature?",
+      answer: "Start by clicking the 'Add Feature' button in the Features section. Fill in the name and description, then click Create. You can then configure additional settings and generate documentation."
     },
     {
-      question: "How do I get started?",
-      answer: context.userFlows[0]?.prerequisites?.length
-        ? `First, ensure you have: ${context.userFlows[0].prerequisites.join(', ')}. Then follow the step-by-step guide above.`
-        : "You can start using this feature right away from the Products section."
+      question: "Can I update feature information later?",
+      answer: "Yes! You can update feature details anytime. Simply select the feature from the list and use the edit options to make changes."
     },
     {
-      question: "Can I modify settings after initial setup?",
-      answer: "Yes, you can update your settings at any time. All changes are saved automatically, and you can review your modifications in real-time."
+      question: "How does documentation generation work?",
+      answer: "Documentation is generated automatically based on your feature configuration. Click 'Generate Documentation' to create user guides and technical docs. You can review and adjust the content as needed."
     },
     {
-      question: "Who can access this feature?",
-      answer: "Team members with appropriate permissions can access and modify product features. Make sure you have the necessary access rights before starting."
+      question: "Who can access and modify features?",
+      answer: "Team members with appropriate permissions can view and modify features. Admins can manage access rights through the product settings."
+    },
+    {
+      question: "How do I organize multiple features?",
+      answer: "Features are organized under their respective products. Use the search and filter options to find specific features, and the documentation section to keep everything well-documented."
     }
   ];
-
-  // Add data-specific questions if relevant
-  if (patterns.dataOperations.size > 0) {
-    faq.push({
-      question: "Are my changes saved automatically?",
-      answer: "Yes, all changes are saved automatically. You can always review your recent changes in the history section."
-    });
-  }
-
-  return faq;
 };
 
 export const generateDocumentation = (feature: ExtendedFeature, context: FeatureContext, patterns: DocumentationPatterns): UserDocs => {

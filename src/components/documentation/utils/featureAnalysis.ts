@@ -2,76 +2,90 @@
 import { ExtendedFeature, FeatureContext, DocumentationPatterns } from '../types';
 
 export const identifyFeatureContext = (feature: ExtendedFeature): FeatureContext => {
-  const context: FeatureContext = {
-    mainFeature: 'Product Management',
-    subFeature: feature.name || 'Product Feature',
-    userFlows: [],
-    relatedFeatures: ['Feature Planning', 'Documentation', 'Change Tracking']
-  };
-
-  // Extract user flows from descriptions or feature purpose
-  const baseUserFlow = {
-    action: feature.description || 'manage this product feature',
+  // Main user interaction flow
+  const mainFlow = {
+    action: 'Using this feature',
     steps: [
-      'Navigate to the Products section',
-      'Select the desired product',
-      'Configure the feature settings',
-      'Save your changes'
+      'Navigate to the feature in your product',
+      'Review the available options',
+      'Make desired changes',
+      'Save and confirm your updates'
     ],
-    expectedOutcome: `Successfully ${feature.description?.toLowerCase() || 'configured the feature'}`,
+    expectedOutcome: 'Successfully updated feature settings',
     prerequisites: [
-      'Active user account',
-      'Access to product management',
+      'Product access',
       'Required permissions'
     ]
   };
 
-  // Add additional flows based on code changes if available
-  const additionalFlows = feature.code_changes
-    ?.filter(change => change.change_description?.toLowerCase().includes('user can'))
-    .map(change => ({
-      action: change.change_description.replace('User can', '').trim(),
-      steps: [
-        'Access the feature section',
-        'Follow the guided workflow',
-        'Review and confirm changes'
-      ],
-      expectedOutcome: `Successfully ${change.change_description.toLowerCase().replace('user can', '').trim()}`,
-      prerequisites: ['Feature access permissions']
-    })) || [];
+  // Secondary flows based on feature type
+  const configFlow = {
+    action: 'Configuring settings',
+    steps: [
+      'Access feature settings',
+      'Modify configuration options',
+      'Preview changes',
+      'Apply and save settings'
+    ],
+    expectedOutcome: 'Feature configured successfully',
+    prerequisites: ['Feature access permissions']
+  };
 
-  context.userFlows = [baseUserFlow, ...additionalFlows];
-  return context;
+  const docFlow = {
+    action: 'Managing documentation',
+    steps: [
+      'View current documentation',
+      'Generate new documentation',
+      'Review and edit content',
+      'Publish updates'
+    ],
+    expectedOutcome: 'Documentation updated successfully',
+    prerequisites: ['Documentation access']
+  };
+
+  return {
+    mainFeature: 'Product Features',
+    subFeature: feature.name || 'Feature Management',
+    userFlows: [mainFlow, configFlow, docFlow],
+    relatedFeatures: [
+      'Documentation Management',
+      'Change Tracking',
+      'Team Collaboration'
+    ]
+  };
 };
 
 export const analyzeCodeChanges = (changes: ExtendedFeature['code_changes']): DocumentationPatterns => {
   const patterns: DocumentationPatterns = {
-    userInputs: new Set<string>(['Product configuration', 'Feature settings']),
-    userActions: new Set<string>(['Save changes', 'Configure feature', 'Review settings']),
-    dataOperations: new Set<string>(['Update product settings', 'Modify feature configuration']),
-    uiComponents: new Set<string>(['Product interface', 'Feature controls'])
+    userInputs: new Set<string>([
+      'Feature name',
+      'Feature description',
+      'Configuration settings',
+      'Documentation content'
+    ]),
+    userActions: new Set<string>([
+      'Create feature',
+      'Edit feature',
+      'Generate documentation',
+      'View changes',
+      'Update settings'
+    ]),
+    dataOperations: new Set<string>([
+      'Save feature',
+      'Update documentation',
+      'Track changes'
+    ]),
+    uiComponents: new Set<string>([
+      'Feature form',
+      'Documentation viewer',
+      'Settings panel'
+    ])
   };
 
-  changes?.forEach((change) => {
-    // Map changes to user-focused interactions
+  // Add specific patterns from code changes
+  changes?.forEach(change => {
     if (change.change_description) {
-      if (change.change_description.toLowerCase().includes('user can')) {
-        patterns.userActions.add(change.change_description.replace('User can', '').trim());
-      }
-      if (change.change_description.toLowerCase().includes('data')) {
-        patterns.dataOperations.add('Save changes');
-        patterns.userActions.add('View updated content');
-      }
-    }
-
-    // Map components to user interaction points
-    if (change.file_path.includes('components')) {
-      const component = change.file_path.split('/').pop() || '';
-      if (component.toLowerCase().includes('form')) {
-        patterns.userInputs.add('Configuration form');
-      } else if (component.toLowerCase().includes('button')) {
-        patterns.userActions.add('Save settings');
-      }
+      patterns.userActions.add(change.change_description);
     }
   });
 
