@@ -1,153 +1,72 @@
 from typing import Dict, List, Optional
-import openai
-import ast
+import aiohttp
+import base64
 import os
-from pathlib import Path
+from dotenv import load_dotenv
+import openai
+from urllib.parse import urlparse
+
+load_dotenv()
 
 
-class CodebaseAnalyzer:
-    def __init__(self, api_key: str):
-        self.openai = openai
-        self.openai.api_key = api_key
-
-    async def analyze_codebase(self, root_dir: str) -> Dict:
-        # Collect relevant files
-        code_files = self._collect_code_files(root_dir)
-
-        # Prepare the context for GPT
-        codebase_context = self._prepare_codebase_context(code_files)
-
-        # Create the analysis prompt
-        system_prompt = """You are an expert code analyzer. Analyze the provided codebase to:
-1. Identify all user-facing features
-2. Group features into logical categories
-3. Focus only on functionality that users directly interact with
-4. Ignore infrastructure, configuration, and internal implementation details
-
-For each feature identified, provide:
-- Feature name
-- Category
-- User interaction points
-- Purpose from user perspective"""
-
-        user_prompt = f"""Analyze this codebase and identify all user-facing features.
-Focus on elements like:
-- UI components and forms
-- User actions and workflows
-- Data manipulation features
-- Navigation elements
-- User settings and preferences
-
-Codebase context:
-{codebase_context}
-
-Format the response as a JSON with categories and features."""
-
-        # Get analysis from GPT-4
-        response = await self.openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0.7,
-            response_format={"type": "json_object"},
-        )
-
-        return self._process_gpt_response(response)
-
-    def _collect_code_files(self, root_dir: str) -> List[Dict]:
-        """Collect relevant code files while filtering out non-essential ones."""
-        relevant_files = []
-        exclude_patterns = {
-            "test",
-            "spec",
-            "config",
-            "utils",
-            "types",
-            ".git",
-            "node_modules",
-            "dist",
-            "build",
+class GitHubAnalyzer:
+    def __init__(self):
+        self.github_token = os.getenv("GITHUB_TOKEN")
+        self.openai_key = os.getenv("OPENAI_API_KEY")
+        openai.api_key = self.openai_key
+        self.headers = {
+            "Authorization": f"token {self.github_token}",
+            "Accept": "application/vnd.github.v3+json",
         }
 
-        for path in Path(root_dir).rglob("*"):
-            if path.is_file() and self._is_relevant_file(
-                path, exclude_patterns
-            ):
-                try:
-                    content = path.read_text()
-                    relevant_files.append(
-                        {
-                            "path": str(path),
-                            "content": content,
-                            "type": path.suffix,
-                        }
-                    )
-                except Exception as e:
-                    print(f"Error reading {path}: {e}")
+    async def analyze_repository(self, repo_url: str) -> Dict:
+        """Main function to analyze a GitHub repository."""
+        repo_info = self._parse_repo_url(repo_url)
 
-        return relevant_files
+        async with aiohttp.ClientSession() as session:
+            # Get repository structure
+            files = await self._get_repository_files(session, repo_info)
 
-    def _prepare_codebase_context(self, files: List[Dict]) -> str:
-        """Prepare a condensed, relevant context from the codebase."""
-        context = []
+            # Filter relevant files and get their contents
+            relevant_files = await self._get_relevant_files(
+                session, files, repo_info
+            )
 
-        for file in files:
-            # Focus on files likely to contain user-facing features
-            if self._is_feature_relevant_file(file):
-                summary = self._summarize_file_content(file)
-                context.append(f"File: {file['path']}\n{summary}\n")
+            # Analyze with GPT-4
+            return await self._analyze_with_gpt(relevant_files)
 
-        return "\n".join(context)
+    async def _get_repository_files(
+        self, session: aiohttp.ClientSession, repo_info: Dict
+    ) -> List:
+        """Recursively get all files in the repository."""
 
-    def _summarize_file_content(self, file: Dict) -> str:
-        """Extract relevant information from file content."""
-        try:
-            # For React/Vue components
-            if "component" in file["path"].lower():
-                return self._extract_component_info(file["content"])
-            # For route definitions
-            elif "route" in file["path"].lower():
-                return self._extract_route_info(file["content"])
-            # For API endpoints
-            elif "api" in file["path"].lower():
-                return self._extract_api_info(file["content"])
-            else:
-                return self._extract_general_info(file["content"])
-        except Exception as e:
-            return f"Error summarizing file: {e}"
+        async def fetch_contents(path=""):
+            url = f'https://api.github.com/repos/{repo_info["owner"]}/{repo_info["repo"]}/contents/{path}'
+            async with session.get(url, headers=self.headers) as response:
+                if response.status == 200:
+                    return await response.json()
+                return []
 
-    def _process_gpt_response(self, response) -> Dict:
-        """Process and validate GPT's analysis."""
-        try:
-            features = response.choices[0].message.content
-            # Additional validation and processing
-            return self._validate_features(features)
-        except Exception as e:
-            raise Exception(f"Error processing GPT response: {e}")
+        async def traverse_directory(path=""):
+            contents = await fetch_contents(path)
+            files = []
 
-    @staticmethod
-    def _is_feature_relevant_file(file: Dict) -> bool:
-        """Determine if a file is likely to contain user-facing features."""
-        relevant_patterns = {
-            "component",
-            "page",
-            "view",
-            "screen",
-            "form",
-            "modal",
-            "dialog",
-            "container",
-        }
-        return any(
-            pattern in file["path"].lower() for pattern in relevant_patterns
-        )
+            for item in contents:
+                if item["type"] == "file":
+                    files.append(item)
+                elif item["type"] == "dir":
+                    subfiles = await traverse_directory(item["path"])
+                    files.extend(subfiles)
 
-    @staticmethod
-    def _is_relevant_file(path: Path, exclude_patterns: set) -> bool:
-        """Check if a file should be included in the analysis."""
-        return path.suffix in {
+            return files
+
+        return await traverse_directory()
+
+    async def _get_relevant_files(
+        self, session: aiohttp.ClientSession, files: List, repo_info: Dict
+    ) -> List[Dict]:
+        """Get contents of relevant files."""
+        relevant_extensions = {
             ".js",
             ".jsx",
             ".ts",
@@ -155,4 +74,148 @@ Format the response as a JSON with categories and features."""
             ".vue",
             ".py",
             ".rb",
-        } and not any(pattern in str(path) for pattern in exclude_patterns)
+            ".php",
+        }
+        exclude_patterns = {
+            "test",
+            "spec",
+            "mock",
+            "stub",
+            "fixture",
+            "config",
+            "dist",
+            "build",
+        }
+
+        relevant_files = []
+
+        for file in files:
+            file_ext = os.path.splitext(file["name"])[1]
+            if file_ext in relevant_extensions and not any(
+                pattern in file["path"].lower() for pattern in exclude_patterns
+            ):
+
+                url = f'https://api.github.com/repos/{repo_info["owner"]}/{repo_info["repo"]}/contents/{file["path"]}'
+                async with session.get(url, headers=self.headers) as response:
+                    if response.status == 200:
+                        content = await response.json()
+                        if content.get("content"):
+                            decoded_content = base64.b64decode(
+                                content["content"]
+                            ).decode("utf-8")
+                            relevant_files.append(
+                                {
+                                    "path": file["path"],
+                                    "content": decoded_content,
+                                    "type": file_ext,
+                                }
+                            )
+
+        return relevant_files
+
+    async def _analyze_with_gpt(self, files: List[Dict]) -> Dict:
+        """Analyze code files with GPT-4."""
+        system_prompt = """You are an expert code analyzer. Follow these steps:
+
+1. READ & UNDERSTAND:
+- Carefully read through all provided code
+- Make notes about functionality and purpose
+- Identify key components and their relationships
+
+2. LIST ALL FUNCTIONALITY:
+- Document all features and capabilities
+- Include both frontend and backend functionality
+- Note system processes and user interactions
+
+3. IDENTIFY USER FEATURES:
+- Focus on user-facing features only
+- Look for UI components, forms, and interactive elements
+- Identify user workflows and actions
+
+4. CATEGORIZE & DESCRIBE:
+- Group features into logical categories
+- Write clear, user-friendly feature titles
+- Provide simple explanations for each feature
+
+5. CREATE USER DOCUMENTATION:
+- Focus on how users interact with each feature
+- Provide step-by-step usage instructions
+- Include practical examples and use cases
+
+Format the response as a JSON with:
+{
+    "categories": [
+        {
+            "name": "Category Name",
+            "features": [
+                {
+                    "title": "User-Friendly Feature Title",
+                    "description": "Clear explanation for users",
+                    "user_interactions": ["Step 1", "Step 2", ...],
+                    "use_cases": ["Example 1", "Example 2", ...],
+                    "documentation": {
+                        "overview": "Brief overview",
+                        "steps": ["Detailed step 1", "Detailed step 2", ...],
+                        "tips": ["Helpful tip 1", "Helpful tip 2", ...]
+                    }
+                }
+            ]
+        }
+    ]
+}"""
+
+        # Prepare the codebase context
+        codebase_context = self._prepare_codebase_context(files)
+
+        response = await openai.ChatCompletion.acreate(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {
+                    "role": "user",
+                    "content": f"Analyze this codebase and identify user-facing features:\n\n{codebase_context}",
+                },
+            ],
+            temperature=0.7,
+            response_format={"type": "json_object"},
+        )
+
+        return response.choices[0].message.content
+
+    def _prepare_codebase_context(self, files: List[Dict]) -> str:
+        """Prepare a structured context from the codebase."""
+        context_parts = []
+
+        # Group files by type
+        file_groups = {"components": [], "pages": [], "api": [], "other": []}
+
+        for file in files:
+            if "component" in file["path"].lower():
+                file_groups["components"].append(file)
+            elif (
+                "page" in file["path"].lower() or "view" in file["path"].lower()
+            ):
+                file_groups["pages"].append(file)
+            elif "api" in file["path"].lower():
+                file_groups["api"].append(file)
+            else:
+                file_groups["other"].append(file)
+
+        # Build context with structure
+        for group_name, group_files in file_groups.items():
+            if group_files:
+                context_parts.append(f"\n=== {group_name.upper()} ===\n")
+                for file in group_files:
+                    context_parts.append(
+                        f"\nFile: {file['path']}\n```{file['type'][1:]}\n{file['content']}\n```\n"
+                    )
+
+        return "\n".join(context_parts)
+
+    @staticmethod
+    def _parse_repo_url(repo_url: str) -> Dict:
+        """Parse GitHub repository URL."""
+        parsed = urlparse(repo_url)
+        path_parts = parsed.path.strip("/").split("/")
+
+        return {"owner": path_parts[0], "repo": path_parts[1]}
