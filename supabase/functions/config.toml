@@ -1,4 +1,11 @@
 
 project_id = "zdyzxhngkvlbmfhaljel"
-[functions.analyze-repository]
+[[functions]]
+name = "analyze-repository"
+verify_jwt = true
+[[functions]]
+name = "github"
+verify_jwt = true
+[[functions]]
+name = "github-test"
 verify_jwt = true
