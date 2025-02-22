@@ -59,9 +59,8 @@ export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps)
     } catch (error) {
       console.error('Error deleting product:', error);
       toast.error('Failed to delete product');
-    } finally {
-      setIsDeleteDialogOpen(false);
     }
+    setIsDeleteDialogOpen(false);
   };
 
   return (
