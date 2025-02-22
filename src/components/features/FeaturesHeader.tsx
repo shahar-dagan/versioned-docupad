@@ -1,7 +1,7 @@
 
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Book, ChevronRight, Wand2 } from 'lucide-react';
+import { ArrowLeft, Book, ChevronRight, Wand2, Code } from 'lucide-react';
 import { Repository } from '@/types';
 import { CreateFeatureDialog } from './CreateFeatureDialog';
 

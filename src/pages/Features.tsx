@@ -149,8 +149,37 @@ export default function Features() {
     },
   });
 
+  const analyzeCodeMutation = useMutation({
+    mutationFn: async () => {
+      if (!repository?.repository_name) {
+        throw new Error('No repository linked to this product');
+      }
+
+      const response = await supabase.functions.invoke('analyze-code', {
+        body: {
+          repository: repository.repository_name,
+          productId,
+        },
+      });
+
+      if (response.error) {
+        console.error('DeepSource analysis error:', response.error);
+        throw new Error(response.error.message || 'Failed to analyze code with DeepSource');
+      }
+
+      return response.data;
+    },
+    onError: (error: Error) => {
+      console.error('DeepSource analysis error:', error);
+      toast.error(`DeepSource analysis failed: ${error.message}`);
+    },
+    onSuccess: () => {
+      toast.success('DeepSource analysis complete');
+      refetch();
+    },
+  });
+
   if (!authData) {
-    console.log('No auth data available');
     return (
       <div className="container mx-auto py-10">
         <div className="flex items-center justify-center h-64">
@@ -163,7 +192,6 @@ export default function Features() {
   }
 
   if (isLoadingProduct || isLoadingFeatures) {
-    console.log('Loading state:', { isLoadingProduct, isLoadingFeatures });
     return (
       <div className="container mx-auto py-10">
         <div className="flex items-center justify-center h-64">
@@ -174,7 +202,6 @@ export default function Features() {
   }
 
   if (featuresError) {
-    console.error('Features error:', featuresError);
     return (
       <div className="container mx-auto py-10">
         <div className="flex items-center justify-center h-64">
@@ -195,7 +222,7 @@ export default function Features() {
         featuresCount={features?.length || 0}
         repository={repository}
         onAnalyze={() => analyzeRepositoryMutation.mutate()}
-        isAnalyzing={analyzeRepositoryMutation.isPending}
+        isAnalyzing={analyzeRepositoryMutation.isPending || analyzeCodeMutation.isPending}
         onFeatureCreated={refetch}
       />
       <FeaturesList
