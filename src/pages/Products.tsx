@@ -22,6 +22,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
+import { Link } from 'react-router-dom';
 
 interface Product {
   id: string;
@@ -155,8 +156,10 @@ export default function Products() {
             <CardContent>
               <p className="text-muted-foreground">{product.description}</p>
               <div className="mt-4">
-                <Button variant="outline" className="w-full">
-                  View Features
+                <Button variant="outline" className="w-full" asChild>
+                  <Link to={`/products/${product.id}/features`}>
+                    View Features
+                  </Link>
                 </Button>
               </div>
             </CardContent>
