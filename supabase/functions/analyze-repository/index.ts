@@ -95,7 +95,7 @@ Make the documentation practical and actionable, focusing on HOW to use the feat
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4',
+        model: 'gpt-4o-mini',  // Changed from 'gpt-4' to 'gpt-4o-mini'
         messages: [
           {
             role: 'system',
