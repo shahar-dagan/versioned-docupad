@@ -29,6 +29,7 @@ interface Feature {
   description: string | null;
   status: string | null;
   created_at: string;
+  last_analyzed_at: string | null;
   suggestions?: string[];
 }
 
@@ -319,6 +320,11 @@ export default function Features() {
               <CardTitle>{feature.name}</CardTitle>
               <CardDescription>
                 Created on {new Date(feature.created_at).toLocaleDateString()}
+                {feature.last_analyzed_at && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Documentation updated: {new Date(feature.last_analyzed_at).toLocaleString()}
+                  </div>
+                )}
               </CardDescription>
             </CardHeader>
             <CardContent>

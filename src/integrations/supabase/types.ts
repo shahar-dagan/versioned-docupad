@@ -187,12 +187,50 @@ export type Database = {
           },
         ]
       }
+      feature_file_changes: {
+        Row: {
+          analyzed: boolean | null
+          changed_at: string | null
+          feature_id: string | null
+          file_hash: string
+          file_path: string
+          id: string
+        }
+        Insert: {
+          analyzed?: boolean | null
+          changed_at?: string | null
+          feature_id?: string | null
+          file_hash: string
+          file_path: string
+          id?: string
+        }
+        Update: {
+          analyzed?: boolean | null
+          changed_at?: string | null
+          feature_id?: string | null
+          file_hash?: string
+          file_path?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feature_file_changes_feature_id_fkey"
+            columns: ["feature_id"]
+            isOneToOne: false
+            referencedRelation: "features"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       features: {
         Row: {
           author_id: string
+          code_version: string | null
           created_at: string
           description: string | null
           id: string
+          last_analyzed_at: string | null
+          last_code_hash: string | null
           name: string
           product_id: string
           status: string | null
@@ -201,9 +239,12 @@ export type Database = {
         }
         Insert: {
           author_id: string
+          code_version?: string | null
           created_at?: string
           description?: string | null
           id?: string
+          last_analyzed_at?: string | null
+          last_code_hash?: string | null
           name: string
           product_id: string
           status?: string | null
@@ -212,9 +253,12 @@ export type Database = {
         }
         Update: {
           author_id?: string
+          code_version?: string | null
           created_at?: string
           description?: string | null
           id?: string
+          last_analyzed_at?: string | null
+          last_code_hash?: string | null
           name?: string
           product_id?: string
           status?: string | null

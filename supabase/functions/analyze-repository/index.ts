@@ -1,127 +1,137 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+import { Octokit } from "https://esm.sh/octokit@3.1.2"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+interface AnalyzeRequest {
+  repoFullName: string;
+  productId: string;
+  userId: string;
+}
+
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
+    const { repoFullName, productId, userId } = await req.json() as AnalyzeRequest
+
     // Initialize Supabase client
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Parse request body
-    const { repoFullName, productId, userId } = await req.json()
-
-    console.log('Analyzing repository:', repoFullName);
-    console.log('Product ID:', productId);
-    console.log('User ID:', userId);
-
-    if (!repoFullName || !productId || !userId) {
-      console.error('Missing required parameters');
-      return new Response(
-        JSON.stringify({ error: 'Missing required parameters' }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
-    }
-
-    // Get GitHub token directly from environment variables
-    const githubToken = Deno.env.get('GITHUB_ACCESS_TOKEN');
-    if (!githubToken) {
-      console.error('GitHub token not found in environment variables');
-      return new Response(
-        JSON.stringify({ error: 'GitHub access token not configured' }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
-    }
-
-    console.log('Successfully retrieved GitHub token');
-
-    // Fetch repository content
-    const apiUrl = `https://api.github.com/repos/${repoFullName}/contents`
-    console.log('Fetching from GitHub API:', apiUrl);
-
-    const response = await fetch(apiUrl, {
-      headers: {
-        'Authorization': `Bearer ${githubToken}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Supabase Function'
-      }
+    // Initialize GitHub client
+    const octokit = new Octokit({
+      auth: Deno.env.get('GITHUB_ACCESS_TOKEN')
     })
 
-    if (!response.ok) {
-      console.error('GitHub API error:', await response.text());
-      return new Response(
-        JSON.stringify({ error: 'Failed to fetch repository contents' }),
-        { 
-          status: response.status, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
+    // Get repository content
+    const [owner, repo] = repoFullName.split('/')
+    const { data: repoContent } = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path: 'src'
+    })
+
+    if (!Array.isArray(repoContent)) {
+      throw new Error('Unable to read repository content')
     }
 
-    const contents = await response.json()
-    console.log('Successfully fetched repository contents');
-
-    // Process repository contents to identify features
-    const features = await processRepositoryContents(contents, repoFullName, githubToken)
-    console.log('Processed features:', features);
-
-    // Store features in the database
-    const { error: featuresError } = await supabaseClient
+    // Get all features for this product
+    const { data: features, error: featuresError } = await supabaseClient
       .from('features')
-      .insert(features.map(feature => ({
-        name: feature.name,
-        description: feature.description,
-        product_id: productId,
-        author_id: userId,
-        status: 'active',
-        suggestions: feature.suggestions
-      })))
+      .select('*')
+      .eq('product_id', productId)
 
-    if (featuresError) {
-      console.error('Failed to store features:', featuresError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to store features in database' }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    if (featuresError) throw featuresError
+
+    // Process each file
+    for (const file of repoContent) {
+      if (file.type !== 'file') continue
+
+      const { data: fileContent } = await octokit.rest.repos.getContent({
+        owner,
+        repo,
+        path: file.path,
+      })
+
+      if (Array.isArray(fileContent)) continue
+
+      const content = Buffer.from(fileContent.content, 'base64').toString()
+      const fileHash = await crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(content)
+      ).then(hash => Array.from(new Uint8Array(hash))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join(''))
+
+      // Check for each feature if this file is relevant
+      for (const feature of features) {
+        // Store file change
+        const { data: existingChange } = await supabaseClient
+          .from('feature_file_changes')
+          .select('*')
+          .eq('feature_id', feature.id)
+          .eq('file_path', file.path)
+          .eq('file_hash', fileHash)
+          .maybeSingle()
+
+        if (!existingChange) {
+          await supabaseClient
+            .from('feature_file_changes')
+            .insert({
+              feature_id: feature.id,
+              file_path: file.path,
+              file_hash: fileHash,
+              analyzed: false
+            })
+
+          // Analyze content and update documentation if needed
+          const analysis = analyzeFileContent(content, file.name)
+          
+          // Update feature with new documentation
+          await supabaseClient
+            .from('features')
+            .update({
+              suggestions: analysis.suggestions,
+              last_analyzed_at: new Date().toISOString(),
+              last_code_hash: fileHash
+            })
+            .eq('id', feature.id)
+
+          // Mark file change as analyzed
+          await supabaseClient
+            .from('feature_file_changes')
+            .update({ analyzed: true })
+            .eq('feature_id', feature.id)
+            .eq('file_path', file.path)
         }
-      )
+      }
     }
 
-    console.log('Successfully stored features in database');
     return new Response(
-      JSON.stringify({ success: true, features }),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
+      JSON.stringify({ message: 'Repository analyzed successfully' }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      },
     )
-
   } catch (error) {
-    console.error('Function error:', error);
+    console.error('Error:', error.message)
     return new Response(
-      JSON.stringify({ error: error.message || 'Internal server error' }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
+      JSON.stringify({ error: error.message }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      },
     )
   }
 })
