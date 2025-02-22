@@ -1,9 +1,7 @@
 
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
-const DEEPSOURCE_API_KEY = Deno.env.get('DEEPSOURCE_API_KEY');
-const DEEPSOURCE_API_URL = 'https://deepsource.io/api/v1';
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { Octokit } from "https://esm.sh/octokit";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -17,77 +15,110 @@ serve(async (req) => {
   }
 
   try {
+    // Get request body
     const { repository } = await req.json();
+    console.log('Analyzing repository:', repository);
 
     if (!repository) {
       throw new Error('Repository name is required');
     }
 
-    if (!DEEPSOURCE_API_KEY) {
-      throw new Error('DeepSource API key is not configured');
+    // Initialize GitHub client
+    const githubToken = Deno.env.get('GITHUB_ACCESS_TOKEN');
+    if (!githubToken) {
+      throw new Error('GitHub token not configured');
     }
 
-    // The repository name should be in the format "owner/repo"
-    console.log('Repository name received:', repository);
+    const octokit = new Octokit({ auth: githubToken });
+    const [owner, repo] = repository.split('/');
 
-    // Check if the repository name is in the correct format
-    if (!repository.includes('/')) {
-      throw new Error('Repository name must be in the format "owner/repo"');
-    }
-
-    console.log('Analyzing repository:', repository);
-
-    // First, we need to get the repository ID from DeepSource
-    const repoResponse = await fetch(`${DEEPSOURCE_API_URL}/repos/gh/${repository}`, {
-      headers: {
-        'Authorization': `Bearer ${DEEPSOURCE_API_KEY}`,
-        'Accept': 'application/json',
-      },
+    // Create a temporary fork under our analyzer account
+    console.log(`Creating temporary fork of ${owner}/${repo}`);
+    const forkResponse = await octokit.rest.repos.createFork({
+      owner,
+      repo,
+      organization: 'your-analyzer-org', // You'll need to create this organization
+      name: `${repo}-analysis-${Date.now()}`,
     });
 
-    if (!repoResponse.ok) {
-      const errorText = await repoResponse.text();
-      console.error('DeepSource repo fetch error:', errorText);
-      throw new Error('Repository not found in DeepSource. Make sure the repository is activated in your DeepSource dashboard.');
+    if (!forkResponse.data) {
+      throw new Error('Failed to create fork');
     }
 
-    const repoData = await repoResponse.json();
-    const repoId = repoData.repository.id;
+    const forkOwner = forkResponse.data.owner.login;
+    const forkName = forkResponse.data.name;
 
-    // Trigger a new analysis
-    const analysisResponse = await fetch(`${DEEPSOURCE_API_URL}/repos/${repoId}/analyze`, {
+    // Wait for fork to be ready (GitHub needs some time)
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
+    // Configure DeepSource for the fork
+    const deepsourceKey = Deno.env.get('DEEPSOURCE_API_KEY');
+    if (!deepsourceKey) {
+      throw new Error('DeepSource API key not configured');
+    }
+
+    // Activate repository in DeepSource
+    const activateResponse = await fetch('https://api.deepsource.io/v1/repos/activate', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${DEEPSOURCE_API_KEY}`,
+        'Authorization': `Bearer ${deepsourceKey}`,
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        repository: `${forkOwner}/${forkName}`,
+        vcs_provider: 'github',
+      }),
+    });
+
+    if (!activateResponse.ok) {
+      throw new Error('Failed to activate repository in DeepSource');
+    }
+
+    // Trigger analysis
+    const analysisResponse = await fetch(`https://api.deepsource.io/v1/analyses/${forkOwner}/${forkName}/trigger`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${deepsourceKey}`,
+        'Content-Type': 'application/json',
       },
     });
 
     if (!analysisResponse.ok) {
-      const errorText = await analysisResponse.text();
-      console.error('DeepSource analysis error:', errorText);
-      throw new Error('Failed to trigger DeepSource analysis. Please check if the repository is properly configured.');
+      throw new Error('Failed to trigger DeepSource analysis');
     }
 
-    const analysisResult = await analysisResponse.json();
-    console.log('Analysis triggered:', analysisResult);
-    
-    return new Response(JSON.stringify({ 
-      success: true,
-      data: analysisResult,
-      message: 'Analysis triggered successfully. Results will be available in DeepSource dashboard.'
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    // Schedule fork cleanup (after 1 hour)
+    setTimeout(async () => {
+      try {
+        await octokit.rest.repos.delete({
+          owner: forkOwner,
+          repo: forkName,
+        });
+        console.log(`Cleaned up temporary fork: ${forkOwner}/${forkName}`);
+      } catch (error) {
+        console.error('Error cleaning up fork:', error);
+      }
+    }, 3600000); // 1 hour
+
+    return new Response(
+      JSON.stringify({
+        message: 'Analysis started successfully',
+        repository: `${forkOwner}/${forkName}`,
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   } catch (error) {
-    console.error('Error in analyze-code function:', error);
-    return new Response(JSON.stringify({ 
-      success: false,
-      error: error.message 
-    }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    console.error('Error:', error);
+    return new Response(
+      JSON.stringify({
+        error: error.message || 'An error occurred during analysis',
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   }
 });
