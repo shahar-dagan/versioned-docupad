@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -36,14 +37,16 @@ interface Repository {
   url: string;
 }
 
+type Profile = {
+  username: string | null;
+  avatar_url: string | null;
+} | null;
+
 interface TeamMember {
   id: string;
   user_id: string;
   role: string;
-  profiles: {
-    username: string | null;
-    avatar_url: string | null;
-  } | null;
+  profiles: Profile;
 }
 
 interface DashboardStats {
@@ -94,7 +97,7 @@ export default function Dashboard() {
           id,
           user_id,
           role,
-          profiles:profiles!user_id(
+          profiles:profiles (
             username,
             avatar_url
           )
@@ -102,7 +105,14 @@ export default function Dashboard() {
         .eq('team_id', teams.id);
 
       if (error) throw error;
-      return (data as TeamMember[]) || [];
+      
+      // Transform the data to match our interface
+      const transformedData = data?.map(member => ({
+        ...member,
+        profiles: Array.isArray(member.profiles) ? member.profiles[0] : member.profiles
+      })) as TeamMember[];
+
+      return transformedData || [];
     },
     enabled: !!user,
   });
@@ -143,7 +153,7 @@ export default function Dashboard() {
         .from('teams')
         .select('id')
         .eq('owner_id', user?.id)
-        .single();
+        .maybeSingle();
 
       if (!teams) throw new Error('No team found');
 
@@ -151,7 +161,7 @@ export default function Dashboard() {
         .from('profiles')
         .select('id')
         .eq('email', email)
-        .single();
+        .maybeSingle();
 
       if (userError || !invitedUser) {
         throw new Error('User not found');
