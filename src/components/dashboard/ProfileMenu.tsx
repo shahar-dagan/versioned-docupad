@@ -9,11 +9,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LogOut, User, Settings } from 'lucide-react';
+import { LogOut, User, Settings, Github } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { toast } from 'sonner';
 
 export function ProfileMenu() {
   const { user, signOut } = useAuth();
@@ -40,6 +41,31 @@ export function ProfileMenu() {
       navigate('/auth');
     } catch (error) {
       console.error('Error logging out:', error);
+    }
+  };
+
+  const handleConnectGitHub = async () => {
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'github',
+        options: {
+          redirectTo: `${window.location.origin}/products`,
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data.url) {
+        throw new Error('No URL returned from OAuth provider');
+      }
+
+      // Redirect to GitHub OAuth flow
+      window.location.href = data.url;
+    } catch (error) {
+      console.error('Error connecting to GitHub:', error);
+      toast.error('Failed to connect to GitHub');
     }
   };
 
@@ -70,6 +96,10 @@ export function ProfileMenu() {
         <DropdownMenuItem>
           <Settings className="mr-2 h-4 w-4" />
           <span>Settings</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleConnectGitHub}>
+          <Github className="mr-2 h-4 w-4" />
+          <span>Connect GitHub</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem className="text-red-600" onClick={handleLogout}>
