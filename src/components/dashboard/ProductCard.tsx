@@ -81,10 +81,11 @@ export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps)
     setIsDeleteDialogOpen(false);
   };
 
-  const handleLinkRepo = (repo: Repository) => {
-    onLinkRepo(product.id, repo);
-    // Invalidate the repository query to trigger a refetch
-    queryClient.invalidateQueries({ queryKey: ['github-repository', product.id] });
+  const handleLinkRepo = async (repo: Repository) => {
+    await onLinkRepo(product.id, repo);
+    // Invalidate both the repository query and the products list
+    queryClient.invalidateQueries({ queryKey: ['github-repository'] });
+    queryClient.invalidateQueries({ queryKey: ['products'] });
   };
 
   return (
