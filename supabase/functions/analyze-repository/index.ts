@@ -132,16 +132,23 @@ serve(async (req) => {
       .map(file => `File: ${file.name}\n\nContent:\n${file.content}\n---\n`)
       .join('\n');
 
-    const prompt = `You are a software development expert. Analyze these files from a GitHub repository:
+    const prompt = `You are a software development expert. Please analyze these files from a GitHub repository and identify 3-5 key features. Your response must be ONLY a JSON array of objects, with no additional text or explanation. Each object should have these exact fields:
+- name: string (feature name)
+- description: string (what it does)
+- suggestions: string[] (array of improvement suggestions)
 
-${fileDescriptions}
+Example response format:
+[
+  {
+    "name": "Feature Name",
+    "description": "Feature description",
+    "suggestions": ["Suggestion 1", "Suggestion 2"]
+  }
+]
 
-Based on the code, identify 3-5 key features this software offers or could offer. For each feature:
-1. Give it a clear, concise name
-2. Write a brief description of what it does or could do
-3. Suggest potential improvements or enhancements
+Here are the files to analyze:
 
-Format your response as a JSON array of objects with "name", "description", and "suggestions" fields. Be specific and technical but clear.`;
+${fileDescriptions}`;
 
     console.log('Calling Claude API...');
 
@@ -157,6 +164,9 @@ Format your response as a JSON array of objects with "name", "description", and 
         model: 'claude-3-opus-20240229',
         max_tokens: 1000,
         messages: [{
+          role: 'system',
+          content: 'You are a software development expert. ONLY respond with valid JSON following the exact format specified in the user prompt. Do not include any additional text or explanations.'
+        }, {
           role: 'user',
           content: prompt
         }]
@@ -172,12 +182,31 @@ Format your response as a JSON array of objects with "name", "description", and 
 
     let features;
     try {
-      features = JSON.parse(analysisResult.content[0].text);
+      // Extract the content from Claude's response and attempt to parse it as JSON
+      const responseText = analysisResult.content[0].text.trim();
+      console.log('Attempting to parse response:', responseText);
+      features = JSON.parse(responseText);
+
+      // Validate the response structure
+      if (!Array.isArray(features)) {
+        throw new Error('Response is not an array');
+      }
+
+      // Validate each feature object
+      features.forEach((feature, index) => {
+        if (!feature.name || !feature.description || !Array.isArray(feature.suggestions)) {
+          throw new Error(`Invalid feature object at index ${index}`);
+        }
+      });
     } catch (error) {
       console.error('Error parsing Claude response:', error);
       console.log('Raw response:', analysisResult.content[0].text);
       return new Response(
-        JSON.stringify({ error: 'Failed to parse Claude response' }),
+        JSON.stringify({ 
+          error: 'Failed to parse Claude response. Please try again.',
+          details: error.message,
+          rawResponse: analysisResult.content[0].text
+        }),
         { 
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
