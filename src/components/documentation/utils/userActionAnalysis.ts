@@ -1,3 +1,4 @@
+
 import { ExtendedFeature } from '../types';
 
 interface UserAction {
@@ -272,29 +273,65 @@ const categorizeFeatures = (actions: UserAction[]): ActionableFeature[] => {
 };
 
 export const analyzeUserActions = async (feature: ExtendedFeature): Promise<ActionableFeature[]> => {
-  const allActions: UserAction[] = [];
-
-  feature.code_changes?.forEach(change => {
-    if (!change?.content) return;
-
-    // Skip non-relevant files
-    if (
-      !change.file_path.includes('test') &&
-      !change.file_path.includes('config') &&
-      !change.file_path.includes('.d.ts') &&
-      !change.file_path.includes('.css')
-    ) {
-      // Analyze based on actual UI components and interactions
-      allActions.push(
-        ...analyzeProductManagement(change.content),
-        ...analyzeFeatureTracking(change.content),
-        ...analyzeDocumentation(change.content),
-        ...analyzeAuthAndUser(change.content),
-        ...analyzeRepositoryIntegration(change.content),
-        ...analyzeTeamCollaboration(change.content)
-      );
-    }
+  console.log('Analyzing feature:', {
+    id: feature.id,
+    name: feature.name,
+    description: feature.description,
+    status: feature.status
   });
 
-  return categorizeFeatures(allActions);
+  console.log('Technical docs:', feature.technical_docs);
+  console.log('User docs:', feature.user_docs);
+  
+  const allActions: UserAction[] = [];
+
+  if (feature.code_changes) {
+    console.log(`Processing ${feature.code_changes.length} code changes`);
+    
+    feature.code_changes.forEach((change, index) => {
+      if (!change?.content) {
+        console.log(`Change ${index} has no content`);
+        return;
+      }
+
+      console.log('Analyzing file:', {
+        path: change.file_path,
+        type: change.change_type,
+        description: change.change_description
+      });
+
+      // Skip non-relevant files
+      if (
+        !change.file_path.includes('test') &&
+        !change.file_path.includes('config') &&
+        !change.file_path.includes('.d.ts') &&
+        !change.file_path.includes('.css')
+      ) {
+        const actionsBeforeAnalysis = allActions.length;
+
+        // Analyze based on actual UI components and interactions
+        allActions.push(
+          ...analyzeProductManagement(change.content),
+          ...analyzeFeatureTracking(change.content),
+          ...analyzeDocumentation(change.content),
+          ...analyzeAuthAndUser(change.content),
+          ...analyzeRepositoryIntegration(change.content),
+          ...analyzeTeamCollaboration(change.content)
+        );
+
+        console.log(`Found ${allActions.length - actionsBeforeAnalysis} new actions in ${change.file_path}`);
+      } else {
+        console.log('Skipping non-relevant file:', change.file_path);
+      }
+    });
+  } else {
+    console.log('No code changes found in feature');
+  }
+
+  console.log('Total actions found:', allActions.length);
+  
+  const categorizedFeatures = categorizeFeatures(allActions);
+  console.log('Categorized features:', categorizedFeatures);
+
+  return categorizedFeatures;
 };
