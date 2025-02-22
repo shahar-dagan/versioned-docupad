@@ -41,34 +41,37 @@ serve(async (req) => {
     // Initialize Supabase client with service role key
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get repository tree from GitHub API
-    console.log('Fetching repository tree from GitHub...');
-    const treeResponse = await fetch(`https://api.github.com/repos/${repoFullName}/git/trees/main?recursive=1`, {
+    // First, get the default branch from the repository
+    console.log('Fetching repository information...');
+    const repoResponse = await fetch(`https://api.github.com/repos/${repoFullName}`, {
       headers: {
         'Authorization': `Bearer ${githubToken}`,
         'Accept': 'application/vnd.github.v3+json'
       }
     });
 
-    let treeData;
-    if (!treeResponse.ok) {
-      // If main branch doesn't exist, try master
-      console.log('Main branch not found, trying master branch...');
-      const masterTreeResponse = await fetch(`https://api.github.com/repos/${repoFullName}/git/trees/master?recursive=1`, {
-        headers: {
-          'Authorization': `Bearer ${githubToken}`,
-          'Accept': 'application/vnd.github.v3+json'
-        }
-      });
-
-      if (!masterTreeResponse.ok) {
-        throw new Error(`GitHub API error: ${masterTreeResponse.statusText}`);
-      }
-
-      treeData = await masterTreeResponse.json();
-    } else {
-      treeData = await treeResponse.json();
+    if (!repoResponse.ok) {
+      throw new Error(`GitHub API error: ${repoResponse.statusText} when fetching repository info`);
     }
+
+    const repoData = await repoResponse.json();
+    const defaultBranch = repoData.default_branch;
+    console.log('Default branch:', defaultBranch);
+
+    // Get repository tree from GitHub API using the default branch
+    console.log(`Fetching repository tree from branch: ${defaultBranch}...`);
+    const treeResponse = await fetch(`https://api.github.com/repos/${repoFullName}/git/trees/${defaultBranch}?recursive=1`, {
+      headers: {
+        'Authorization': `Bearer ${githubToken}`,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+
+    if (!treeResponse.ok) {
+      throw new Error(`GitHub API error: ${treeResponse.statusText} when fetching tree`);
+    }
+
+    const treeData = await treeResponse.json();
 
     console.log('Found repository tree with', treeData.tree.length, 'items');
     
@@ -105,22 +108,27 @@ serve(async (req) => {
     const fileContents: RepoFile[] = await Promise.all(
       relevantFiles.map(async (file: any) => {
         console.log(`Fetching content for ${file.path}`);
-        const contentResponse = await fetch(`https://api.github.com/repos/${repoFullName}/git/blobs/${file.sha}`, {
-          headers: {
-            'Authorization': `Bearer ${githubToken}`,
-            'Accept': 'application/vnd.github.v3+json'
+        try {
+          const contentResponse = await fetch(`https://api.github.com/repos/${repoFullName}/git/blobs/${file.sha}`, {
+            headers: {
+              'Authorization': `Bearer ${githubToken}`,
+              'Accept': 'application/vnd.github.v3+json'
+            }
+          });
+          
+          if (!contentResponse.ok) {
+            console.error(`Failed to fetch content for ${file.path}:`, await contentResponse.text());
+            return null;
           }
-        });
-        
-        if (!contentResponse.ok) {
-          console.error(`Failed to fetch content for ${file.path}:`, await contentResponse.text());
+          
+          const contentData = await contentResponse.json();
+          // GitHub returns base64 encoded content
+          const content = atob(contentData.content);
+          return { name: file.path, content };
+        } catch (error) {
+          console.error(`Error fetching content for ${file.path}:`, error);
           return null;
         }
-        
-        const contentData = await contentResponse.json();
-        // GitHub returns base64 encoded content
-        const content = atob(contentData.content);
-        return { name: file.path, content };
       })
     );
 
