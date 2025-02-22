@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { DocumentationSuggestions } from './DocumentationSuggestions';
 import { TechnicalDocumentation } from './TechnicalDocumentation';
 import { UserDocumentation } from './UserDocumentation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { analyzeUserActions } from './utils/userActionAnalysis';
 
 interface Feature {
   id: string;
@@ -46,6 +47,16 @@ interface DocumentationContentProps {
 
 export function DocumentationContent({ feature }: DocumentationContentProps) {
   const [viewMode, setViewMode] = useState<'technical' | 'user'>('user');
+  const [actionableFeatures, setActionableFeatures] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (feature) {
+      analyzeUserActions(feature as any).then(features => {
+        console.log('Analyzed features:', features);
+        setActionableFeatures(features);
+      });
+    }
+  }, [feature]);
 
   if (!feature) {
     return (
@@ -94,6 +105,28 @@ export function DocumentationContent({ feature }: DocumentationContentProps) {
           </Button>
         </div>
       </div>
+
+      {actionableFeatures.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold">Available Actions</h2>
+          <div className="grid gap-4 mt-4">
+            {actionableFeatures.map((feature, index) => (
+              <div key={index} className="border rounded-lg p-4">
+                <h3 className="text-lg font-medium">{feature.name}</h3>
+                <p className="text-muted-foreground">{feature.description}</p>
+                <div className="mt-2 space-y-2">
+                  {feature.actions.map((action: any, actionIndex: number) => (
+                    <div key={actionIndex} className="flex items-start gap-2 text-sm">
+                      <span className="font-medium">{action.type}:</span>
+                      <span className="text-muted-foreground">{action.description}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {viewMode === 'technical' ? (
         <TechnicalDocumentation technicalDocs={feature.technical_docs} />
