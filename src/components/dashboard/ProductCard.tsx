@@ -40,7 +40,7 @@ interface Repository {
 
 interface ProductCardProps {
   product: Product;
-  onLinkRepo: (productId: string, repo: Repository) => void;
+  onLinkRepo: (productId: string, repo: Repository) => Promise<void>;
   onDelete?: () => void;
 }
 
@@ -82,10 +82,14 @@ export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps)
   };
 
   const handleLinkRepo = async (repo: Repository) => {
-    await onLinkRepo(product.id, repo);
-    // Invalidate both the repository query and the products list
-    queryClient.invalidateQueries({ queryKey: ['github-repository'] });
-    queryClient.invalidateQueries({ queryKey: ['products'] });
+    try {
+      await onLinkRepo(product.id, repo);
+      await queryClient.invalidateQueries({ queryKey: ['github-repository'] });
+      await queryClient.invalidateQueries({ queryKey: ['products'] });
+    } catch (error) {
+      console.error('Error linking repository:', error);
+      toast.error('Failed to link repository');
+    }
   };
 
   return (

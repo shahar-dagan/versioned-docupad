@@ -1,7 +1,6 @@
-
 import { useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { supabase } from '@/lib/supabase';
@@ -46,6 +45,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!user) {
@@ -154,11 +154,14 @@ export default function Dashboard() {
     },
     onSuccess: () => {
       toast.success('Repository linked successfully!');
+      // Invalidate queries to trigger refetch
+      queryClient.invalidateQueries({ queryKey: ['github-repository'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
     },
     onError: (error) => {
       toast.error('Failed to link repository: ' + error.message);
     },
-  });
+});
 
   return (
     <div ref={containerRef} className="container mx-auto py-10">
@@ -193,8 +196,8 @@ export default function Dashboard() {
             <ProductCard
               key={product.id}
               product={product}
-              onLinkRepo={(productId, repo) => {
-                linkRepoMutation.mutate({ productId, repo });
+              onLinkRepo={async (productId, repo) => {
+                await linkRepoMutation.mutateAsync({ productId, repo });
               }}
               onDelete={() => {
                 refetchProducts();
