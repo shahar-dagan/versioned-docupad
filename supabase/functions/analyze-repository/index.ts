@@ -58,7 +58,36 @@ serve(async (req) => {
     const files = await response.json();
     console.log('Files fetched from GitHub:', files);
 
-    // Analyze repository structure with OpenAI
+    // Enhanced prompt for more detailed documentation
+    const systemPrompt = `You are a technical documentation expert. For each feature, create comprehensive documentation that includes:
+
+1. A clear name and description of the feature
+2. A detailed user guide with step-by-step instructions
+3. Common use cases and examples
+4. Technical documentation for developers
+5. Suggestions for improvements
+
+Respond ONLY with a valid JSON object that has a "features" array. Each feature object must have:
+{
+  "name": "string",
+  "description": "string",
+  "user_docs": {
+    "overview": "string",
+    "steps": ["string"],
+    "use_cases": ["string"],
+    "faq": [{"question": "string", "answer": "string"}]
+  },
+  "technical_docs": {
+    "architecture": "string",
+    "setup": "string",
+    "api_details": "string",
+    "dependencies": ["string"]
+  },
+  "suggestions": ["string"]
+}
+
+Make the documentation practical and actionable, focusing on HOW to use the feature rather than just describing what it is.`;
+
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -66,18 +95,18 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4',
         messages: [
           {
             role: 'system',
-            content: 'You are a code analysis tool. Respond ONLY with a valid JSON object that has a "features" array. Each feature object must have "name" (string), "description" (string), and "suggestions" (string array). Example: {"features": [{"name": "Authentication", "description": "User login system", "suggestions": ["Add 2FA"]}]}'
+            content: systemPrompt
           },
           {
             role: 'user',
-            content: `Analyze this repository structure and output ONLY a JSON object with features array: ${JSON.stringify(files, null, 2)}`
+            content: `Analyze this repository structure and create detailed, practical documentation for each major feature: ${JSON.stringify(files, null, 2)}`
           }
         ],
-        temperature: 0,
+        temperature: 0.7,
         response_format: { type: "json_object" }
       }),
     });
@@ -114,7 +143,7 @@ serve(async (req) => {
 
     let featuresCreated = 0;
     for (const feature of features) {
-      if (!feature.name || !feature.description || !Array.isArray(feature.suggestions)) {
+      if (!feature.name || !feature.description) {
         console.error('Invalid feature format:', feature);
         continue;
       }
@@ -124,6 +153,8 @@ serve(async (req) => {
         .insert([{
           name: feature.name,
           description: feature.description,
+          technical_docs: feature.technical_docs,
+          user_docs: feature.user_docs,
           suggestions: feature.suggestions,
           product_id: productId,
           author_id: userId,
