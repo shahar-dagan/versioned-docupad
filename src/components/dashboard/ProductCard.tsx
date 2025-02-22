@@ -46,6 +46,7 @@ interface ProductCardProps {
 
 export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isLinkRepoDialogOpen, setIsLinkRepoDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
   // Fetch repository connection status
@@ -84,8 +85,10 @@ export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps)
   const handleLinkRepo = async (repo: Repository) => {
     try {
       await onLinkRepo(product.id, repo);
-      await queryClient.invalidateQueries({ queryKey: ['github-repository'] });
-      await queryClient.invalidateQueries({ queryKey: ['products'] });
+      await queryClient.invalidateQueries({ 
+        queryKey: ['github-repository', product.id] 
+      });
+      setIsLinkRepoDialogOpen(false);
     } catch (error) {
       console.error('Error linking repository:', error);
       toast.error('Failed to link repository');
@@ -131,7 +134,7 @@ export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps)
               View Features
             </Link>
           </Button>
-          <Dialog>
+          <Dialog open={isLinkRepoDialogOpen} onOpenChange={setIsLinkRepoDialogOpen}>
             <DialogTrigger asChild>
               <Button 
                 variant="outline" 
