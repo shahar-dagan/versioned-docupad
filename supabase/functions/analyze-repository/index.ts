@@ -1,4 +1,3 @@
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -179,10 +178,23 @@ function analyzeFileContent(content: string, fileName: string) {
   // Extract component name from file name
   const componentName = fileName.replace(/\.[^/.]+$/, '');
   
-  // Initialize feature object
+  // Initialize feature object with documentation structures
   const feature = {
     name: componentName,
     description: '',
+    technical_docs: {
+      architecture: '',
+      setup: '',
+      api_details: '',
+      code_snippets: [] as Array<{ language: string, code: string, description: string }>,
+      dependencies: [] as string[]
+    },
+    user_docs: {
+      overview: '',
+      steps: [] as string[],
+      use_cases: [] as string[],
+      faq: [] as Array<{ question: string, answer: string }>
+    },
     suggestions: [] as Array<{
       type: 'technical' | 'user',
       category: string,
@@ -191,7 +203,7 @@ function analyzeFileContent(content: string, fileName: string) {
     }>
   };
 
-  // Analyze exports and functions
+  // Analyze code patterns
   const hasExports = content.includes('export');
   const hasFunctions = content.includes('function');
   const hasProps = content.includes('interface') || content.includes('type');
@@ -202,14 +214,40 @@ function analyzeFileContent(content: string, fileName: string) {
   const hasAPI = content.includes('fetch') || content.includes('axios');
   const hasRouting = content.includes('useRouter') || content.includes('useNavigate');
 
-  // Set description based on analysis
+  // Extract dependencies
+  const dependencies = new Set<string>();
+  content.match(/import .* from ['"](.*)['"];?/g)?.forEach(importStatement => {
+    const match = importStatement.match(/from ['"](.*)['"];?/);
+    if (match?.[1] && !match[1].startsWith('.')) {
+      dependencies.add(match[1]);
+    }
+  });
+
+  // Generate basic description
   if (hasJSX) {
     feature.description = `A React component that ${hasStateManagement ? 'manages state and ' : ''}${hasProps ? 'accepts props for ' : ''}${hasAPI ? 'interfaces with external data for ' : ''}rendering UI elements`;
   } else if (hasFunctions) {
     feature.description = `A utility module that provides functionality for ${fileName}`;
   }
 
-  // Generate technical documentation suggestions
+  // Generate technical documentation
+  feature.technical_docs = {
+    architecture: generateArchitectureDoc(hasJSX, hasStateManagement, hasProps, hasAPI, hasEffects),
+    setup: generateSetupDoc(Array.from(dependencies)),
+    api_details: hasAPI ? generateAPIDoc(content) : '',
+    code_snippets: extractCodeSnippets(content, fileName),
+    dependencies: Array.from(dependencies)
+  };
+
+  // Generate user documentation
+  feature.user_docs = {
+    overview: generateOverview(feature.description, hasJSX, hasProps),
+    steps: generateUsageSteps(hasProps, hasStateManagement, hasAPI),
+    use_cases: generateUseCases(hasJSX, hasAPI, hasRouting),
+    faq: generateFAQ(hasProps, hasStateManagement, hasAPI)
+  };
+
+  // Generate suggestions (existing suggestion generation code)
   if (hasProps) {
     feature.suggestions.push({
       type: 'technical',
@@ -292,4 +330,144 @@ function analyzeFileContent(content: string, fileName: string) {
   }
 
   return feature;
+}
+
+function generateArchitectureDoc(hasJSX: boolean, hasStateManagement: boolean, hasProps: boolean, hasAPI: boolean, hasEffects: boolean): string {
+  const parts = [];
+  
+  if (hasJSX) {
+    parts.push("This is a React component");
+    if (hasStateManagement) parts.push("implements internal state management");
+    if (hasProps) parts.push("accepts configuration through props");
+    if (hasAPI) parts.push("integrates with external data sources");
+    if (hasEffects) parts.push("handles side effects");
+  } else {
+    parts.push("This is a utility module that provides helper functions");
+  }
+
+  return parts.join(" that ") + ". " + 
+    (hasStateManagement ? "The component manages its own state using React hooks. " : "") +
+    (hasEffects ? "Side effects are handled through useEffect hooks. " : "") +
+    (hasAPI ? "External data is fetched and managed within the component. " : "");
+}
+
+function generateSetupDoc(dependencies: string[]): string {
+  if (!dependencies.length) return "No external dependencies required.";
+  
+  return `
+This component requires the following dependencies:
+${dependencies.map(dep => `- ${dep}`).join('\n')}
+
+To use this component, ensure these dependencies are installed in your project.`;
+}
+
+function generateAPIDoc(content: string): string {
+  const apiCalls = content.match(/(?:fetch|axios)\((.*?)\)/g);
+  if (!apiCalls) return '';
+
+  return `
+This component interacts with external APIs.
+The following API interactions are implemented:
+${apiCalls.map(call => `- API call: ${call}`).join('\n')}
+
+Please ensure proper error handling and loading states are implemented when using these API calls.`;
+}
+
+function extractCodeSnippets(content: string, fileName: string): Array<{ language: string; code: string; description: string }> {
+  const snippets = [];
+  const fileExtension = fileName.split('.').pop() || 'ts';
+
+  // Extract interfaces/types
+  const interfaceMatch = content.match(/interface.*?{[^}]*}/gs);
+  if (interfaceMatch) {
+    snippets.push({
+      language: fileExtension,
+      code: interfaceMatch[0],
+      description: 'Component interface definition'
+    });
+  }
+
+  // Extract main component or function
+  const mainComponent = content.match(/export (?:default )?(?:function|const) .*?{.*?}/gs);
+  if (mainComponent) {
+    snippets.push({
+      language: fileExtension,
+      code: mainComponent[0],
+      description: 'Main component implementation'
+    });
+  }
+
+  return snippets;
+}
+
+function generateOverview(description: string, hasJSX: boolean, hasProps: boolean): string {
+  return `${description}
+${hasJSX ? '\nThis component provides a user interface that ' + (hasProps ? 'can be customized through various properties.' : 'renders a specific view.') : ''}
+${hasProps ? '\nYou can configure this component through its properties to adapt it to your specific needs.' : ''}`;
+}
+
+function generateUsageSteps(hasProps: boolean, hasStateManagement: boolean, hasAPI: boolean): string[] {
+  const steps = ['Import the component into your React application'];
+  
+  if (hasProps) {
+    steps.push('Configure the required properties');
+  }
+  
+  if (hasStateManagement) {
+    steps.push('Initialize any required state in your parent component');
+  }
+  
+  if (hasAPI) {
+    steps.push('Ensure your API endpoints are properly configured');
+  }
+  
+  steps.push('Add the component to your JSX');
+  
+  return steps;
+}
+
+function generateUseCases(hasJSX: boolean, hasAPI: boolean, hasRouting: boolean): string[] {
+  const useCases = [];
+  
+  if (hasJSX) {
+    useCases.push('Display dynamic content in a user interface');
+  }
+  
+  if (hasAPI) {
+    useCases.push('Fetch and display data from external sources');
+    useCases.push('Submit user input to backend services');
+  }
+  
+  if (hasRouting) {
+    useCases.push('Handle navigation between different views');
+  }
+  
+  return useCases;
+}
+
+function generateFAQ(hasProps: boolean, hasStateManagement: boolean, hasAPI: boolean): Array<{ question: string; answer: string }> {
+  const faq = [];
+  
+  if (hasProps) {
+    faq.push({
+      question: 'What properties can I configure?',
+      answer: 'The component accepts various properties to customize its behavior. Check the technical documentation for a full list of available props.'
+    });
+  }
+  
+  if (hasStateManagement) {
+    faq.push({
+      question: 'How does the component handle state?',
+      answer: 'The component manages its internal state using React hooks, providing a seamless user experience while maintaining data consistency.'
+    });
+  }
+  
+  if (hasAPI) {
+    faq.push({
+      question: 'What happens if the API request fails?',
+      answer: 'The component includes error handling for API requests. You should implement appropriate error states and user feedback in your application.'
+    });
+  }
+  
+  return faq;
 }
