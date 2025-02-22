@@ -1,4 +1,3 @@
-
 import { Feature } from '@/types';
 
 export interface ExtendedFeature extends Feature {
@@ -7,8 +6,30 @@ export interface ExtendedFeature extends Feature {
     file_path: string;
     change_type: string;
     created_at: string;
-    content?: string; // Added content property as optional
+    content?: string;
   }>;
+  technical_docs?: {
+    architecture?: string;
+    setup?: string;
+    api_details?: string;
+    code_snippets?: Array<{
+      language: string;
+      code: string;
+      description: string;
+    }>;
+    dependencies?: string[];
+  };
+  user_docs?: {
+    overview?: string;
+    steps?: string[];
+    use_cases?: string[];
+    visuals?: Array<{
+      type: 'screenshot' | 'video';
+      url: string;
+      caption: string;
+    }>;
+    faq?: Array<{ question: string; answer: string }>;
+  };
 }
 
 export interface UserFlow {
@@ -38,4 +59,3 @@ export interface UserDocs {
   use_cases: string[];
   faq: Array<{ question: string; answer: string }>;
 }
-
