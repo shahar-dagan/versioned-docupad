@@ -53,6 +53,8 @@ serve(async (req) => {
 
     if (featuresError) throw featuresError
 
+    console.log(`Processing ${repoContent.length} files for ${features.length} features`);
+
     // Process each file
     for (const file of repoContent) {
       if (file.type !== 'file') continue
@@ -65,13 +67,20 @@ serve(async (req) => {
 
       if (Array.isArray(fileContent)) continue
 
-      const content = Buffer.from(fileContent.content, 'base64').toString()
+      // Use TextEncoder to decode base64 content
+      const content = new TextDecoder().decode(
+        Uint8Array.from(atob(fileContent.content), c => c.charCodeAt(0))
+      );
+
+      // Generate hash of the content
       const fileHash = await crypto.subtle.digest(
         'SHA-256',
         new TextEncoder().encode(content)
       ).then(hash => Array.from(new Uint8Array(hash))
         .map(b => b.toString(16).padStart(2, '0'))
-        .join(''))
+        .join(''));
+
+      console.log(`Processing file ${file.path} with hash ${fileHash}`);
 
       // Check for each feature if this file is relevant
       for (const feature of features) {
@@ -85,6 +94,8 @@ serve(async (req) => {
           .maybeSingle()
 
         if (!existingChange) {
+          console.log(`New change detected for feature ${feature.id} in file ${file.path}`);
+          
           await supabaseClient
             .from('feature_file_changes')
             .insert({
@@ -113,6 +124,8 @@ serve(async (req) => {
             .update({ analyzed: true })
             .eq('feature_id', feature.id)
             .eq('file_path', file.path)
+
+          console.log(`Updated documentation for feature ${feature.id}`);
         }
       }
     }
