@@ -2,57 +2,98 @@
 import { ExtendedFeature, FeatureContext, DocumentationPatterns, UserDocs } from '../types';
 
 const analyzeFeature = (feature: ExtendedFeature): string[] => {
-  // Step 1: Examine the Code (based on actual codebase)
-  const mainFeatures = [
-    'Documentation Management',
-    'Feature Tracking',
-    'GitHub Integration',
-    'Change History'
-  ];
+  // Step 1: Examine the Code - Dynamic Analysis
+  const codeAnalysis = {
+    components: feature.code_changes?.map(change => change.file_path) || [],
+    changeTypes: feature.code_changes?.map(change => change.change_type) || [],
+    descriptions: feature.code_changes?.map(change => change.change_description) || []
+  };
 
-  // Step 2: List Overall Functionalities (from actual implementation)
-  const actualFunctionalities = [
-    'View and generate documentation',
-    'Switch between technical and user views',
-    'Track feature changes and updates',
-    'Integrate with GitHub repositories',
-    'Manage feature lifecycle',
-    'Share documentation with team'
-  ];
+  // Step 2: List Overall Functionalities - Pattern Detection
+  const functionalityPatterns = new Set<string>();
+  codeAnalysis.descriptions.forEach(desc => {
+    if (desc?.toLowerCase().includes('create')) functionalityPatterns.add('Creation capabilities');
+    if (desc?.toLowerCase().includes('update')) functionalityPatterns.add('Update functionality');
+    if (desc?.toLowerCase().includes('delete')) functionalityPatterns.add('Deletion capabilities');
+    if (desc?.toLowerCase().includes('view')) functionalityPatterns.add('View functionality');
+    // Add more patterns as needed
+  });
 
-  // Step 3: Shortlist User-Facing Features (based on UI components)
-  return [
-    'View feature documentation',
-    'Generate automatic documentation',
-    'Track feature changes',
-    'Share with team members'
-  ];
+  // Step 3: Identify User-Facing Features
+  const userInteractions = new Set<string>();
+  codeAnalysis.components.forEach(component => {
+    if (component?.includes('page')) userInteractions.add('Page navigation');
+    if (component?.includes('form')) userInteractions.add('Data input');
+    if (component?.includes('list')) userInteractions.add('Data viewing');
+    if (component?.includes('button')) userInteractions.add('User actions');
+    // Add more component analysis as needed
+  });
+
+  return Array.from(new Set([
+    ...Array.from(functionalityPatterns),
+    ...Array.from(userInteractions)
+  ]));
 };
 
 const createUserFriendlyGuides = (feature: ExtendedFeature) => {
-  // Step 4: User-Friendly Titles and Explanations (based on actual features)
-  return {
-    'Documentation': {
-      title: 'Documentation Viewer',
-      explanation: 'Access and manage documentation for your features',
-      realLifeExample: 'When you need to check how to use a specific feature'
-    },
-    'Feature Management': {
-      title: 'Feature Manager',
-      explanation: 'Create and organize your product features',
-      realLifeExample: 'Adding a new feature to your product'
-    },
-    'GitHub Integration': {
-      title: 'Code Integration',
-      explanation: 'Connect your code repository for automatic updates',
-      realLifeExample: 'Linking your GitHub repository to track changes'
-    },
-    'Change Tracking': {
-      title: 'Feature Updates',
-      explanation: 'Monitor and track changes to your features',
-      realLifeExample: 'When your team updates a feature\'s functionality'
+  // Step 4: Dynamic Guide Generation based on Feature Analysis
+  const guides: Record<string, {
+    title: string;
+    explanation: string;
+    realLifeExample: string;
+  }> = {};
+
+  // Analyze feature properties to generate guides
+  if (feature.name) {
+    guides[feature.name] = {
+      title: feature.name,
+      explanation: feature.description || `Functionality for ${feature.name}`,
+      realLifeExample: `Use this when working with ${feature.name.toLowerCase()}`
+    };
+  }
+
+  // Analyze code changes to detect feature purposes
+  feature.code_changes?.forEach(change => {
+    const category = detectFeatureCategory(change.change_description);
+    if (category && !guides[category]) {
+      guides[category] = {
+        title: formatTitle(category),
+        explanation: generateExplanation(category, change),
+        realLifeExample: generateExample(category, change)
+      };
     }
+  });
+
+  return guides;
+};
+
+// Helper functions for dynamic guide generation
+const detectFeatureCategory = (description: string): string | null => {
+  const categories = {
+    'documentation': ['doc', 'documentation', 'guide'],
+    'management': ['manage', 'control', 'organize'],
+    'integration': ['connect', 'integrate', 'link'],
+    'tracking': ['track', 'monitor', 'observe']
   };
+
+  for (const [category, keywords] of Object.entries(categories)) {
+    if (keywords.some(keyword => description?.toLowerCase().includes(keyword))) {
+      return category;
+    }
+  }
+  return null;
+};
+
+const formatTitle = (category: string): string => {
+  return category.charAt(0).toUpperCase() + category.slice(1) + ' System';
+};
+
+const generateExplanation = (category: string, change: ExtendedFeature['code_changes'][0]): string => {
+  return `Tools and features for ${category.toLowerCase()} management and control`;
+};
+
+const generateExample = (category: string, change: ExtendedFeature['code_changes'][0]): string => {
+  return `When you need to ${category.toLowerCase()} in your project`;
 };
 
 export const generateOverview = (feature: ExtendedFeature, context: FeatureContext): string => {
