@@ -55,7 +55,7 @@ export default function Documentation() {
       return data as Feature[];
     },
     staleTime: 30000, // Consider data fresh for 30 seconds
-    cacheTime: 5 * 60 * 1000, // Keep unused data in cache for 5 minutes
+    gcTime: 5 * 60 * 1000, // Keep unused data in cache for 5 minutes
   });
 
   const filteredFeatures = features?.filter(feature =>
