@@ -1,4 +1,3 @@
-
 import { ExtendedFeature, FeatureContext, DocumentationPatterns } from '../types';
 
 interface CodeAnalysis {
@@ -35,6 +34,15 @@ interface InteractionMetadata {
   type: 'click' | 'submit' | 'change' | 'input';
   handler: string;
   component: string;
+}
+
+interface FeatureMetadata {
+  name: string;
+  type: 'core' | 'integration' | 'ui' | 'business';
+  dependencies: Set<string>;
+  operations: Set<string>;
+  dataFlow: Set<string>;
+  relatedComponents: Set<string>;
 }
 
 // Simple pattern-based code analysis
@@ -150,73 +158,120 @@ const extractRouteParams = (path: string): Set<string> => {
   return params;
 };
 
-export const identifyFeatureContext = (feature: ExtendedFeature): FeatureContext => {
-  const analysis = feature.code_changes?.reduce((acc: CodeAnalysis, change) => {
-    if (change?.content) {
-      const changeAnalysis = analyzeCodeStructure(change.content);
-      changeAnalysis.components.forEach((v: ComponentMetadata, k: string) => acc.components.set(k, v));
-      changeAnalysis.routes.forEach((v: RouteMetadata, k: string) => acc.routes.set(k, v));
-      changeAnalysis.dataFlow.forEach((v: DataFlowMetadata, k: string) => acc.dataFlow.set(k, v));
-      changeAnalysis.interactions.forEach((v: InteractionMetadata, k: string) => acc.interactions.set(k, v));
-      changeAnalysis.boundaries.forEach((b: string) => acc.boundaries.add(b));
-    }
-    return acc;
-  }, {
-    components: new Map<string, ComponentMetadata>(),
-    routes: new Map<string, RouteMetadata>(),
-    dataFlow: new Map<string, DataFlowMetadata>(),
-    interactions: new Map<string, InteractionMetadata>(),
-    boundaries: new Set<string>(),
-  });
-
-  const defaultAnalysis: CodeAnalysis = {
-    components: new Map<string, ComponentMetadata>(),
-    routes: new Map<string, RouteMetadata>(),
-    dataFlow: new Map<string, DataFlowMetadata>(),
-    interactions: new Map<string, InteractionMetadata>(),
-    boundaries: new Set<string>(),
+const analyzeFeaturePatterns = (code: string): FeatureMetadata => {
+  const metadata: FeatureMetadata = {
+    name: '',
+    type: 'core',
+    dependencies: new Set(),
+    operations: new Set(),
+    dataFlow: new Set(),
+    relatedComponents: new Set(),
   };
 
-  const finalAnalysis = analysis || defaultAnalysis;
+  // Detect feature patterns through imports and component structure
+  const importPattern = /import\s+{([^}]+)}\s+from\s+['"]([^'"]+)['"]/g;
+  let match;
+  while ((match = importPattern.exec(code)) !== null) {
+    const imports = match[1].split(',').map(i => i.trim());
+    const path = match[2];
+    
+    // Identify feature by related imports
+    imports.forEach(imp => {
+      if (imp.includes('Provider')) metadata.type = 'integration';
+      if (imp.includes('Form')) metadata.type = 'ui';
+      if (imp.includes('Service')) metadata.type = 'business';
+      metadata.dependencies.add(imp);
+    });
+  }
+
+  // Detect operations through function declarations
+  const functionPattern = /(?:async\s+)?function\s+(\w+)|const\s+(\w+)\s*=\s*(?:async\s*)?\([^)]*\)\s*=>/g;
+  while ((match = functionPattern.exec(code)) !== null) {
+    const funcName = match[1] || match[2];
+    if (funcName.includes('handle') || funcName.includes('process')) {
+      metadata.operations.add(funcName);
+    }
+  }
+
+  // Detect data flow through hooks and state management
+  const dataFlowPattern = /use(?:State|Effect|Query|Mutation)|(?:dispatch|commit)\(/g;
+  while ((match = dataFlowPattern.exec(code)) !== null) {
+    metadata.dataFlow.add(match[0]);
+  }
+
+  return metadata;
+};
+
+export const identifyFeatureContext = (feature: ExtendedFeature): FeatureContext => {
+  const patterns = analyzeCodeChanges(feature.code_changes);
+  
+  // Group related patterns to identify feature boundaries
+  const featureGroups = new Map<string, Set<string>>();
+  
+  patterns.featurePatterns.forEach(pattern => {
+    const [type, name] = pattern.split(':');
+    if (!featureGroups.has(type)) {
+      featureGroups.set(type, new Set());
+    }
+    featureGroups.get(type)?.add(name);
+  });
+
+  // Identify main feature and subfeatures
+  const mainFeature = feature.name;
+  const subFeatures = Array.from(featureGroups.entries()).map(([type, components]) => ({
+    name: `${type} ${mainFeature}`,
+    components: Array.from(components),
+  }));
+
+  // Generate user flows based on business logic and UI components
+  const userFlows = Array.from(patterns.businessLogic).map(operation => ({
+    action: operation,
+    steps: generateStepsFromPatterns(operation, patterns),
+    expectedOutcome: `Complete ${operation.toLowerCase()}`,
+    prerequisites: extractPrerequisitesFromPatterns(patterns),
+  }));
 
   return {
-    mainFeature: feature.name || 'Product Features',
-    subFeature: Array.from(finalAnalysis.components.keys())[0] || '',
-    userFlows: Array.from(finalAnalysis.interactions.values()).map(interaction => ({
-      action: `${interaction.type} on ${interaction.component}`,
-      steps: generateStepsFromAnalysis(interaction, finalAnalysis),
-      expectedOutcome: `Successfully handled ${interaction.handler}`,
-      prerequisites: extractPrerequisites(finalAnalysis),
-    })),
-    relatedFeatures: Array.from(finalAnalysis.boundaries) as string[],
+    mainFeature,
+    subFeature: subFeatures[0]?.name || '',
+    userFlows,
+    relatedFeatures: Array.from(patterns.integrations),
   };
 };
 
-const generateStepsFromAnalysis = (
-  interaction: InteractionMetadata,
-  analysis: CodeAnalysis
+const generateStepsFromPatterns = (
+  operation: string,
+  patterns: DocumentationPatterns
 ): string[] => {
   const steps: string[] = [];
-  const component = analysis.components.get(interaction.component);
+  
+  // Add UI navigation steps
+  patterns.uiComponents.forEach(component => {
+    steps.push(`Navigate to ${component}`);
+  });
 
-  if (component) {
-    steps.push(`Navigate to the ${interaction.component} component`);
-    if (component.props.size > 0) {
-      steps.push(`Ensure required props are provided: ${Array.from(component.props).join(', ')}`);
-    }
-    steps.push(`Trigger the ${interaction.type} event`);
-    if (analysis.dataFlow.has(interaction.handler)) {
-      steps.push('Wait for data operation to complete');
-    }
-  }
+  // Add data input steps
+  patterns.userInputs.forEach(input => {
+    steps.push(`Provide ${input}`);
+  });
+
+  // Add action steps
+  patterns.userActions.forEach(action => {
+    steps.push(`Perform ${action}`);
+  });
+
+  // Add data operation steps
+  patterns.dataOperations.forEach(op => {
+    steps.push(`System processes ${op}`);
+  });
 
   return steps;
 };
 
-const extractPrerequisites = (analysis: CodeAnalysis): string[] => {
+const extractPrerequisitesFromPatterns = (patterns: DocumentationPatterns): string[] => {
   const prerequisites: string[] = [];
-
-  analysis.routes.forEach(route => {
+  
+  patterns.routes.forEach(route => {
     if (route.isProtected) {
       prerequisites.push('Authentication required');
     }
@@ -225,7 +280,7 @@ const extractPrerequisites = (analysis: CodeAnalysis): string[] => {
     }
   });
 
-  analysis.dataFlow.forEach(flow => {
+  patterns.dataFlow.forEach(flow => {
     if (flow.context.size > 0) {
       prerequisites.push(`Required context: ${Array.from(flow.context).join(', ')}`);
     }
@@ -240,37 +295,42 @@ export const analyzeCodeChanges = (changes: ExtendedFeature['code_changes']): Do
     userActions: new Set<string>(),
     dataOperations: new Set<string>(),
     uiComponents: new Set<string>(),
+    featurePatterns: new Set<string>(),
+    businessLogic: new Set<string>(),
+    integrations: new Set<string>(),
+    dataFlow: new Set<string>(),
   };
 
   changes?.forEach(change => {
     if (!change?.content) return;
 
     const analysis = analyzeCodeStructure(change.content);
+    const featureMetadata = analyzeFeaturePatterns(change.content);
 
-    // Map component interactions to user inputs
-    analysis.components.forEach(component => {
-      component.eventHandlers.forEach(handler => {
-        if (handler.includes('Change') || handler.includes('Input')) {
-          patterns.userInputs.add(component.name);
-        }
-      });
-    });
-
-    // Map interactions to user actions
-    analysis.interactions.forEach(interaction => {
-      patterns.userActions.add(`${interaction.type} ${interaction.handler}`);
-    });
-
-    // Map data flow to operations
-    analysis.dataFlow.forEach((flow, key) => {
-      if (flow.mutations.size > 0) {
-        patterns.dataOperations.add(key);
-      }
-    });
-
-    // Map components to UI components
+    // Map components and their relationships
     analysis.components.forEach(component => {
       patterns.uiComponents.add(component.name);
+      featureMetadata.relatedComponents.add(component.name);
+    });
+
+    // Map feature patterns
+    featureMetadata.dependencies.forEach(dep => {
+      patterns.featurePatterns.add(`${featureMetadata.type}:${dep}`);
+    });
+
+    // Map business logic
+    featureMetadata.operations.forEach(op => {
+      patterns.businessLogic.add(op);
+    });
+
+    // Map integrations
+    if (featureMetadata.type === 'integration') {
+      patterns.integrations.add(Array.from(featureMetadata.dependencies).join(':'));
+    }
+
+    // Map data flow
+    featureMetadata.dataFlow.forEach(flow => {
+      patterns.dataFlow.add(flow);
     });
   });
 

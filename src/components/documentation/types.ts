@@ -51,6 +51,10 @@ export interface DocumentationPatterns {
   userActions: Set<string>;
   dataOperations: Set<string>;
   uiComponents: Set<string>;
+  featurePatterns: Set<string>;
+  businessLogic: Set<string>;
+  integrations: Set<string>;
+  dataFlow: Set<string>;
 }
 
 export interface UserDocs {
