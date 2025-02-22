@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -106,7 +105,6 @@ export default function Dashboard() {
 
       if (error) throw error;
       
-      // Transform the data to match our interface
       const transformedData = data?.map(member => ({
         ...member,
         profiles: Array.isArray(member.profiles) ? member.profiles[0] : member.profiles
@@ -233,7 +231,7 @@ export default function Dashboard() {
             <BarChart2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalProducts || 0}</div>
+            <div className="text-2xl font-bold">{products?.length || 0}</div>
           </CardContent>
         </Card>
         <Card>
