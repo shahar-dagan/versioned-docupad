@@ -18,7 +18,6 @@ export default function Features() {
     featuresError,
     refetch,
     analyzeRepositoryMutation,
-    analyzeCodeMutation,
   } = useFeatures(productId, !!authData && !!productId, repository);
 
   if (!authData) {
@@ -64,14 +63,7 @@ export default function Features() {
         featuresCount={features?.length || 0}
         repository={repository}
         onAnalyze={() => analyzeRepositoryMutation.mutate()}
-        onAnalyzeCode={() => {
-          if (!repository?.repository_name) {
-            console.error('No repository linked');
-            return;
-          }
-          analyzeCodeMutation.mutate();
-        }}
-        isAnalyzing={analyzeRepositoryMutation.isPending || analyzeCodeMutation.isPending}
+        isAnalyzing={analyzeRepositoryMutation.isPending}
         onFeatureCreated={refetch}
       />
       <FeaturesList

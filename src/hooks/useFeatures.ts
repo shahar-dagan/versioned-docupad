@@ -70,43 +70,11 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
     },
   });
 
-  const analyzeCodeMutation = useMutation({
-    mutationFn: async () => {
-      if (!repository?.repository_name) {
-        throw new Error('No repository linked to this product');
-      }
-
-      console.log('Analyzing repository:', repository.repository_name);
-      
-      const response = await supabase.functions.invoke('analyze-code', {
-        body: {
-          repository: repository.repository_name,
-        },
-      });
-
-      if (response.error) {
-        console.error('DeepSource analysis error:', response.error);
-        throw new Error(response.error.message || 'Failed to analyze code with DeepSource');
-      }
-
-      return response.data;
-    },
-    onError: (error: Error) => {
-      console.error('DeepSource analysis error:', error);
-      toast.error(`DeepSource analysis failed: ${error.message}`);
-    },
-    onSuccess: () => {
-      toast.success('DeepSource analysis complete');
-      refetch();
-    },
-  });
-
   return {
     features,
     isLoadingFeatures,
     featuresError,
     refetch,
     analyzeRepositoryMutation,
-    analyzeCodeMutation,
   };
 }
