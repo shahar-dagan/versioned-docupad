@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Plus, Trash2, Github } from 'lucide-react';
@@ -54,6 +53,7 @@ export default function Products() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
 
   const { data: products, refetch } = useQuery({
@@ -197,6 +197,11 @@ export default function Products() {
     },
   });
 
+  // Filter repositories based on search term
+  const filteredRepositories = repositories?.filter(repo =>
+    repo.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="container mx-auto py-10">
       <div className="flex justify-between items-center mb-8">
@@ -295,25 +300,33 @@ export default function Products() {
                         Choose a repository to link to {product.name}
                       </DialogDescription>
                     </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                      {repositories?.map((repo) => (
-                        <div key={repo.id} className="flex items-center gap-4">
-                          <Github className="h-4 w-4" />
-                          <span className="flex-grow">{repo.name}</span>
-                          <Button
-                            onClick={() => {
-                              if (selectedProduct) {
-                                linkRepoMutation.mutate({
-                                  productId: selectedProduct,
-                                  repo,
-                                });
-                              }
-                            }}
-                          >
-                            Link
-                          </Button>
-                        </div>
-                      ))}
+                    <div className="space-y-4">
+                      <Input
+                        placeholder="Search repositories..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="mb-4"
+                      />
+                      <div className="grid gap-4 max-h-[300px] overflow-y-auto">
+                        {filteredRepositories?.map((repo) => (
+                          <div key={repo.id} className="flex items-center gap-4 p-2 hover:bg-accent rounded-md">
+                            <Github className="h-4 w-4" />
+                            <span className="flex-grow">{repo.name}</span>
+                            <Button
+                              onClick={() => {
+                                if (selectedProduct) {
+                                  linkRepoMutation.mutate({
+                                    productId: selectedProduct,
+                                    repo,
+                                  });
+                                }
+                              }}
+                            >
+                              Link
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </DialogContent>
                 </Dialog>
