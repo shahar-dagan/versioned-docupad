@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Plus, BarChart2, GitBranch, Users, Github } from 'lucide-react';
+import { Plus, BarChart2, GitBranch, Users, Github, Check } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 
@@ -59,6 +66,8 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [newTeamMemberEmail, setNewTeamMemberEmail] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedRepo, setSelectedRepo] = useState<string>('');
 
   useEffect(() => {
     if (!user) {
@@ -200,11 +209,17 @@ export default function Dashboard() {
     onSuccess: () => {
       toast.success('Repository linked successfully!');
       setSelectedProduct(null);
+      setSelectedRepo('');
+      setSearchTerm('');
     },
     onError: (error) => {
       toast.error('Failed to link repository: ' + error.message);
     },
   });
+
+  const filteredRepositories = repositories?.filter(repo =>
+    repo.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="container mx-auto py-10">
@@ -223,7 +238,6 @@ export default function Dashboard() {
         </Button>
       </div>
 
-      {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -254,7 +268,6 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Team Management */}
       <div className="mb-8">
         <h2 className="text-2xl font-bold mb-4">Team Members</h2>
         <Card>
@@ -318,7 +331,6 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Recent Products */}
       <div className="mb-8">
         <h2 className="text-2xl font-bold mb-4">Recent Products</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -343,7 +355,11 @@ export default function Dashboard() {
                       <Button 
                         variant="outline" 
                         className="w-full"
-                        onClick={() => setSelectedProduct(product.id)}
+                        onClick={() => {
+                          setSelectedProduct(product.id);
+                          setSelectedRepo('');
+                          setSearchTerm('');
+                        }}
                       >
                         <Github className="mr-2 h-4 w-4" />
                         Link GitHub Repo
@@ -357,24 +373,45 @@ export default function Dashboard() {
                         </DialogDescription>
                       </DialogHeader>
                       <div className="grid gap-4 py-4">
-                        {repositories?.map((repo) => (
-                          <div key={repo.id} className="flex items-center gap-4">
-                            <Github className="h-4 w-4" />
-                            <span className="flex-grow">{repo.name}</span>
-                            <Button
-                              onClick={() => {
-                                if (selectedProduct) {
-                                  linkRepoMutation.mutate({
-                                    productId: selectedProduct,
-                                    repo,
-                                  });
-                                }
-                              }}
-                            >
-                              Link
-                            </Button>
-                          </div>
-                        ))}
+                        <Input
+                          placeholder="Search repositories..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="mb-4"
+                        />
+                        <Select
+                          value={selectedRepo}
+                          onValueChange={(value) => setSelectedRepo(value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a repository" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {filteredRepositories?.map((repo) => (
+                              <SelectItem key={repo.id} value={repo.id}>
+                                <div className="flex items-center gap-2">
+                                  <Github className="h-4 w-4" />
+                                  {repo.name}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          className="w-full"
+                          disabled={!selectedRepo}
+                          onClick={() => {
+                            const repo = repositories?.find(r => r.id === selectedRepo);
+                            if (selectedProduct && repo) {
+                              linkRepoMutation.mutate({
+                                productId: selectedProduct,
+                                repo,
+                              });
+                            }
+                          }}
+                        >
+                          Link Repository
+                        </Button>
                       </div>
                     </DialogContent>
                   </Dialog>
