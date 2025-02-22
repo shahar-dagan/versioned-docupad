@@ -51,7 +51,7 @@ export default function Dashboard() {
     }
   }, [user, navigate]);
 
-  const { data: products } = useQuery({
+  const { data: products, refetch: refetchProducts } = useQuery({
     queryKey: ['products'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -172,6 +172,9 @@ export default function Dashboard() {
               product={product}
               onLinkRepo={(productId, repo) => {
                 linkRepoMutation.mutate({ productId, repo });
+              }}
+              onDelete={() => {
+                refetchProducts();
               }}
             />
           ))}

@@ -1,6 +1,6 @@
 
 import { Link } from 'react-router-dom';
-import { Github } from 'lucide-react';
+import { Github, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -16,8 +16,12 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { GitHubRepoSelector } from './GitHubRepoSelector';
+import { useState } from 'react';
+import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 
 interface Product {
   id: string;
@@ -35,9 +39,31 @@ interface Repository {
 interface ProductCardProps {
   product: Product;
   onLinkRepo: (productId: string, repo: Repository) => void;
+  onDelete?: () => void;
 }
 
-export function ProductCard({ product, onLinkRepo }: ProductCardProps) {
+export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps) {
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+  const handleDelete = async () => {
+    try {
+      const { error } = await supabase
+        .from('products')
+        .delete()
+        .eq('id', product.id);
+
+      if (error) throw error;
+
+      toast.success('Product deleted successfully');
+      onDelete?.();
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      toast.error('Failed to delete product');
+    } finally {
+      setIsDeleteDialogOpen(false);
+    }
+  };
+
   return (
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader>
@@ -73,6 +99,33 @@ export function ProductCard({ product, onLinkRepo }: ProductCardProps) {
                   onSelect={(repo) => onLinkRepo(product.id, repo)}
                 />
               </div>
+            </DialogContent>
+          </Dialog>
+          <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <DialogTrigger asChild>
+              <Button 
+                variant="outline" 
+                className="w-full text-red-600 hover:text-red-600 hover:bg-red-50"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Product
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Delete Product</DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to delete {product.name}? This action cannot be undone and all associated features will be deleted.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setIsDeleteDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button variant="destructive" onClick={handleDelete}>
+                  Delete Product
+                </Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
