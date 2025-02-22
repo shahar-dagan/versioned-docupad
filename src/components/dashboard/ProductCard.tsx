@@ -23,6 +23,7 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
+import { Badge } from '@/components/ui/badge';
 
 interface Product {
   id: string;
@@ -84,7 +85,12 @@ export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps)
       <CardHeader>
         <div className="flex justify-between items-start">
           <div>
-            <CardTitle>{product.name}</CardTitle>
+            <div className="flex items-center gap-2 mb-1">
+              <CardTitle>{product.name}</CardTitle>
+              <Badge variant={repository ? "default" : "secondary"}>
+                {repository ? "Active" : "Setup Needed"}
+              </Badge>
+            </div>
             <CardDescription>
               Created on {new Date(product.created_at).toLocaleDateString()}
             </CardDescription>
