@@ -1,5 +1,6 @@
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface VisualAid {
   type: 'screenshot' | 'video';
@@ -24,7 +25,7 @@ export function UserDocumentation({ userDocs }: UserDocumentationProps) {
     return (
       <Alert>
         <AlertDescription>
-          No user documentation available yet. Use the suggestions above to start documenting this feature.
+          No user documentation available yet. Check the suggestions above to start documenting this feature.
         </AlertDescription>
       </Alert>
     );
@@ -36,7 +37,7 @@ export function UserDocumentation({ userDocs }: UserDocumentationProps) {
         <img 
           src={visual.url} 
           alt={visual.caption}
-          className="rounded-lg border shadow-sm"
+          className="rounded-lg border shadow-sm w-full"
         />
       ) : (
         <video 
@@ -52,67 +53,87 @@ export function UserDocumentation({ userDocs }: UserDocumentationProps) {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {userDocs.overview && (
-        <section>
-          <h2 className="text-2xl font-semibold mb-4">Overview</h2>
-          <p className="text-muted-foreground">{userDocs.overview}</p>
-        </section>
+        <Card>
+          <CardHeader>
+            <CardTitle>Overview</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground">{userDocs.overview}</p>
+          </CardContent>
+        </Card>
       )}
 
       {userDocs.steps && userDocs.steps.length > 0 && (
-        <section>
-          <h2 className="text-2xl font-semibold mb-4">How to Use</h2>
-          <ol className="space-y-4">
-            {userDocs.steps.map((step, index) => (
-              <li key={index} className="flex items-start gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border bg-background">
-                  {index + 1}
-                </span>
-                <p className="text-muted-foreground leading-6">{step}</p>
-              </li>
-            ))}
-          </ol>
-        </section>
+        <Card>
+          <CardHeader>
+            <CardTitle>How to Use</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ol className="space-y-4">
+              {userDocs.steps.map((step, index) => (
+                <li key={index} className="flex items-start gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm">
+                    {index + 1}
+                  </span>
+                  <p className="text-muted-foreground leading-6">{step}</p>
+                </li>
+              ))}
+            </ol>
+          </CardContent>
+        </Card>
       )}
 
       {userDocs.visuals && userDocs.visuals.length > 0 && (
-        <section>
-          <h2 className="text-2xl font-semibold mb-4">Visual Guide</h2>
-          {userDocs.visuals.map((visual, index) => (
-            <div key={index}>{renderVisualAid(visual)}</div>
-          ))}
-        </section>
+        <Card>
+          <CardHeader>
+            <CardTitle>Visual Guide</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {userDocs.visuals.map((visual, index) => (
+              <div key={index}>{renderVisualAid(visual)}</div>
+            ))}
+          </CardContent>
+        </Card>
       )}
 
       {userDocs.use_cases && userDocs.use_cases.length > 0 && (
-        <section>
-          <h2 className="text-2xl font-semibold mb-4">Common Use Cases</h2>
-          <ul className="space-y-3">
-            {userDocs.use_cases.map((useCase, index) => (
-              <li key={index} className="flex items-start gap-3">
-                <div className="mt-1 flex-shrink-0">
-                  <div className="h-2 w-2 rounded-full bg-primary" />
-                </div>
-                <p className="text-muted-foreground">{useCase}</p>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <Card>
+          <CardHeader>
+            <CardTitle>Common Use Cases</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-3">
+              {userDocs.use_cases.map((useCase, index) => (
+                <li key={index} className="flex items-start gap-3">
+                  <div className="mt-2">
+                    <div className="h-2 w-2 rounded-full bg-primary" />
+                  </div>
+                  <p className="text-muted-foreground">{useCase}</p>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
       )}
 
       {userDocs.faq && userDocs.faq.length > 0 && (
-        <section>
-          <h2 className="text-2xl font-semibold mb-4">FAQ</h2>
-          <div className="space-y-4">
-            {userDocs.faq.map((item, index) => (
-              <div key={index} className="space-y-2">
-                <h3 className="font-medium">{item.question}</h3>
-                <p className="text-muted-foreground">{item.answer}</p>
-              </div>
-            ))}
-          </div>
-        </section>
+        <Card>
+          <CardHeader>
+            <CardTitle>FAQ</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {userDocs.faq.map((item, index) => (
+                <div key={index} className="space-y-2">
+                  <h3 className="font-medium">{item.question}</h3>
+                  <p className="text-muted-foreground">{item.answer}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

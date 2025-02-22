@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { DocumentationSuggestions } from './DocumentationSuggestions';
 import { TechnicalDocumentation } from './TechnicalDocumentation';
 import { UserDocumentation } from './UserDocumentation';
+import { useState } from 'react';
 
 interface Feature {
   id: string;
@@ -41,10 +42,11 @@ interface Feature {
 
 interface DocumentationContentProps {
   feature: Feature | undefined;
-  viewMode?: 'technical' | 'user';
 }
 
-export function DocumentationContent({ feature, viewMode = 'user' }: DocumentationContentProps) {
+export function DocumentationContent({ feature }: DocumentationContentProps) {
+  const [viewMode, setViewMode] = useState<'technical' | 'user'>('user');
+
   if (!feature) {
     return (
       <div className="text-center text-muted-foreground">
@@ -62,6 +64,7 @@ export function DocumentationContent({ feature, viewMode = 'user' }: Documentati
             variant={viewMode === 'user' ? 'default' : 'outline'}
             size="sm"
             className="gap-2"
+            onClick={() => setViewMode('user')}
           >
             <User className="h-4 w-4" />
             User Guide
@@ -70,6 +73,7 @@ export function DocumentationContent({ feature, viewMode = 'user' }: Documentati
             variant={viewMode === 'technical' ? 'default' : 'outline'}
             size="sm"
             className="gap-2"
+            onClick={() => setViewMode('technical')}
           >
             <Code className="h-4 w-4" />
             Technical Docs
@@ -82,7 +86,7 @@ export function DocumentationContent({ feature, viewMode = 'user' }: Documentati
       </p>
 
       <DocumentationSuggestions 
-        suggestions={feature.suggestions}
+        suggestions={feature.suggestions?.filter(s => s.type === viewMode)}
         currentView={viewMode}
       />
 
