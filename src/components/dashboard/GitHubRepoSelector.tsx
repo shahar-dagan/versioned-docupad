@@ -1,5 +1,5 @@
 
-import { Github } from 'lucide-react';
+import { Github, Search } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -28,7 +28,7 @@ export function GitHubRepoSelector({ onLinkRepo, disabled }: GitHubRepoSelectorP
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRepoId, setSelectedRepoId] = useState<string>('');
 
-  const { data: repositories } = useQuery({
+  const { data: repositories, isLoading } = useQuery({
     queryKey: ['github-repos'],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke('github', {
@@ -36,6 +36,7 @@ export function GitHubRepoSelector({ onLinkRepo, disabled }: GitHubRepoSelectorP
       });
       
       if (error) throw error;
+      console.log('GitHub repos:', data.repos); // Debug log
       return data.repos as Repository[];
     },
   });
@@ -46,17 +47,22 @@ export function GitHubRepoSelector({ onLinkRepo, disabled }: GitHubRepoSelectorP
 
   return (
     <div className="space-y-4">
-      <Input
-        placeholder="Search repositories..."
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-      />
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          placeholder="Search repositories..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-9"
+        />
+      </div>
       <Select
         value={selectedRepoId}
         onValueChange={(value) => setSelectedRepoId(value)}
+        disabled={isLoading}
       >
         <SelectTrigger>
-          <SelectValue placeholder="Select a repository" />
+          <SelectValue placeholder={isLoading ? "Loading repositories..." : "Select a repository"} />
         </SelectTrigger>
         <SelectContent>
           {filteredRepositories?.map((repo) => (
@@ -71,7 +77,7 @@ export function GitHubRepoSelector({ onLinkRepo, disabled }: GitHubRepoSelectorP
       </Select>
       <Button
         className="w-full"
-        disabled={!selectedRepoId || disabled}
+        disabled={!selectedRepoId || disabled || isLoading}
         onClick={() => {
           const repo = repositories?.find(r => r.id === selectedRepoId);
           if (repo) {
@@ -79,7 +85,7 @@ export function GitHubRepoSelector({ onLinkRepo, disabled }: GitHubRepoSelectorP
           }
         }}
       >
-        Link Repository
+        {isLoading ? "Loading..." : "Link Repository"}
       </Button>
     </div>
   );
