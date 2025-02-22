@@ -74,7 +74,8 @@ export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps)
       if (error) throw error;
 
       toast.success('Product deleted successfully');
-      onDelete?.();
+      // Ensure we call onDelete after successful deletion
+      await onDelete?.();
     } catch (error) {
       console.error('Error deleting product:', error);
       toast.error('Failed to delete product');

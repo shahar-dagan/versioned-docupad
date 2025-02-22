@@ -138,9 +138,12 @@ export default function Products() {
             product={product}
             onLinkRepo={async (productId, repo) => {
               await linkRepoMutation.mutateAsync({ productId, repo });
+              refetch();
             }}
-            onDelete={() => {
-              refetch(); // Refresh the products list after deletion
+            onDelete={async () => {
+              // Wait a small delay to ensure the delete operation has completed
+              await new Promise(resolve => setTimeout(resolve, 100));
+              await refetch();
             }}
           />
         ))}
