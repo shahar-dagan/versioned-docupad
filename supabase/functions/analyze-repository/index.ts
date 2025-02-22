@@ -23,7 +23,7 @@ serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get GitHub token from secrets table
+    // Get GitHub token from secrets table with detailed logging
     console.log('Fetching GitHub token from secrets table...');
     const { data: secretData, error: secretError } = await supabase
       .from('secrets')
@@ -36,25 +36,53 @@ serve(async (req) => {
       throw new Error('Failed to fetch GitHub token: ' + secretError.message);
     }
 
-    if (!secretData) {
-      console.error('No GitHub token found in secrets table');
-      throw new Error('GitHub token not found in secrets table');
+    if (!secretData?.value) {
+      console.error('No GitHub token found or token is empty');
+      throw new Error('GitHub token not found or is empty');
     }
 
-    const githubToken = secretData.value;
-    console.log('Successfully retrieved GitHub token. Token length:', githubToken.length);
+    const githubToken = secretData.value.trim(); // Trim any whitespace
+    console.log('Token validation:', {
+      length: githubToken.length,
+      startsWithGh: githubToken.startsWith('gh'),
+      startsWithGhp: githubToken.startsWith('ghp'),
+      containsWhitespace: /\s/.test(githubToken)
+    });
 
-    // Log first few characters of token (for debugging, never log full token)
-    if (githubToken.length > 4) {
-      console.log('Token starts with:', githubToken.substring(0, 4) + '...');
+    // Verify token format
+    if (githubToken.length < 30) { // GitHub tokens are typically longer
+      throw new Error('GitHub token appears to be malformed (too short)');
     }
 
     // Analyze files in the repository
     const analyzeFiles = async () => {
       console.log(`Fetching contents of repository: ${repoFullName}`);
+      
+      // Test GitHub API authentication first
+      const testResponse = await fetch('https://api.github.com/user', {
+        headers: {
+          'Authorization': `token ${githubToken}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'Supabase-Edge-Function'
+        },
+      });
+
+      if (!testResponse.ok) {
+        const errorText = await testResponse.text();
+        console.error('GitHub API authentication test failed:', {
+          status: testResponse.status,
+          statusText: testResponse.statusText,
+          headers: Object.fromEntries(testResponse.headers.entries()),
+          error: errorText
+        });
+        throw new Error('GitHub API authentication failed');
+      }
+
+      console.log('GitHub API authentication successful, proceeding with repository fetch');
+
       const response = await fetch(`https://api.github.com/repos/${repoFullName}/contents`, {
         headers: {
-          'Authorization': `token ${githubToken}`, // Changed from Bearer to token
+          'Authorization': `token ${githubToken}`,
           'Accept': 'application/vnd.github.v3+json',
           'User-Agent': 'Supabase-Edge-Function'
         },
