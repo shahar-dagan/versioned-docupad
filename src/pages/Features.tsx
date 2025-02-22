@@ -59,6 +59,7 @@ export default function Features() {
         console.error('Auth error:', error);
         throw error;
       }
+      console.log('Auth session:', session);
       return session;
     },
   });
@@ -199,6 +200,7 @@ export default function Features() {
   };
 
   if (!authData) {
+    console.log('No auth data available');
     return (
       <div className="container mx-auto py-10">
         <div className="flex items-center justify-center h-64">
@@ -211,6 +213,7 @@ export default function Features() {
   }
 
   if (isLoadingProduct || isLoadingFeatures) {
+    console.log('Loading state:', { isLoadingProduct, isLoadingFeatures });
     return (
       <div className="container mx-auto py-10">
         <div className="flex items-center justify-center h-64">
@@ -221,6 +224,7 @@ export default function Features() {
   }
 
   if (featuresError) {
+    console.error('Features error:', featuresError);
     return (
       <div className="container mx-auto py-10">
         <div className="flex items-center justify-center h-64">
@@ -231,6 +235,8 @@ export default function Features() {
       </div>
     );
   }
+
+  console.log('Rendering features:', features?.length);
 
   return (
     <div className="container mx-auto py-10">
