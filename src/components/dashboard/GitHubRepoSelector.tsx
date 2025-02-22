@@ -20,11 +20,11 @@ interface Repository {
 }
 
 interface GitHubRepoSelectorProps {
-  onSelect: (repo: Repository) => void;
+  onLinkRepo: (repo: Repository) => void;
   disabled?: boolean;
 }
 
-export function GitHubRepoSelector({ onSelect, disabled }: GitHubRepoSelectorProps) {
+export function GitHubRepoSelector({ onLinkRepo, disabled }: GitHubRepoSelectorProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRepoId, setSelectedRepoId] = useState<string>('');
 
@@ -75,7 +75,7 @@ export function GitHubRepoSelector({ onSelect, disabled }: GitHubRepoSelectorPro
         onClick={() => {
           const repo = repositories?.find(r => r.id === selectedRepoId);
           if (repo) {
-            onSelect(repo);
+            onLinkRepo(repo);
           }
         }}
       >

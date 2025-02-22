@@ -1,6 +1,6 @@
 
 import { Link } from 'react-router-dom';
-import { Github, Check, ArrowRight } from 'lucide-react';
+import { Github, Check, ArrowRight, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -28,17 +28,29 @@ interface Product {
 interface ProductCardProps {
   product: Product;
   onLinkRepo: (productId: string, repo: Repository) => void;
-  onDelete: () => void;
+  onDelete: (productId: string) => void;
 }
 
-export function ProductCard({ product, onLinkRepo }: ProductCardProps) {
+export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps) {
   return (
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader>
-        <CardTitle>{product.name}</CardTitle>
-        <CardDescription>
-          Created on {new Date(product.created_at).toLocaleDateString()}
-        </CardDescription>
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle>{product.name}</CardTitle>
+            <CardDescription>
+              Created on {new Date(product.created_at).toLocaleDateString()}
+            </CardDescription>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={() => onDelete(product.id)}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <p className="text-muted-foreground mb-4">{product.description}</p>
@@ -58,8 +70,7 @@ export function ProductCard({ product, onLinkRepo }: ProductCardProps) {
             </>
           ) : (
             <GitHubRepoSelector
-              productId={product.id}
-              onLinkRepo={onLinkRepo}
+              onLinkRepo={(repo) => onLinkRepo(product.id, repo)}
             />
           )}
         </div>

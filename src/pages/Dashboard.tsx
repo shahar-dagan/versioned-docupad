@@ -1,5 +1,4 @@
-
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Plus, Github, Check } from 'lucide-react';
@@ -10,6 +9,16 @@ import { toast } from "sonner";
 import { ProductCard } from '@/components/dashboard/ProductCard';
 import { DashboardStats } from '@/components/dashboard/DashboardStats';
 import { ProfileMenu } from '@/components/dashboard/ProfileMenu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 interface Product {
   id: string;
@@ -46,6 +55,9 @@ interface DashboardStats {
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
 
   useEffect(() => {
     if (!user) {
@@ -123,6 +135,48 @@ export default function Dashboard() {
     enabled: !!products && !!teamMembers,
   });
 
+  const createProductMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('products')
+        .insert({
+          name,
+          description,
+          author_id: user?.id,
+        });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Product created successfully!');
+      setCreateDialogOpen(false);
+      setName('');
+      setDescription('');
+      refetchProducts();
+    },
+    onError: (error) => {
+      toast.error('Failed to create product: ' + error.message);
+    },
+  });
+
+  const deleteProductMutation = useMutation({
+    mutationFn: async (productId: string) => {
+      const { error } = await supabase
+        .from('products')
+        .delete()
+        .eq('id', productId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Product deleted successfully!');
+      refetchProducts();
+    },
+    onError: (error) => {
+      toast.error('Failed to delete product: ' + error.message);
+    },
+  });
+
   const linkRepoMutation = useMutation({
     mutationFn: async ({ productId, repo }: { productId: string, repo: Repository }) => {
       const { error } = await supabase
@@ -155,12 +209,45 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <Button asChild>
-            <Link to="/products">
-              <Plus className="mr-2 h-4 w-4" />
-              New Product
-            </Link>
-          </Button>
+          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                New Product
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create New Product</DialogTitle>
+                <DialogDescription>
+                  Add a new product to start tracking its features
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Input
+                    placeholder="Product Name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Textarea
+                    placeholder="Product Description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                  />
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => createProductMutation.mutate()}
+                  disabled={!name || createProductMutation.isPending}
+                >
+                  {createProductMutation.isPending ? 'Creating...' : 'Create Product'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
           <ProfileMenu />
         </div>
       </div>
@@ -172,28 +259,21 @@ export default function Dashboard() {
       />
 
       <div className="mb-8">
-        <h2 className="text-2xl font-bold mb-4">Recent Products</h2>
+        <h2 className="text-2xl font-bold mb-4">Products</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {products?.slice(0, 3).map((product) => (
+          {products?.map((product) => (
             <ProductCard
               key={product.id}
               product={product}
               onLinkRepo={(productId, repo) => {
                 linkRepoMutation.mutate({ productId, repo });
               }}
-              onDelete={() => {
-                refetchProducts();
+              onDelete={(productId) => {
+                deleteProductMutation.mutate(productId);
               }}
             />
           ))}
         </div>
-        {products && products.length > 3 && (
-          <div className="mt-4 text-center">
-            <Button variant="outline" asChild>
-              <Link to="/products">View All Products</Link>
-            </Button>
-          </div>
-        )}
       </div>
     </div>
   );
