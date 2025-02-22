@@ -54,6 +54,7 @@ export default function Products() {
   const [description, setDescription] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const { data: products, refetch } = useQuery({
@@ -186,6 +187,7 @@ export default function Products() {
         description: 'Repository linked successfully',
       });
       setSelectedProduct(null);
+      setLinkDialogOpen(false);
       refetch();
     },
     onError: (error) => {
@@ -197,7 +199,6 @@ export default function Products() {
     },
   });
 
-  // Filter repositories based on search term
   const filteredRepositories = repositories?.filter(repo =>
     repo.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -282,12 +283,15 @@ export default function Products() {
                     View Features
                   </Link>
                 </Button>
-                <Dialog>
+                <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
                   <DialogTrigger asChild>
                     <Button 
                       variant="outline" 
                       className="w-full"
-                      onClick={() => setSelectedProduct(product.id)}
+                      onClick={() => {
+                        setSelectedProduct(product.id);
+                        setLinkDialogOpen(true);
+                      }}
                     >
                       <Github className="mr-2 h-4 w-4" />
                       Link GitHub Repo
@@ -321,8 +325,9 @@ export default function Products() {
                                   });
                                 }
                               }}
+                              disabled={linkRepoMutation.isPending}
                             >
-                              Link
+                              {linkRepoMutation.isPending ? 'Linking...' : 'Link'}
                             </Button>
                           </div>
                         ))}
