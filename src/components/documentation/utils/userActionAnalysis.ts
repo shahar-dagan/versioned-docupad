@@ -19,205 +19,208 @@ interface ActionableFeature {
   requiredAuth?: boolean;
 }
 
-const extractRouteFeatures = (content: string): string[] => {
-  const routePattern = /<Route[^>]*path=["']([^"']+)["'][^>]*>/g;
+interface RouteFeature {
+  path: string;
+  element: string;
+  isAuthProtected: boolean;
+  parentPath?: string;
+}
+
+const extractRoutes = (content: string): RouteFeature[] => {
+  const routes: RouteFeature[] = [];
+  const routePattern = /<Route[^>]*path=["']([^"']+)["'][^>]*element={<?([^}>]+)>?}/g;
   const matches = Array.from(content.matchAll(routePattern));
-  return matches.map(match => match[1]);
-};
-
-const extractComponentName = (filePath: string): string => {
-  const parts = filePath.split('/');
-  const fileName = parts[parts.length - 1].replace(/\.[^/.]+$/, '');
-  return fileName;
-};
-
-const analyzeUserInteractions = (content: string, filePath: string, route?: string): UserAction[] => {
-  const actions: UserAction[] = [];
-  const componentName = extractComponentName(filePath);
-
-  // Analyze forms and their submissions
-  const formPattern = /<form[^>]*onSubmit={([^}]+)}[^>]*>[\s\S]*?<\/form>/g;
-  const formMatches = content.matchAll(formPattern);
-  for (const match of Array.from(formMatches)) {
-    const formContent = match[0];
-    const submitHandler = match[1];
+  
+  matches.forEach(match => {
+    const path = match[1];
+    const element = match[2];
     
-    // Extract form purpose from surrounding context
-    const formPurpose = formContent.includes('create') ? 'create' :
-                       formContent.includes('edit') ? 'edit' :
-                       formContent.includes('delete') ? 'delete' : 'submit';
-    
-    actions.push({
-      type: formPurpose as any,
-      description: `${formPurpose} ${componentName.toLowerCase()}`,
-      location: filePath,
-      route,
-      componentName
+    // Determine if route requires auth by analyzing its context
+    const isAuthProtected = 
+      path.includes('dashboard') || 
+      path.includes('products') ||
+      element.includes('Private') ||
+      content.slice(Math.max(0, match.index! - 200), match.index).includes('AuthProvider');
+
+    routes.push({
+      path,
+      element: element.replace(/[<>]/g, ''),
+      isAuthProtected,
+      parentPath: findParentPath(path, routes)
     });
-  }
+  });
 
-  // Analyze interactive elements (buttons, links)
-  const interactionPatterns = [
-    /<button[^>]*onClick={([^}]+)}[^>]*>[^<]*<\/button>/g,
-    /<Link[^>]*to=["']([^"']+)["'][^>]*>/g,
-    /<Button[^>]*onClick={([^}]+)}[^>]*>[^<]*<\/Button>/g
-  ];
+  return routes;
+};
 
-  for (const pattern of interactionPatterns) {
-    const matches = content.matchAll(pattern);
-    for (const match of Array.from(matches)) {
-      const handler = match[1];
-      if (!handler) continue;
+const findParentPath = (path: string, routes: RouteFeature[]): string | undefined => {
+  const segments = path.split('/').filter(Boolean);
+  if (segments.length <= 1) return undefined;
+  
+  // Remove the last segment to find parent path
+  const parentSegments = segments.slice(0, -1);
+  const potentialParent = '/' + parentSegments.join('/');
+  
+  return routes.find(r => r.path === potentialParent)?.path;
+};
 
-      const actionType = 
-        content.toLowerCase().includes('delete') ? 'delete' :
-        content.toLowerCase().includes('edit') ? 'edit' :
-        content.toLowerCase().includes('create') || content.toLowerCase().includes('add') ? 'create' :
-        content.toLowerCase().includes('view') ? 'view' :
-        'interact';
-
-      const description = handler
-        .replace(/[{()}]/g, '')
-        .split(/(?=[A-Z])/)
-        .join(' ')
-        .toLowerCase();
-
-      actions.push({
-        type: actionType,
-        description,
-        location: filePath,
-        route,
-        componentName
-      });
+const analyzeDataOperations = (content: string): Map<string, Set<string>> => {
+  const operations = new Map<string, Set<string>>();
+  
+  // Find database table names from Supabase queries
+  const tablePattern = /from\(['"]([^'"]+)['"]\)/g;
+  const tableMatches = Array.from(content.matchAll(tablePattern));
+  
+  tableMatches.forEach(match => {
+    const tableName = match[1];
+    if (!operations.has(tableName)) {
+      operations.set(tableName, new Set());
     }
-  }
-
-  // Look for data display patterns
-  if (content.includes('map(') || content.includes('forEach(')) {
-    actions.push({
-      type: 'view',
-      description: `View ${componentName.toLowerCase()} list`,
-      location: filePath,
-      route,
-      componentName
-    });
-  }
-
-  // Look for mutation hooks
-  const mutationPattern = /useMutation[^)]*\)/g;
-  const mutationMatches = content.matchAll(mutationPattern);
-  for (const match of Array.from(mutationMatches)) {
-    const mutationContent = match[0];
     
-    const actionType = 
-      mutationContent.toLowerCase().includes('delete') ? 'delete' :
-      mutationContent.toLowerCase().includes('update') || mutationContent.toLowerCase().includes('edit') ? 'edit' :
-      mutationContent.toLowerCase().includes('create') ? 'create' :
-      'submit';
+    // Find operations on this table
+    const currentOps = operations.get(tableName)!;
+    if (content.includes(`.select`)) currentOps.add('view');
+    if (content.includes(`.insert`)) currentOps.add('create');
+    if (content.includes(`.update`)) currentOps.add('edit');
+    if (content.includes(`.delete`)) currentOps.add('delete');
+  });
+  
+  return operations;
+};
 
-    actions.push({
-      type: actionType,
-      description: `${actionType} ${componentName.toLowerCase()}`,
-      location: filePath,
-      route,
-      componentName
-    });
-  }
-
-  // Look for query hooks (view actions)
-  const queryPattern = /useQuery[^)]*\)/g;
-  const queryMatches = content.matchAll(queryPattern);
-  for (const match of Array.from(queryMatches)) {
-    actions.push({
-      type: 'view',
-      description: `View ${componentName.toLowerCase()} data`,
-      location: filePath,
-      route,
-      componentName
-    });
-  }
-
-  return actions;
+const analyzeComponentFeatures = (content: string, filePath: string): Set<string> => {
+  const features = new Set<string>();
+  
+  // Identify authentication features
+  if (content.includes('auth.signIn') || content.includes('sign in')) features.add('Authentication');
+  if (content.includes('auth.signUp') || content.includes('sign up')) features.add('User Registration');
+  
+  // Identify data management features
+  if (content.includes('useState') || content.includes('useReducer')) features.add('State Management');
+  if (content.includes('useQuery')) features.add('Data Fetching');
+  if (content.includes('useMutation')) features.add('Data Modification');
+  
+  // Identify file/document features
+  if (content.includes('upload') || content.includes('file')) features.add('File Management');
+  if (content.includes('document') || content.includes('.doc')) features.add('Documentation');
+  
+  // Identify collaboration features
+  if (content.includes('team') || content.includes('member')) features.add('Team Collaboration');
+  if (content.includes('share') || content.includes('permission')) features.add('Sharing');
+  
+  // Identify integration features
+  if (content.includes('github') || content.includes('repository')) features.add('GitHub Integration');
+  if (content.includes('analyze') || content.includes('scan')) features.add('Code Analysis');
+  
+  return features;
 };
 
 const buildFeatureHierarchy = (
-  actions: UserAction[], 
-  routes: string[]
+  routes: RouteFeature[],
+  componentAnalysis: Map<string, Set<string>>,
+  dataOperations: Map<string, Set<string>>
 ): ActionableFeature[] => {
-  const featureMap = new Map<string, ActionableFeature>();
+  const features: ActionableFeature[] = [];
+  const processedPaths = new Set<string>();
 
-  // Group actions by their component/route context
-  actions.forEach(action => {
-    const key = action.route || action.location;
-    if (!featureMap.has(key)) {
-      featureMap.set(key, {
-        name: action.componentName || extractComponentName(action.location),
-        description: `Manage ${action.componentName?.toLowerCase() || 'feature'}`,
-        path: action.location,
-        route: action.route,
-        actions: [],
-        childFeatures: []
-      });
-    }
-    featureMap.get(key)?.actions.push(action);
-  });
-
-  // Build hierarchy based on route nesting
-  const rootFeatures: ActionableFeature[] = [];
+  // Create feature groups based on route structure
   routes.forEach(route => {
-    const feature = Array.from(featureMap.values())
-      .find(f => f.route === route);
-    
-    if (feature) {
-      // Find parent route
-      const parentRoute = routes.find(r => 
-        r !== route && route.startsWith(r)
-      );
-      
-      if (parentRoute) {
-        const parentFeature = Array.from(featureMap.values())
-          .find(f => f.route === parentRoute);
-        parentFeature?.childFeatures?.push(feature);
-      } else {
-        rootFeatures.push(feature);
-      }
-    }
+    if (processedPaths.has(route.path)) return;
+    processedPaths.add(route.path);
+
+    const feature: ActionableFeature = {
+      name: route.element.replace(/Page$|Component$/, ''),
+      description: `Manage ${route.element.toLowerCase()}`,
+      path: route.path,
+      route: route.path,
+      actions: [],
+      childFeatures: [],
+      requiredAuth: route.isAuthProtected
+    };
+
+    // Add actions based on component analysis
+    const componentFeatures = componentAnalysis.get(route.element) || new Set<string>();
+    componentFeatures.forEach(f => {
+      feature.actions.push({
+        type: 'view',
+        description: f,
+        location: route.path,
+        route: route.path,
+        componentName: route.element
+      });
+    });
+
+    // Add actions based on data operations
+    dataOperations.forEach((ops, table) => {
+      ops.forEach(op => {
+        feature.actions.push({
+          type: op as any,
+          description: `${op} ${table}`,
+          location: route.path,
+          route: route.path,
+          componentName: route.element
+        });
+      });
+    });
+
+    // Find and link child features
+    routes
+      .filter(r => r.parentPath === route.path)
+      .forEach(childRoute => {
+        const childFeature = buildFeatureHierarchy(
+          [childRoute],
+          componentAnalysis,
+          dataOperations
+        )[0];
+        if (childFeature) {
+          feature.childFeatures?.push(childFeature);
+        }
+      });
+
+    features.push(feature);
   });
 
-  return rootFeatures;
+  return features;
 };
 
 export const analyzeUserActions = async (feature: ExtendedFeature): Promise<ActionableFeature[]> => {
-  const allActions: UserAction[] = [];
-  const routes: string[] = [];
+  const routes: RouteFeature[] = [];
+  const componentAnalysis = new Map<string, Set<string>>();
+  const allDataOperations = new Map<string, Set<string>>();
 
-  // Start with App.tsx to get routes
+  // Analyze the entire codebase
   feature.code_changes?.forEach(change => {
-    if (change?.content && change.file_path) {
-      // Skip non-UI files
-      if (
-        !change.file_path.includes('test') &&
-        !change.file_path.includes('config') &&
-        !change.file_path.includes('utils') &&
-        !change.file_path.includes('.d.ts') &&
-        !change.file_path.includes('.css') &&
-        !change.file_path.includes('types')
-      ) {
-        // Extract routes if this is App.tsx
-        if (change.file_path.includes('App.tsx')) {
-          routes.push(...extractRouteFeatures(change.content));
-        }
+    if (!change?.content || !change.file_path) return;
 
-        // Analyze user interactions in the component
-        const actions = analyzeUserInteractions(
-          change.content, 
-          change.file_path,
-          routes.find(route => change.file_path.toLowerCase().includes(route.toLowerCase()))
-        );
-        allActions.push(...actions);
-      }
+    // Extract routes from App.tsx
+    if (change.file_path.includes('App.tsx')) {
+      routes.push(...extractRoutes(change.content));
+    }
+
+    // Skip non-UI files
+    if (
+      !change.file_path.includes('test') &&
+      !change.file_path.includes('config') &&
+      !change.file_path.includes('.d.ts') &&
+      !change.file_path.includes('.css')
+    ) {
+      // Analyze component features
+      const componentName = change.file_path.split('/').pop()?.replace(/\.[^/.]+$/, '') || '';
+      componentAnalysis.set(
+        componentName,
+        analyzeComponentFeatures(change.content, change.file_path)
+      );
+
+      // Analyze data operations
+      const dataOps = analyzeDataOperations(change.content);
+      dataOps.forEach((ops, table) => {
+        if (!allDataOperations.has(table)) {
+          allDataOperations.set(table, new Set());
+        }
+        ops.forEach(op => allDataOperations.get(table)?.add(op));
+      });
     }
   });
 
-  return buildFeatureHierarchy(allActions, routes);
+  return buildFeatureHierarchy(routes, componentAnalysis, allDataOperations);
 };
