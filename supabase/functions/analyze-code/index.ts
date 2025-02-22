@@ -20,17 +20,23 @@ serve(async (req) => {
     const { repository } = await req.json();
 
     if (!repository) {
-      throw new Error('Repository name is required');
+      throw new Error('Repository information is required');
     }
 
     if (!DEEPSOURCE_API_KEY) {
       throw new Error('DeepSource API key is not configured');
     }
 
-    console.log('Analyzing repository:', repository);
+    // Extract owner and repo name from the repository URL
+    // Example URL: https://github.com/owner/repo
+    const url = new URL(repository.url);
+    const [, owner, repoName] = url.pathname.split('/');
+    const repoPath = `${owner}/${repoName}`;
+
+    console.log('Analyzing repository:', repoPath);
 
     // First, we need to get the repository ID from DeepSource
-    const repoResponse = await fetch(`${DEEPSOURCE_API_URL}/repos/${repository}`, {
+    const repoResponse = await fetch(`${DEEPSOURCE_API_URL}/repos/gh/${repoPath}`, {
       headers: {
         'Authorization': `Bearer ${DEEPSOURCE_API_KEY}`,
         'Accept': 'application/json',
@@ -38,8 +44,9 @@ serve(async (req) => {
     });
 
     if (!repoResponse.ok) {
-      console.error('DeepSource repo fetch error:', await repoResponse.text());
-      throw new Error('Repository not found in DeepSource');
+      const errorText = await repoResponse.text();
+      console.error('DeepSource repo fetch error:', errorText);
+      throw new Error('Repository not found in DeepSource. Make sure the repository is activated in your DeepSource dashboard.');
     }
 
     const repoData = await repoResponse.json();
@@ -56,8 +63,9 @@ serve(async (req) => {
     });
 
     if (!analysisResponse.ok) {
-      console.error('DeepSource analysis error:', await analysisResponse.text());
-      throw new Error('Failed to trigger DeepSource analysis');
+      const errorText = await analysisResponse.text();
+      console.error('DeepSource analysis error:', errorText);
+      throw new Error('Failed to trigger DeepSource analysis. Please check if the repository is properly configured.');
     }
 
     const analysisResult = await analysisResponse.json();
