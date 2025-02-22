@@ -32,13 +32,14 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Get repository information
-    const { data: repoData } = await supabase
+    const { data: repoData, error: repoError } = await supabase
       .from('github_repositories')
       .select('repository_name')
       .eq('product_id', productId)
       .single();
 
-    if (!repoData) {
+    if (repoError || !repoData) {
+      console.error('Error fetching repository:', repoError);
       throw new Error('No repository found for this product');
     }
 
@@ -53,29 +54,51 @@ serve(async (req) => {
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('GitHub API error response:', errorText);
       throw new Error(`GitHub API error: ${response.statusText}`);
     }
 
     const files = await response.json();
+    console.log('GitHub API response type:', typeof files);
+    console.log('GitHub API response:', JSON.stringify(files).slice(0, 500)); // Log first 500 chars
+
+    // Ensure files is an array
+    if (!Array.isArray(files)) {
+      console.error('GitHub API did not return an array:', files);
+      throw new Error('Invalid response from GitHub API: expected an array of files');
+    }
 
     // Filter and fetch content of relevant files
     const relevantFiles = files
-      .filter((file: any) => file.type === 'file' && 
-        (file.name.endsWith('.ts') || 
-         file.name.endsWith('.tsx') || 
-         file.name.endsWith('.js') || 
-         file.name.endsWith('.jsx')))
+      .filter((file: any) => {
+        return file.type === 'file' && 
+          (file.name.endsWith('.ts') || 
+           file.name.endsWith('.tsx') || 
+           file.name.endsWith('.js') || 
+           file.name.endsWith('.jsx'));
+      })
       .slice(0, 5); // Limit to 5 files for initial analysis
 
-    console.log('Processing files:', relevantFiles.map((f: any) => f.name));
+    console.log('Found relevant files:', relevantFiles.map((f: any) => f.name));
+
+    if (relevantFiles.length === 0) {
+      throw new Error('No relevant files found in repository');
+    }
 
     const fileContents: RepoFile[] = await Promise.all(
       relevantFiles.map(async (file: any) => {
+        console.log(`Fetching content for ${file.name} from ${file.download_url}`);
         const contentResponse = await fetch(file.download_url, {
           headers: {
             'Authorization': `Bearer ${githubToken}`,
           }
         });
+        
+        if (!contentResponse.ok) {
+          throw new Error(`Failed to fetch content for ${file.name}: ${contentResponse.statusText}`);
+        }
+        
         const content = await contentResponse.text();
         return { name: file.name, content };
       })
@@ -118,6 +141,8 @@ Format your response as a JSON array of objects with "name", "description", and 
     });
 
     if (!claudeResponse.ok) {
+      const errorText = await claudeResponse.text();
+      console.error('Claude API error response:', errorText);
       throw new Error(`Claude API error: ${claudeResponse.statusText}`);
     }
 
@@ -133,11 +158,11 @@ Format your response as a JSON array of objects with "name", "description", and 
       throw new Error('Failed to parse Claude response');
     }
 
-    console.log('Parsed features:', features);
+    console.log('Successfully parsed features:', features);
 
     // Store features in database
     for (const feature of features) {
-      const { error } = await supabase
+      const { error: insertError } = await supabase
         .from('features')
         .insert({
           product_id: productId,
@@ -147,8 +172,8 @@ Format your response as a JSON array of objects with "name", "description", and 
           suggestions: feature.suggestions
         });
 
-      if (error) {
-        console.error('Error inserting feature:', error);
+      if (insertError) {
+        console.error('Error inserting feature:', insertError);
       }
     }
 
@@ -157,7 +182,10 @@ Format your response as a JSON array of objects with "name", "description", and 
     });
   } catch (error) {
     console.error('Error in analyze-repository function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ 
+      error: error.message,
+      details: error.stack
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
