@@ -1,6 +1,7 @@
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ExternalLink, HelpCircle, Lightbulb } from 'lucide-react';
 
 interface VisualAid {
   type: 'screenshot' | 'video';
@@ -24,8 +25,9 @@ export function UserDocumentation({ userDocs }: UserDocumentationProps) {
   if (!userDocs) {
     return (
       <Alert>
-        <AlertDescription>
-          No user documentation available yet. Check the suggestions above to start documenting this feature.
+        <AlertDescription className="flex items-center gap-2">
+          <HelpCircle className="h-4 w-4" />
+          Documentation is being developed. In the meantime, try exploring the feature directly or check back soon.
         </AlertDescription>
       </Alert>
     );
@@ -57,7 +59,9 @@ export function UserDocumentation({ userDocs }: UserDocumentationProps) {
       {userDocs.overview && (
         <Card>
           <CardHeader>
-            <CardTitle>Overview</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              Quick Start
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">{userDocs.overview}</p>
@@ -68,7 +72,9 @@ export function UserDocumentation({ userDocs }: UserDocumentationProps) {
       {userDocs.steps && userDocs.steps.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>How to Use</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              Step-by-Step Guide
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <ol className="space-y-4">
@@ -88,7 +94,7 @@ export function UserDocumentation({ userDocs }: UserDocumentationProps) {
       {userDocs.visuals && userDocs.visuals.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Visual Guide</CardTitle>
+            <CardTitle>See It in Action</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
             {userDocs.visuals.map((visual, index) => (
@@ -101,7 +107,10 @@ export function UserDocumentation({ userDocs }: UserDocumentationProps) {
       {userDocs.use_cases && userDocs.use_cases.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Common Use Cases</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Lightbulb className="h-5 w-5" />
+              Common Use Cases
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="space-y-3">
@@ -121,14 +130,19 @@ export function UserDocumentation({ userDocs }: UserDocumentationProps) {
       {userDocs.faq && userDocs.faq.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>FAQ</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              Frequently Asked Questions
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
               {userDocs.faq.map((item, index) => (
                 <div key={index} className="space-y-2">
-                  <h3 className="font-medium">{item.question}</h3>
-                  <p className="text-muted-foreground">{item.answer}</p>
+                  <h3 className="font-medium flex items-center gap-2">
+                    <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                    {item.question}
+                  </h3>
+                  <p className="text-muted-foreground pl-6">{item.answer}</p>
                 </div>
               ))}
             </div>
