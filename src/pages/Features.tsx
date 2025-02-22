@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -80,24 +79,9 @@ export default function Features() {
     },
   });
 
-  const { data: features, refetch: refetchFeatures } = useQuery({
+  const { data: features, refetch } = useQuery({
     queryKey: ['features', productId],
     queryFn: async () => {
-      if (!repository?.repository_name) {
-        throw new Error('No repository linked to this product');
-      }
-
-      const response = await supabase.functions.invoke('analyze-repository', {
-        body: {
-          repoFullName: repository.repository_name,
-          productId,
-        },
-      });
-
-      if (response.error) {
-        throw new Error(response.error.message);
-      }
-
       const { data, error } = await supabase
         .from('features')
         .select('*')
@@ -107,7 +91,6 @@ export default function Features() {
       if (error) throw error;
       return data as Feature[];
     },
-    enabled: !!repository?.repository_name,
   });
 
   const analyzeRepositoryMutation = useMutation({
@@ -134,7 +117,7 @@ export default function Features() {
         title: 'Success',
         description: 'Repository analysis complete',
       });
-      refetchFeatures();
+      refetch();
     },
     onError: (error: Error) => {
       toast({
@@ -182,7 +165,7 @@ export default function Features() {
       setOpen(false);
       setName('');
       setDescription('');
-      refetchFeatures();
+      refetch();
     } catch (error) {
       console.error('Error creating feature:', error);
       toast({

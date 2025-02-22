@@ -1,5 +1,4 @@
-
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
@@ -7,18 +6,22 @@ import { useAuth } from '@/components/auth/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { toast } from "sonner";
+import { ProductCard } from '@/components/dashboard/ProductCard';
 import { DashboardStats } from '@/components/dashboard/DashboardStats';
 import { ProfileMenu } from '@/components/dashboard/ProfileMenu';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+
+interface Product {
+  id: string;
+  name: string;
+  description: string;
+  created_at: string;
+}
+
+interface Repository {
+  id: string;
+  name: string;
+  url: string;
+}
 
 interface Profile {
   username: string | null;
@@ -41,15 +44,25 @@ interface DashboardStats {
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
 
   useEffect(() => {
     if (!user) {
       navigate('/auth');
     }
   }, [user, navigate]);
+
+  const { data: products, refetch: refetchProducts } = useQuery({
+    queryKey: ['products'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data as Product[];
+    },
+  });
 
   const { data: teamMembers } = useQuery({
     queryKey: ['team-members'],
@@ -95,12 +108,33 @@ export default function Dashboard() {
       if (featuresError) throw featuresError;
 
       return {
-        totalProducts: 0,
+        totalProducts: products?.length || 0,
         totalFeatures: features?.[0]?.count || 0,
         totalTeamMembers: teamMembers?.length || 0,
       } as DashboardStats;
     },
-    enabled: !!teamMembers,
+    enabled: !!products && !!teamMembers,
+  });
+
+  const linkRepoMutation = useMutation({
+    mutationFn: async ({ productId, repo }: { productId: string, repo: Repository }) => {
+      const { error } = await supabase
+        .from('github_repositories')
+        .insert({
+          product_id: productId,
+          repository_name: repo.name,
+          repository_url: repo.url,
+          repository_id: repo.id,
+        });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Repository linked successfully!');
+    },
+    onError: (error) => {
+      toast.error('Failed to link repository: ' + error.message);
+    },
   });
 
   return (
@@ -109,19 +143,50 @@ export default function Dashboard() {
         <div>
           <h1 className="text-4xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground mt-2">
-            Welcome back! Here's an overview of your features and team.
+            Welcome back! Here's an overview of your products and features.
           </p>
         </div>
         <div className="flex items-center gap-4">
+          <Button asChild>
+            <Link to="/products">
+              <Plus className="mr-2 h-4 w-4" />
+              New Product
+            </Link>
+          </Button>
           <ProfileMenu />
         </div>
       </div>
 
       <DashboardStats
-        productCount={0}
+        productCount={products?.length || 0}
         featureCount={stats?.totalFeatures || 0}
         teamMemberCount={stats?.totalTeamMembers || 0}
       />
+
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold mb-4">Recent Products</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {products?.slice(0, 3).map((product) => (
+            <ProductCard
+              key={product.id}
+              product={product}
+              onLinkRepo={(productId, repo) => {
+                linkRepoMutation.mutate({ productId, repo });
+              }}
+              onDelete={() => {
+                refetchProducts();
+              }}
+            />
+          ))}
+        </div>
+        {products && products.length > 3 && (
+          <div className="mt-4 text-center">
+            <Button variant="outline" asChild>
+              <Link to="/products">View All Products</Link>
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
