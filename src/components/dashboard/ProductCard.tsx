@@ -22,7 +22,7 @@ import { GitHubRepoSelector } from './GitHubRepoSelector';
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 
 interface Product {
@@ -46,6 +46,7 @@ interface ProductCardProps {
 
 export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const queryClient = useQueryClient();
 
   // Fetch repository connection status
   const { data: repository } = useQuery({
@@ -78,6 +79,12 @@ export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps)
       toast.error('Failed to delete product');
     }
     setIsDeleteDialogOpen(false);
+  };
+
+  const handleLinkRepo = (repo: Repository) => {
+    onLinkRepo(product.id, repo);
+    // Invalidate the repository query to trigger a refetch
+    queryClient.invalidateQueries({ queryKey: ['github-repository', product.id] });
   };
 
   return (
@@ -139,7 +146,7 @@ export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps)
               </DialogHeader>
               <div className="py-4">
                 <GitHubRepoSelector 
-                  onSelect={(repo) => onLinkRepo(product.id, repo)}
+                  onSelect={handleLinkRepo}
                 />
               </div>
             </DialogContent>
