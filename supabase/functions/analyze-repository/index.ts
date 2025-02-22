@@ -14,11 +14,10 @@ serve(async (req) => {
 
   try {
     const { repoFullName, productId, userId } = await req.json();
-    console.log('Starting analysis with params:', { repoFullName, productId, userId });
+    console.log('Analyzing repository:', { repoFullName, productId, userId });
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Fetch and validate GitHub token
