@@ -2,36 +2,32 @@
 import { ExtendedFeature, FeatureContext, DocumentationPatterns, UserDocs } from '../types';
 
 export const generateOverview = (feature: ExtendedFeature, context: FeatureContext): string => {
-  return `${feature.name} helps you ${feature.description?.toLowerCase() || 'manage your product'}. ` +
-         `Here's what you can do with this feature:\n\n` +
-         `• Create and configure settings\n` +
-         `• Track changes and updates\n` +
-         `• Generate documentation automatically\n` +
-         `• Collaborate with your team`;
+  return `Welcome to the ${feature.name} documentation! This guide will help you understand how to use this feature effectively.\n\n` +
+         `Key things you can do:\n` +
+         `• ${feature.description || 'Manage your product features'}\n` +
+         `• Configure settings and preferences\n` +
+         `• Generate automatic documentation\n` +
+         `• Track changes and updates`;
 };
 
 export const generateSteps = (userFlows: FeatureContext['userFlows']): string[] => {
   const commonSteps = [
-    'Getting Started:',
-    '1. Go to the Products page',
-    '2. Select your product',
-    '3. Navigate to the Features section',
+    'Getting Started with Documentation:',
+    '1. Use the search bar at the top to find specific features',
+    '2. Browse the feature list in the left sidebar',
+    '3. Click on any feature to view its documentation',
     '',
-    'To add a new feature:',
-    '1. Click the "Add Feature" button',
-    '2. Enter the feature name and description',
-    '3. Click Create to save your feature',
+    'Viewing Documentation:',
+    '1. Choose between "How to Use" and "Technical Details"',
+    '2. Follow the step-by-step guides',
+    '3. Check the FAQ section for quick answers',
+    '4. Review use cases for practical examples',
     '',
-    'To manage existing features:',
-    '1. Find your feature in the list',
-    '2. Click on it to view details',
-    '3. Use the available actions to make changes',
-    '',
-    'To generate documentation:',
-    '1. Select your feature',
-    '2. Click "Generate Documentation"',
-    '3. Review the generated docs',
-    '4. Make any necessary adjustments',
+    'Managing Features:',
+    '1. Click "Add Feature" to create a new feature',
+    '2. Fill in the feature details',
+    '3. Use "Generate Documentation" to create guides',
+    '4. Review and customize the documentation'
   ];
 
   const flowSteps = userFlows.flatMap(flow => [
@@ -44,36 +40,36 @@ export const generateSteps = (userFlows: FeatureContext['userFlows']): string[] 
 
 export const generateUseCases = (context: FeatureContext): string[] => {
   return [
-    'When you want to add a new product feature',
-    'When you need to document existing functionality',
-    'When tracking changes to your product',
-    'When collaborating with team members',
-    'When organizing product documentation',
-    'When updating feature configurations'
+    'Finding documentation quickly using search',
+    'Creating new feature documentation',
+    'Understanding how to use specific features',
+    'Getting quick answers from FAQs',
+    'Tracking feature changes and updates',
+    'Sharing documentation with team members'
   ];
 };
 
 export const generateFAQ = (context: FeatureContext, patterns: DocumentationPatterns): Array<{ question: string; answer: string }> => {
   return [
     {
-      question: "How do I get started with a new feature?",
-      answer: "Start by clicking the 'Add Feature' button in the Features section. Fill in the name and description, then click Create. You can then configure additional settings and generate documentation."
+      question: "How do I find documentation for a specific feature?",
+      answer: "Use the search bar at the top of the page or browse the feature list in the left sidebar. Click on any feature to view its documentation."
     },
     {
-      question: "Can I update feature information later?",
-      answer: "Yes! You can update feature details anytime. Simply select the feature from the list and use the edit options to make changes."
+      question: "What's the difference between 'How to Use' and 'Technical Details'?",
+      answer: "'How to Use' provides step-by-step guides for everyday users, while 'Technical Details' contains implementation details for developers."
     },
     {
-      question: "How does documentation generation work?",
-      answer: "Documentation is generated automatically based on your feature configuration. Click 'Generate Documentation' to create user guides and technical docs. You can review and adjust the content as needed."
+      question: "Can I create documentation for my own features?",
+      answer: "Yes! Click 'Add Feature' to create a new feature, then use 'Generate Documentation' to automatically create guides and documentation."
     },
     {
-      question: "Who can access and modify features?",
-      answer: "Team members with appropriate permissions can view and modify features. Admins can manage access rights through the product settings."
+      question: "How do I share documentation with my team?",
+      answer: "All documentation is automatically shared with team members who have access to your product. They can access it through the same documentation section."
     },
     {
-      question: "How do I organize multiple features?",
-      answer: "Features are organized under their respective products. Use the search and filter options to find specific features, and the documentation section to keep everything well-documented."
+      question: "Where can I find recent changes to a feature?",
+      answer: "Each feature's documentation includes a 'Recent Changes' section where you can track updates and modifications."
     }
   ];
 };
