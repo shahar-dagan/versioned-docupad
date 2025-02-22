@@ -23,7 +23,6 @@ serve(async (req) => {
       throw new Error('Missing required parameters');
     }
 
-    // Create a test feature to verify the function is working
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
@@ -38,6 +37,8 @@ serve(async (req) => {
     const response = await fetch(repoUrl);
     const files = await response.json();
 
+    console.log('Files fetched from GitHub:', files);
+
     // Analyze repository structure with OpenAI
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -50,27 +51,47 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: 'You are an expert software architect. Analyze the repository structure and identify main features.'
+            content: `You are a code analysis tool that identifies features in repositories.
+            You MUST respond with a valid JSON array of features.
+            Each feature MUST have exactly these fields:
+            - name (string): short feature name
+            - description (string): detailed description
+            - suggestions (string[]): array of improvement suggestions`
           },
           {
             role: 'user',
-            content: `Analyze this repository structure and identify the main features:
-              ${JSON.stringify(files, null, 2)}
-              
-              Format your response as a JSON array of features, where each feature has:
-              - name: short feature name
-              - description: detailed description
-              - suggestions: array of improvement suggestions`
+            content: `Analyze this repository structure and list the main features as JSON:
+              ${JSON.stringify(files, null, 2)}`
           }
         ],
+        temperature: 0.7,
+        response_format: { type: "json_object" }
       }),
     });
 
     const aiData = await openAIResponse.json();
-    const features = JSON.parse(aiData.choices[0].message.content);
+    console.log('OpenAI response:', aiData);
+
+    let features;
+    try {
+      features = JSON.parse(aiData.choices[0].message.content).features;
+      if (!Array.isArray(features)) {
+        throw new Error('Features must be an array');
+      }
+    } catch (error) {
+      console.error('Failed to parse OpenAI response:', error);
+      throw new Error('Failed to parse features from AI response');
+    }
+
+    console.log('Parsed features:', features);
 
     // Insert features into database
     for (const feature of features) {
+      if (!feature.name || !feature.description || !Array.isArray(feature.suggestions)) {
+        console.error('Invalid feature format:', feature);
+        continue;
+      }
+
       const { error } = await supabase
         .from('features')
         .insert([{
@@ -82,7 +103,10 @@ serve(async (req) => {
           status: 'active',
         }]);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error inserting feature:', error);
+        throw error;
+      }
     }
 
     return new Response(JSON.stringify({ 
