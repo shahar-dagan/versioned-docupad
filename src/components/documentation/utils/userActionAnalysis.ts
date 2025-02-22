@@ -1,6 +1,4 @@
-
 import { ExtendedFeature } from '../types';
-import { routes } from '@/App';
 
 interface UserAction {
   type: 'view' | 'create' | 'edit' | 'delete' | 'navigate' | 'submit' | 'interact';
@@ -14,11 +12,6 @@ interface ActionableFeature {
   description: string;
   actions: UserAction[];
   subFeatures: ActionableFeature[];
-}
-
-interface RouteMetadata {
-  path: string;
-  component: string;
 }
 
 const analyzeProductManagement = (content: string): UserAction[] => {
