@@ -20,23 +20,25 @@ serve(async (req) => {
     const { repository } = await req.json();
 
     if (!repository) {
-      throw new Error('Repository information is required');
+      throw new Error('Repository name is required');
     }
 
     if (!DEEPSOURCE_API_KEY) {
       throw new Error('DeepSource API key is not configured');
     }
 
-    // Extract owner and repo name from the repository URL
-    // Example URL: https://github.com/owner/repo
-    const url = new URL(repository.url);
-    const [, owner, repoName] = url.pathname.split('/');
-    const repoPath = `${owner}/${repoName}`;
+    // The repository name should be in the format "owner/repo"
+    console.log('Repository name received:', repository);
 
-    console.log('Analyzing repository:', repoPath);
+    // Check if the repository name is in the correct format
+    if (!repository.includes('/')) {
+      throw new Error('Repository name must be in the format "owner/repo"');
+    }
+
+    console.log('Analyzing repository:', repository);
 
     // First, we need to get the repository ID from DeepSource
-    const repoResponse = await fetch(`${DEEPSOURCE_API_URL}/repos/gh/${repoPath}`, {
+    const repoResponse = await fetch(`${DEEPSOURCE_API_URL}/repos/gh/${repository}`, {
       headers: {
         'Authorization': `Bearer ${DEEPSOURCE_API_KEY}`,
         'Accept': 'application/json',
