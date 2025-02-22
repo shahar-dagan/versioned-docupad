@@ -41,7 +41,7 @@ serve(async (req) => {
     // Initialize Supabase client with service role key
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // First, get the default branch from the repository
+    // First, get the default branch and latest commit SHA from the repository
     console.log('Fetching repository information...');
     const repoResponse = await fetch(`https://api.github.com/repos/${repoFullName}`, {
       headers: {
@@ -58,9 +58,25 @@ serve(async (req) => {
     const defaultBranch = repoData.default_branch;
     console.log('Default branch:', defaultBranch);
 
-    // Get repository tree from GitHub API using the default branch
-    console.log(`Fetching repository tree from branch: ${defaultBranch}...`);
-    const treeResponse = await fetch(`https://api.github.com/repos/${repoFullName}/git/trees/${defaultBranch}?recursive=1`, {
+    // Get the latest commit SHA
+    const commitsResponse = await fetch(`https://api.github.com/repos/${repoFullName}/commits/${defaultBranch}`, {
+      headers: {
+        'Authorization': `Bearer ${githubToken}`,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+
+    if (!commitsResponse.ok) {
+      throw new Error(`GitHub API error: ${commitsResponse.statusText} when fetching commits`);
+    }
+
+    const commitData = await commitsResponse.json();
+    const treeSha = commitData.commit.tree.sha;
+    console.log(`Using tree SHA: ${treeSha} from latest commit`);
+
+    // Get repository tree using the commit's tree SHA
+    console.log(`Fetching repository tree...`);
+    const treeResponse = await fetch(`https://api.github.com/repos/${repoFullName}/git/trees/${treeSha}?recursive=1`, {
       headers: {
         'Authorization': `Bearer ${githubToken}`,
         'Accept': 'application/vnd.github.v3+json'
@@ -68,7 +84,9 @@ serve(async (req) => {
     });
 
     if (!treeResponse.ok) {
-      throw new Error(`GitHub API error: ${treeResponse.statusText} when fetching tree`);
+      const errorText = await treeResponse.text();
+      console.error('Tree response error:', errorText);
+      throw new Error(`GitHub API error: ${treeResponse.statusText} when fetching tree. Details: ${errorText}`);
     }
 
     const treeData = await treeResponse.json();
