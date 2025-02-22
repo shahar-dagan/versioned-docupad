@@ -1,6 +1,8 @@
 
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from '@supabase/supabase-js';
+
+const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,14 +15,14 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Starting repository analysis...');
     const { repoFullName, productId, userId } = await req.json();
-    console.log('Received parameters:', { repoFullName, productId, userId });
+    console.log('Analyzing repository:', { repoFullName, productId, userId });
 
     if (!repoFullName || !productId || !userId) {
       throw new Error('Missing required parameters');
     }
 
+    // Create a test feature to verify the function is working
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
@@ -29,37 +31,63 @@ serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
-    console.log('Supabase client created successfully');
+    
+    // Get repository content from GitHub
+    const repoUrl = `https://api.github.com/repos/${repoFullName}/contents`;
+    const response = await fetch(repoUrl);
+    const files = await response.json();
 
-    // For testing, let's create a sample feature
-    const featureData = {
-      name: 'Test Feature',
-      description: 'This is a test feature created by the analyze-repository function',
-      product_id: productId,
-      author_id: userId,
-      status: 'active',
-      suggestions: ['Suggestion 1', 'Suggestion 2'],
-      created_at: new Date().toISOString(),
-    };
+    // Analyze repository structure with OpenAI
+    const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert software architect. Analyze the repository structure and identify main features.'
+          },
+          {
+            role: 'user',
+            content: `Analyze this repository structure and identify the main features:
+              ${JSON.stringify(files, null, 2)}
+              
+              Format your response as a JSON array of features, where each feature has:
+              - name: short feature name
+              - description: detailed description
+              - suggestions: array of improvement suggestions`
+          }
+        ],
+      }),
+    });
 
-    console.log('Attempting to insert feature:', featureData);
+    const aiData = await openAIResponse.json();
+    const features = JSON.parse(aiData.choices[0].message.content);
 
-    const { data, error } = await supabase
-      .from('features')
-      .insert([featureData])
-      .select();
+    // Insert features into database
+    for (const feature of features) {
+      const { error } = await supabase
+        .from('features')
+        .insert([{
+          name: feature.name,
+          description: feature.description,
+          suggestions: feature.suggestions,
+          product_id: productId,
+          author_id: userId,
+          status: 'active',
+        }]);
 
-    if (error) {
-      console.error('Error inserting feature:', error);
-      throw error;
+      if (error) throw error;
     }
-
-    console.log('Feature inserted successfully:', data);
 
     return new Response(JSON.stringify({ 
       success: true, 
       message: 'Repository analyzed successfully',
-      data 
+      featuresCreated: features.length
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
