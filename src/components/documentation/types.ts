@@ -7,6 +7,7 @@ export interface ExtendedFeature extends Feature {
     file_path: string;
     change_type: string;
     created_at: string;
+    content?: string; // Added content property as optional
   }>;
 }
 
@@ -37,3 +38,4 @@ export interface UserDocs {
   use_cases: string[];
   faq: Array<{ question: string; answer: string }>;
 }
+

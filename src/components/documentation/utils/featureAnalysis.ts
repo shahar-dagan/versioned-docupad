@@ -1,4 +1,3 @@
-
 import { ExtendedFeature, FeatureContext, DocumentationPatterns } from '../types';
 import * as parser from '@babel/parser';
 import traverse from '@babel/traverse';
@@ -47,11 +46,11 @@ const analyzeCodeStructure = (code: string): CodeAnalysis => {
   });
 
   const analysis: CodeAnalysis = {
-    components: new Map(),
-    routes: new Map(),
-    dataFlow: new Map(),
-    interactions: new Map(),
-    boundaries: new Set(),
+    components: new Map<string, ComponentMetadata>(),
+    routes: new Map<string, RouteMetadata>(),
+    dataFlow: new Map<string, DataFlowMetadata>(),
+    interactions: new Map<string, InteractionMetadata>(),
+    boundaries: new Set<string>(),
   };
 
   traverse(ast as any, {
@@ -221,34 +220,44 @@ const extractInteractionMetadata = (node: any): InteractionMetadata | null => {
 
 export const identifyFeatureContext = (feature: ExtendedFeature): FeatureContext => {
   const analysis = feature.code_changes?.reduce((acc: CodeAnalysis, change) => {
-    if (change.content) {
+    if (change?.content) {
       const changeAnalysis = analyzeCodeStructure(change.content);
-      // Merge analyses
-      changeAnalysis.components.forEach((v, k) => acc.components.set(k, v));
-      changeAnalysis.routes.forEach((v, k) => acc.routes.set(k, v));
-      changeAnalysis.dataFlow.forEach((v, k) => acc.dataFlow.set(k, v));
-      changeAnalysis.interactions.forEach((v, k) => acc.interactions.set(k, v));
-      changeAnalysis.boundaries.forEach(b => acc.boundaries.add(b));
+      // Merge analyses with proper typing
+      changeAnalysis.components.forEach((v: ComponentMetadata, k: string) => acc.components.set(k, v));
+      changeAnalysis.routes.forEach((v: RouteMetadata, k: string) => acc.routes.set(k, v));
+      changeAnalysis.dataFlow.forEach((v: DataFlowMetadata, k: string) => acc.dataFlow.set(k, v));
+      changeAnalysis.interactions.forEach((v: InteractionMetadata, k: string) => acc.interactions.set(k, v));
+      changeAnalysis.boundaries.forEach((b: string) => acc.boundaries.add(b));
     }
     return acc;
   }, {
-    components: new Map(),
-    routes: new Map(),
-    dataFlow: new Map(),
-    interactions: new Map(),
-    boundaries: new Set(),
+    components: new Map<string, ComponentMetadata>(),
+    routes: new Map<string, RouteMetadata>(),
+    dataFlow: new Map<string, DataFlowMetadata>(),
+    interactions: new Map<string, InteractionMetadata>(),
+    boundaries: new Set<string>(),
   });
+
+  const defaultAnalysis: CodeAnalysis = {
+    components: new Map<string, ComponentMetadata>(),
+    routes: new Map<string, RouteMetadata>(),
+    dataFlow: new Map<string, DataFlowMetadata>(),
+    interactions: new Map<string, InteractionMetadata>(),
+    boundaries: new Set<string>(),
+  };
+
+  const finalAnalysis = analysis || defaultAnalysis;
 
   return {
     mainFeature: feature.name || 'Product Features',
-    subFeature: Array.from(analysis.components.keys())[0] || '',
-    userFlows: Array.from(analysis.interactions.values()).map(interaction => ({
+    subFeature: Array.from(finalAnalysis.components.keys())[0] || '',
+    userFlows: Array.from(finalAnalysis.interactions.values()).map(interaction => ({
       action: `${interaction.type} on ${interaction.component}`,
-      steps: generateStepsFromAnalysis(interaction, analysis),
+      steps: generateStepsFromAnalysis(interaction, finalAnalysis),
       expectedOutcome: `Successfully handled ${interaction.handler}`,
-      prerequisites: extractPrerequisites(analysis),
+      prerequisites: extractPrerequisites(finalAnalysis),
     })),
-    relatedFeatures: Array.from(analysis.boundaries),
+    relatedFeatures: Array.from(finalAnalysis.boundaries) as string[],
   };
 };
 
@@ -303,7 +312,7 @@ export const analyzeCodeChanges = (changes: ExtendedFeature['code_changes']): Do
   };
 
   changes?.forEach(change => {
-    if (!change.content) return;
+    if (!change?.content) return;
 
     const analysis = analyzeCodeStructure(change.content);
 
