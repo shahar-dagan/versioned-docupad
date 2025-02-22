@@ -9,6 +9,47 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      code_changes: {
+        Row: {
+          author_id: string
+          change_description: string
+          change_type: string
+          commit_hash: string | null
+          created_at: string
+          feature_id: string
+          file_path: string
+          id: string
+        }
+        Insert: {
+          author_id: string
+          change_description: string
+          change_type: string
+          commit_hash?: string | null
+          created_at?: string
+          feature_id: string
+          file_path: string
+          id?: string
+        }
+        Update: {
+          author_id?: string
+          change_description?: string
+          change_type?: string
+          commit_hash?: string | null
+          created_at?: string
+          feature_id?: string
+          file_path?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "code_changes_feature_id_fkey"
+            columns: ["feature_id"]
+            isOneToOne: false
+            referencedRelation: "features"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_versions: {
         Row: {
           author_id: string | null
@@ -50,6 +91,47 @@ export type Database = {
             columns: ["document_id"]
             isOneToOne: false
             referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documentation: {
+        Row: {
+          author_id: string
+          content: string
+          created_at: string
+          feature_id: string
+          id: string
+          title: string
+          updated_at: string
+          version: number | null
+        }
+        Insert: {
+          author_id: string
+          content: string
+          created_at?: string
+          feature_id: string
+          id?: string
+          title: string
+          updated_at?: string
+          version?: number | null
+        }
+        Update: {
+          author_id?: string
+          content?: string
+          created_at?: string
+          feature_id?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          version?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documentation_feature_id_fkey"
+            columns: ["feature_id"]
+            isOneToOne: false
+            referencedRelation: "features"
             referencedColumns: ["id"]
           },
         ]
@@ -104,6 +186,74 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      features: {
+        Row: {
+          author_id: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          product_id: string
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          product_id: string
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          product_id?: string
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "features_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          author_id: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
