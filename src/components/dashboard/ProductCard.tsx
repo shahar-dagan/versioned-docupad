@@ -1,6 +1,6 @@
 
 import { Link } from 'react-router-dom';
-import { Github, Trash2 } from 'lucide-react';
+import { Github, Trash2, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -22,6 +22,7 @@ import { GitHubRepoSelector } from './GitHubRepoSelector';
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
 
 interface Product {
   id: string;
@@ -45,6 +46,21 @@ interface ProductCardProps {
 export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
+  // Fetch repository connection status
+  const { data: repository } = useQuery({
+    queryKey: ['github-repository', product.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('github_repositories')
+        .select('*')
+        .eq('product_id', product.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const handleDelete = async () => {
     try {
       const { error } = await supabase
@@ -66,10 +82,19 @@ export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps)
   return (
     <Card className="hover:shadow-lg transition-shadow">
       <CardHeader>
-        <CardTitle>{product.name}</CardTitle>
-        <CardDescription>
-          Created on {new Date(product.created_at).toLocaleDateString()}
-        </CardDescription>
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle>{product.name}</CardTitle>
+            <CardDescription>
+              Created on {new Date(product.created_at).toLocaleDateString()}
+            </CardDescription>
+          </div>
+          {repository && (
+            <div className="flex items-center text-green-500" title="GitHub repository connected">
+              <CheckCircle className="h-5 w-5" />
+            </div>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <p className="text-muted-foreground mb-4">{product.description}</p>
@@ -81,9 +106,13 @@ export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps)
           </Button>
           <Dialog>
             <DialogTrigger asChild>
-              <Button variant="outline" className="w-full">
+              <Button 
+                variant="outline" 
+                className="w-full"
+                disabled={!!repository}
+              >
                 <Github className="mr-2 h-4 w-4" />
-                Link GitHub Repo
+                {repository ? 'Repository Linked' : 'Link GitHub Repo'}
               </Button>
             </DialogTrigger>
             <DialogContent>
