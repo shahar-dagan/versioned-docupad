@@ -64,6 +64,7 @@ export default function Features() {
         featuresCount={features?.length || 0}
         repository={repository}
         onAnalyze={() => analyzeRepositoryMutation.mutate()}
+        onAnalyzeCode={() => analyzeCodeMutation.mutate()}
         isAnalyzing={analyzeRepositoryMutation.isPending || analyzeCodeMutation.isPending}
         onFeatureCreated={refetch}
       />
