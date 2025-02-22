@@ -15,26 +15,37 @@ serve(async (req) => {
 
   try {
     const { repoFullName, productId, userId } = await req.json();
-    console.log('Analyzing repository:', { repoFullName, productId, userId });
+    console.log('Starting analysis with params:', { repoFullName, productId, userId });
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    console.log('Initializing Supabase client with URL:', supabaseUrl);
+    
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Get GitHub token
+    console.log('Fetching GitHub token from secrets...');
     const { data: tokenData, error: tokenError } = await supabase
       .from('secrets')
       .select('value')
       .eq('name', 'GITHUB_ACCESS_TOKEN')
       .single();
 
-    if (tokenError || !tokenData) {
+    if (tokenError) {
       console.error('Failed to get GitHub token:', tokenError);
-      throw new Error('Failed to get GitHub token');
+      throw new Error(`Failed to get GitHub token: ${tokenError.message}`);
     }
+
+    if (!tokenData) {
+      console.error('No GitHub token found in secrets');
+      throw new Error('GitHub token not found in secrets');
+    }
+
+    console.log('Successfully retrieved GitHub token');
 
     // Analyze files in the repository
     const analyzeFiles = async () => {
+      console.log(`Fetching contents of repository: ${repoFullName}`);
       const response = await fetch(`https://api.github.com/repos/${repoFullName}/contents`, {
         headers: {
           'Authorization': `Bearer ${tokenData.value}`,
@@ -43,10 +54,18 @@ serve(async (req) => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch repository contents');
+        const errorText = await response.text();
+        console.error('GitHub API error:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        });
+        throw new Error(`Failed to fetch repository contents: ${response.statusText}`);
       }
 
       const contents = await response.json();
+      console.log(`Found ${contents.length} files/directories in repository`);
+      
       const features = [];
 
       // Process only typescript/javascript files
@@ -57,10 +76,16 @@ serve(async (req) => {
              item.name.endsWith('.js') || 
              item.name.endsWith('.jsx'))) {
           
+          console.log(`Analyzing file: ${item.path}`);
           const fileResponse = await fetch(item.download_url);
-          if (!fileResponse.ok) continue;
+          
+          if (!fileResponse.ok) {
+            console.warn(`Failed to fetch file ${item.path}:`, fileResponse.statusText);
+            continue;
+          }
 
           const content = await fileResponse.text();
+          console.log(`Successfully fetched content for ${item.path}`);
           
           // Simple feature detection based on common patterns
           const feature = {
@@ -84,6 +109,8 @@ serve(async (req) => {
             feature.interactions.push('Form handling detected');
           }
 
+          console.log(`Analysis complete for ${item.path}:`, feature.interactions);
+
           features.push({
             product_id: productId,
             name: feature.name,
@@ -99,12 +126,13 @@ serve(async (req) => {
       return features;
     };
 
-    console.log('Starting repository analysis');
+    console.log('Starting repository analysis process...');
     const features = await analyzeFiles();
-    console.log('Analysis complete, found features:', features.length);
+    console.log(`Analysis complete, found ${features.length} features`);
 
     // Store the features
     if (features.length > 0) {
+      console.log('Storing features in database...');
       const { error: insertError } = await supabase
         .from('features')
         .upsert(features);
@@ -113,6 +141,7 @@ serve(async (req) => {
         console.error('Failed to store features:', insertError);
         throw insertError;
       }
+      console.log('Successfully stored features in database');
     }
 
     return new Response(
@@ -129,7 +158,10 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in analyze-repository function:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        stack: error.stack
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
