@@ -35,7 +35,7 @@ const createUserFriendlyGuides = (feature: ExtendedFeature) => {
     'Getting Started': {
       title: 'Your First Steps',
       explanation: 'Learn how to begin using this feature effectively',
-      realLifeExample: 'Perfect for when you're setting up a new project or feature'
+      realLifeExample: 'Perfect for when you\'re setting up a new project or feature'
     },
     'Creating Content': {
       title: 'Adding Your Content',
