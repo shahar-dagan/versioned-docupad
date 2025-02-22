@@ -59,21 +59,32 @@ const analyzeUserInteractions = (content: string, filePath: string, route?: stri
   // Analyze interactive elements (buttons, links)
   const interactionPatterns = [
     /<button[^>]*onClick={([^}]+)}[^>]*>[^<]*<\/button>/g,
-    /<Link[^>]*to=["']([^"']+)["'][^>]*>/g
+    /<Link[^>]*to=["']([^"']+)["'][^>]*>/g,
+    /<Button[^>]*onClick={([^}]+)}[^>]*>[^<]*<\/Button>/g
   ];
 
   for (const pattern of interactionPatterns) {
     const matches = content.matchAll(pattern);
     for (const match of Array.from(matches)) {
       const handler = match[1];
-      const actionType = handler.includes('delete') ? 'delete' :
-                        handler.includes('edit') ? 'edit' :
-                        handler.includes('create') ? 'create' :
-                        'interact';
+      if (!handler) continue;
+
+      const actionType = 
+        content.toLowerCase().includes('delete') ? 'delete' :
+        content.toLowerCase().includes('edit') ? 'edit' :
+        content.toLowerCase().includes('create') || content.toLowerCase().includes('add') ? 'create' :
+        content.toLowerCase().includes('view') ? 'view' :
+        'interact';
+
+      const description = handler
+        .replace(/[{()}]/g, '')
+        .split(/(?=[A-Z])/)
+        .join(' ')
+        .toLowerCase();
 
       actions.push({
         type: actionType,
-        description: handler,
+        description,
         location: filePath,
         route,
         componentName
@@ -86,6 +97,40 @@ const analyzeUserInteractions = (content: string, filePath: string, route?: stri
     actions.push({
       type: 'view',
       description: `View ${componentName.toLowerCase()} list`,
+      location: filePath,
+      route,
+      componentName
+    });
+  }
+
+  // Look for mutation hooks
+  const mutationPattern = /useMutation[^)]*\)/g;
+  const mutationMatches = content.matchAll(mutationPattern);
+  for (const match of Array.from(mutationMatches)) {
+    const mutationContent = match[0];
+    
+    const actionType = 
+      mutationContent.toLowerCase().includes('delete') ? 'delete' :
+      mutationContent.toLowerCase().includes('update') || mutationContent.toLowerCase().includes('edit') ? 'edit' :
+      mutationContent.toLowerCase().includes('create') ? 'create' :
+      'submit';
+
+    actions.push({
+      type: actionType,
+      description: `${actionType} ${componentName.toLowerCase()}`,
+      location: filePath,
+      route,
+      componentName
+    });
+  }
+
+  // Look for query hooks (view actions)
+  const queryPattern = /useQuery[^)]*\)/g;
+  const queryMatches = content.matchAll(queryPattern);
+  for (const match of Array.from(queryMatches)) {
+    actions.push({
+      type: 'view',
+      description: `View ${componentName.toLowerCase()} data`,
       location: filePath,
       route,
       componentName
