@@ -2,9 +2,9 @@
 import { ExtendedFeature, FeatureContext, DocumentationPatterns, UserDocs } from '../types';
 
 export const generateOverview = (feature: ExtendedFeature, context: FeatureContext): string => {
-  return `The ${context.subFeature} feature helps you ${feature.description?.toLowerCase() || 'manage your content'}. ` +
-         `As part of the ${context.mainFeature} system, it provides tools for ${context.userFlows.map(f => f.action.toLowerCase()).join(' and ')}. ` +
-         `You'll often use this alongside ${context.relatedFeatures.join(', ')} to accomplish your tasks.`;
+  return `This ${context.subFeature} helps you ${feature.description?.toLowerCase() || 'manage your product features'}. ` +
+         `As part of the ${context.mainFeature}, it provides tools for ${context.userFlows.map(f => f.action.toLowerCase()).join(' and ')}. ` +
+         `You can use it alongside ${context.relatedFeatures.join(', ')} to effectively manage your product.`;
 };
 
 export const generateSteps = (userFlows: FeatureContext['userFlows']): string[] => {
@@ -21,61 +21,53 @@ export const generateSteps = (userFlows: FeatureContext['userFlows']): string[] 
 
     // Add main steps with clear actions
     steps.push(`To ${flow.action.toLowerCase()}:`);
-    if (flow.steps.length) {
-      flow.steps.forEach((step, index) => 
-        steps.push(`${index + 1}. ${step}`)
-      );
-    }
-    steps.push(`Expected result: ${flow.expectedOutcome}`);
+    flow.steps.forEach((step, index) => 
+      steps.push(`${index + 1}. ${step}`)
+    );
+    steps.push(`Expected outcome: ${flow.expectedOutcome}`);
     steps.push(''); // Add spacing between flows
   });
   return steps;
 };
 
 export const generateUseCases = (context: FeatureContext): string[] => {
-  const useCases = [
+  return [
     ...context.userFlows.map(flow => 
       `When you need to ${flow.action.toLowerCase()}`
     ),
-    // Add common scenarios based on feature type
-    `When working with ${context.relatedFeatures.join(' or ')}`,
-    `As part of your ${context.mainFeature.toLowerCase()} workflow`,
-    `When you want to quickly ${context.subFeature.toLowerCase()}`
+    `When managing multiple product features`,
+    `When updating product configurations`,
+    `When collaborating with team members on product management`
   ];
-  return useCases;
 };
 
 export const generateFAQ = (context: FeatureContext, patterns: DocumentationPatterns): Array<{ question: string; answer: string }> => {
   const faq: Array<{ question: string; answer: string }> = [
     {
-      question: `What can I do with the ${context.subFeature}?`,
-      answer: `The ${context.subFeature} lets you ${context.userFlows.map(f => f.action.toLowerCase()).join(', ')}. It's designed to make ${context.mainFeature.toLowerCase()} tasks easier.`
+      question: `What is the purpose of ${context.subFeature}?`,
+      answer: `This feature helps you ${context.userFlows[0].action.toLowerCase()}. It's designed to streamline your product management workflow.`
     },
     {
-      question: "What other features should I use with this?",
-      answer: `For the best experience, use this feature along with ${context.relatedFeatures.join(', ')}. They work together to help you complete your tasks efficiently.`
-    },
-    {
-      question: "What do I need to get started?",
+      question: "How do I get started?",
       answer: context.userFlows[0]?.prerequisites?.length
-        ? `You'll need: ${context.userFlows[0].prerequisites.join(', ')}`
-        : "You can start using this feature right away, no special requirements needed."
+        ? `First, ensure you have: ${context.userFlows[0].prerequisites.join(', ')}. Then follow the step-by-step guide above.`
+        : "You can start using this feature right away from the Products section."
+    },
+    {
+      question: "Can I modify settings after initial setup?",
+      answer: "Yes, you can update your settings at any time. All changes are saved automatically, and you can review your modifications in real-time."
+    },
+    {
+      question: "Who can access this feature?",
+      answer: "Team members with appropriate permissions can access and modify product features. Make sure you have the necessary access rights before starting."
     }
   ];
 
-  // Add data-related FAQ if relevant
+  // Add data-specific questions if relevant
   if (patterns.dataOperations.size > 0) {
     faq.push({
       question: "Are my changes saved automatically?",
-      answer: "Yes, your changes are saved automatically as you work. You can always see your latest updates in real-time."
-    });
-  }
-
-  // Add interaction-related FAQ if relevant
-  if (patterns.userActions.size > 0) {
-    faq.push({
-      question: "Can I undo my changes?",
-      answer: "Yes, you can review your recent changes and undo them if needed. Your work is always preserved."
+      answer: "Yes, all changes are saved automatically. You can always review your recent changes in the history section."
     });
   }
 
