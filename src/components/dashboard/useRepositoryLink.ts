@@ -35,6 +35,14 @@ export function useRepositoryLink() {
         queryKey: ['github-repository', productId],
         exact: true
       });
+      // Also invalidate all github-repository queries to ensure lists are updated
+      queryClient.invalidateQueries({ 
+        queryKey: ['github-repository']
+      });
+      // Invalidate products to refresh any product lists
+      queryClient.invalidateQueries({ 
+        queryKey: ['products']
+      });
     },
     onError: (error) => {
       toast.error('Failed to link repository: ' + error.message);
