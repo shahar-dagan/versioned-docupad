@@ -4,223 +4,253 @@ import { ExtendedFeature } from '../types';
 interface UserAction {
   type: 'view' | 'create' | 'edit' | 'delete' | 'navigate' | 'submit' | 'interact';
   description: string;
-  location: string;
-  route?: string;
+  category: string;
   componentName?: string;
 }
 
 interface ActionableFeature {
-  name: string;
+  category: string;
   description: string;
-  path: string;
-  route?: string;
   actions: UserAction[];
-  childFeatures?: ActionableFeature[];
-  requiredAuth?: boolean;
+  subFeatures: ActionableFeature[];
 }
 
-interface RouteFeature {
-  path: string;
-  element: string;
-  isAuthProtected: boolean;
-  parentPath?: string;
-}
-
-const extractRoutes = (content: string): RouteFeature[] => {
-  const routes: RouteFeature[] = [];
-  const routePattern = /<Route[^>]*path=["']([^"']+)["'][^>]*element={<?([^}>]+)>?}/g;
-  const matches = Array.from(content.matchAll(routePattern));
+const analyzeAuthFeatures = (content: string): UserAction[] => {
+  const actions: UserAction[] = [];
   
-  matches.forEach(match => {
-    const path = match[1];
-    const element = match[2];
-    
-    // Determine if route requires auth by analyzing its context
-    const isAuthProtected = 
-      path.includes('dashboard') || 
-      path.includes('products') ||
-      element.includes('Private') ||
-      content.slice(Math.max(0, match.index! - 200), match.index).includes('AuthProvider');
-
-    routes.push({
-      path,
-      element: element.replace(/[<>]/g, ''),
-      isAuthProtected,
-      parentPath: findParentPath(path, routes)
+  if (content.includes('auth.signIn')) {
+    actions.push({
+      type: 'submit',
+      description: 'Sign in with email',
+      category: 'Authentication & User Management'
     });
-  });
+  }
+  
+  if (content.includes('auth.signUp')) {
+    actions.push({
+      type: 'create',
+      description: 'Sign up with email',
+      category: 'Authentication & User Management'
+    });
+  }
 
-  return routes;
+  if (content.includes('profile') || content.includes('user.id')) {
+    actions.push({
+      type: 'view',
+      description: 'Manage profile',
+      category: 'Authentication & User Management'
+    });
+  }
+
+  return actions;
 };
 
-const findParentPath = (path: string, routes: RouteFeature[]): string | undefined => {
-  const segments = path.split('/').filter(Boolean);
-  if (segments.length <= 1) return undefined;
+const analyzeProductFeatures = (content: string): UserAction[] => {
+  const actions: UserAction[] = [];
   
-  // Remove the last segment to find parent path
-  const parentSegments = segments.slice(0, -1);
-  const potentialParent = '/' + parentSegments.join('/');
-  
-  return routes.find(r => r.path === potentialParent)?.path;
-};
-
-const analyzeDataOperations = (content: string): Map<string, Set<string>> => {
-  const operations = new Map<string, Set<string>>();
-  
-  // Find database table names from Supabase queries
-  const tablePattern = /from\(['"]([^'"]+)['"]\)/g;
-  const tableMatches = Array.from(content.matchAll(tablePattern));
-  
-  tableMatches.forEach(match => {
-    const tableName = match[1];
-    if (!operations.has(tableName)) {
-      operations.set(tableName, new Set());
+  if (content.includes('products')) {
+    // Product management actions
+    if (content.includes('insert') || content.includes('createProduct')) {
+      actions.push({
+        type: 'create',
+        description: 'Create new products',
+        category: 'Product Management'
+      });
     }
     
-    // Find operations on this table
-    const currentOps = operations.get(tableName)!;
-    if (content.includes(`.select`)) currentOps.add('view');
-    if (content.includes(`.insert`)) currentOps.add('create');
-    if (content.includes(`.update`)) currentOps.add('edit');
-    if (content.includes(`.delete`)) currentOps.add('delete');
-  });
-  
-  return operations;
-};
-
-const analyzeComponentFeatures = (content: string, filePath: string): Set<string> => {
-  const features = new Set<string>();
-  
-  // Identify authentication features
-  if (content.includes('auth.signIn') || content.includes('sign in')) features.add('Authentication');
-  if (content.includes('auth.signUp') || content.includes('sign up')) features.add('User Registration');
-  
-  // Identify data management features
-  if (content.includes('useState') || content.includes('useReducer')) features.add('State Management');
-  if (content.includes('useQuery')) features.add('Data Fetching');
-  if (content.includes('useMutation')) features.add('Data Modification');
-  
-  // Identify file/document features
-  if (content.includes('upload') || content.includes('file')) features.add('File Management');
-  if (content.includes('document') || content.includes('.doc')) features.add('Documentation');
-  
-  // Identify collaboration features
-  if (content.includes('team') || content.includes('member')) features.add('Team Collaboration');
-  if (content.includes('share') || content.includes('permission')) features.add('Sharing');
-  
-  // Identify integration features
-  if (content.includes('github') || content.includes('repository')) features.add('GitHub Integration');
-  if (content.includes('analyze') || content.includes('scan')) features.add('Code Analysis');
-  
-  return features;
-};
-
-const buildFeatureHierarchy = (
-  routes: RouteFeature[],
-  componentAnalysis: Map<string, Set<string>>,
-  dataOperations: Map<string, Set<string>>
-): ActionableFeature[] => {
-  const features: ActionableFeature[] = [];
-  const processedPaths = new Set<string>();
-
-  // Create feature groups based on route structure
-  routes.forEach(route => {
-    if (processedPaths.has(route.path)) return;
-    processedPaths.add(route.path);
-
-    const feature: ActionableFeature = {
-      name: route.element.replace(/Page$|Component$/, ''),
-      description: `Manage ${route.element.toLowerCase()}`,
-      path: route.path,
-      route: route.path,
-      actions: [],
-      childFeatures: [],
-      requiredAuth: route.isAuthProtected
-    };
-
-    // Add actions based on component analysis
-    const componentFeatures = componentAnalysis.get(route.element) || new Set<string>();
-    componentFeatures.forEach(f => {
-      feature.actions.push({
+    if (content.includes('delete')) {
+      actions.push({
+        type: 'delete',
+        description: 'Delete existing products',
+        category: 'Product Management'
+      });
+    }
+    
+    if (content.includes('select') || content.match(/products\s*\(/)) {
+      actions.push({
         type: 'view',
-        description: f,
-        location: route.path,
-        route: route.path,
-        componentName: route.element
+        description: 'View product list',
+        category: 'Product Management'
       });
+    }
+
+    // Look for description fields
+    if (content.includes('description')) {
+      actions.push({
+        type: 'edit',
+        description: 'Add descriptions to products',
+        category: 'Product Management'
+      });
+    }
+  }
+
+  return actions;
+};
+
+const analyzeRepositoryFeatures = (content: string): UserAction[] => {
+  const actions: UserAction[] = [];
+
+  if (content.includes('github') || content.includes('repository')) {
+    if (content.includes('link') || content.includes('connect')) {
+      actions.push({
+        type: 'create',
+        description: 'Link GitHub repositories',
+        category: 'Repository Integration'
+      });
+    }
+
+    if (content.includes('analyze')) {
+      actions.push({
+        type: 'interact',
+        description: 'Analyze repository code',
+        category: 'Repository Integration'
+      });
+    }
+
+    if (content.includes('changes') || content.includes('history')) {
+      actions.push({
+        type: 'view',
+        description: 'Track code changes',
+        category: 'Repository Integration'
+      });
+    }
+  }
+
+  return actions;
+};
+
+const analyzeFeatureTracking = (content: string): UserAction[] => {
+  const actions: UserAction[] = [];
+
+  if (content.includes('features')) {
+    if (content.includes('insert') || content.includes('create')) {
+      actions.push({
+        type: 'create',
+        description: 'Add features to products',
+        category: 'Feature Tracking'
+      });
+    }
+
+    if (content.includes('select') || content.match(/features\s*\(/)) {
+      actions.push({
+        type: 'view',
+        description: 'View features list',
+        category: 'Feature Tracking'
+      });
+    }
+
+    if (content.includes('status')) {
+      actions.push({
+        type: 'edit',
+        description: 'Track feature status',
+        category: 'Feature Tracking'
+      });
+    }
+  }
+
+  return actions;
+};
+
+const analyzeDocumentation = (content: string): UserAction[] => {
+  const actions: UserAction[] = [];
+
+  if (content.includes('documentation') || content.includes('docs')) {
+    actions.push({
+      type: 'view',
+      description: 'View auto-generated documentation',
+      category: 'Documentation'
     });
 
-    // Add actions based on data operations
-    dataOperations.forEach((ops, table) => {
-      ops.forEach(op => {
-        feature.actions.push({
-          type: op as any,
-          description: `${op} ${table}`,
-          location: route.path,
-          route: route.path,
-          componentName: route.element
-        });
+    if (content.includes('search')) {
+      actions.push({
+        type: 'interact',
+        description: 'Search documentation',
+        category: 'Documentation'
       });
+    }
+
+    if (content.includes('technical')) {
+      actions.push({
+        type: 'view',
+        description: 'View technical documentation',
+        category: 'Documentation'
+      });
+    }
+  }
+
+  return actions;
+};
+
+const analyzeTeamCollaboration = (content: string): UserAction[] => {
+  const actions: UserAction[] = [];
+
+  if (content.includes('team') || content.includes('member')) {
+    actions.push({
+      type: 'view',
+      description: 'View team members',
+      category: 'Team Collaboration'
     });
+  }
 
-    // Find and link child features
-    routes
-      .filter(r => r.parentPath === route.path)
-      .forEach(childRoute => {
-        const childFeature = buildFeatureHierarchy(
-          [childRoute],
-          componentAnalysis,
-          dataOperations
-        )[0];
-        if (childFeature) {
-          feature.childFeatures?.push(childFeature);
-        }
+  if (content.includes('stats') || content.includes('analytics')) {
+    actions.push({
+      type: 'view',
+      description: 'See project statistics',
+      category: 'Team Collaboration'
+    });
+  }
+
+  return actions;
+};
+
+const categorizeFeatures = (actions: UserAction[]): ActionableFeature[] => {
+  const categoryMap = new Map<string, ActionableFeature>();
+
+  actions.forEach(action => {
+    if (!categoryMap.has(action.category)) {
+      categoryMap.set(action.category, {
+        category: action.category,
+        description: `Manage ${action.category.toLowerCase()}`,
+        actions: [],
+        subFeatures: []
       });
-
-    features.push(feature);
+    }
+    
+    const category = categoryMap.get(action.category);
+    if (category && !category.actions.find(a => a.description === action.description)) {
+      category.actions.push(action);
+    }
   });
 
-  return features;
+  return Array.from(categoryMap.values());
 };
 
 export const analyzeUserActions = async (feature: ExtendedFeature): Promise<ActionableFeature[]> => {
-  const routes: RouteFeature[] = [];
-  const componentAnalysis = new Map<string, Set<string>>();
-  const allDataOperations = new Map<string, Set<string>>();
+  const allActions: UserAction[] = [];
 
-  // Analyze the entire codebase
+  // Analyze each file for different types of features
   feature.code_changes?.forEach(change => {
-    if (!change?.content || !change.file_path) return;
+    if (!change?.content) return;
 
-    // Extract routes from App.tsx
-    if (change.file_path.includes('App.tsx')) {
-      routes.push(...extractRoutes(change.content));
-    }
-
-    // Skip non-UI files
+    // Skip non-relevant files
     if (
       !change.file_path.includes('test') &&
       !change.file_path.includes('config') &&
       !change.file_path.includes('.d.ts') &&
       !change.file_path.includes('.css')
     ) {
-      // Analyze component features
-      const componentName = change.file_path.split('/').pop()?.replace(/\.[^/.]+$/, '') || '';
-      componentAnalysis.set(
-        componentName,
-        analyzeComponentFeatures(change.content, change.file_path)
+      // Collect all actions from different analyzers
+      allActions.push(
+        ...analyzeAuthFeatures(change.content),
+        ...analyzeProductFeatures(change.content),
+        ...analyzeRepositoryFeatures(change.content),
+        ...analyzeFeatureTracking(change.content),
+        ...analyzeDocumentation(change.content),
+        ...analyzeTeamCollaboration(change.content)
       );
-
-      // Analyze data operations
-      const dataOps = analyzeDataOperations(change.content);
-      dataOps.forEach((ops, table) => {
-        if (!allDataOperations.has(table)) {
-          allDataOperations.set(table, new Set());
-        }
-        ops.forEach(op => allDataOperations.get(table)?.add(op));
-      });
     }
   });
 
-  return buildFeatureHierarchy(routes, componentAnalysis, allDataOperations);
+  // Remove duplicate actions and categorize them
+  return categorizeFeatures(allActions);
 };
