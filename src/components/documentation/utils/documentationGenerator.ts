@@ -34,9 +34,12 @@ export const generateSteps = (userFlows: FeatureContext['userFlows']): string[] 
     '4. Make any necessary adjustments',
   ];
 
-  return [...commonSteps, '', ...userFlows.map(flow => `${flow.action}:`).concat(
-    flow.steps.map((step, i) => `${i + 1}. ${step}`)
-  )];
+  const flowSteps = userFlows.flatMap(flow => [
+    `${flow.action}:`,
+    ...flow.steps.map((step, i) => `${i + 1}. ${step}`)
+  ]);
+
+  return [...commonSteps, '', ...flowSteps];
 };
 
 export const generateUseCases = (context: FeatureContext): string[] => {
