@@ -159,9 +159,11 @@ async function processRepositoryContents(contents: any[], repoFullName: string, 
 
         const content = await response.text();
         
-        // Extract potential features from file content
-        const fileFeatures = extractFeatures(content, item.name);
-        features.push(...fileFeatures);
+        // Extract potential features and generate documentation suggestions
+        const fileFeature = analyzeFileContent(content, item.name);
+        if (fileFeature) {
+          features.push(fileFeature);
+        }
       }
     }
 
@@ -173,24 +175,121 @@ async function processRepositoryContents(contents: any[], repoFullName: string, 
   }
 }
 
-function extractFeatures(content: string, fileName: string) {
-  const features = [];
-  
+function analyzeFileContent(content: string, fileName: string) {
   // Extract component name from file name
   const componentName = fileName.replace(/\.[^/.]+$/, '');
   
-  // Basic feature extraction logic
-  if (content.includes('export') || content.includes('function')) {
-    features.push({
-      name: `${componentName} Component`,
-      description: `A component found in ${fileName}`,
-      suggestions: [
-        'Review component documentation',
-        'Add unit tests',
-        'Consider performance optimizations'
-      ]
+  // Initialize feature object
+  const feature = {
+    name: componentName,
+    description: '',
+    suggestions: [] as Array<{
+      type: 'technical' | 'user',
+      category: string,
+      suggestion: string,
+      priority: 'high' | 'medium' | 'low'
+    }>
+  };
+
+  // Analyze exports and functions
+  const hasExports = content.includes('export');
+  const hasFunctions = content.includes('function');
+  const hasProps = content.includes('interface') || content.includes('type');
+  const hasJSX = content.includes('return (') || content.includes('return <');
+  const hasStyles = content.includes('className=');
+  const hasStateManagement = content.includes('useState') || content.includes('useReducer');
+  const hasEffects = content.includes('useEffect');
+  const hasAPI = content.includes('fetch') || content.includes('axios');
+  const hasRouting = content.includes('useRouter') || content.includes('useNavigate');
+
+  // Set description based on analysis
+  if (hasJSX) {
+    feature.description = `A React component that ${hasStateManagement ? 'manages state and ' : ''}${hasProps ? 'accepts props for ' : ''}${hasAPI ? 'interfaces with external data for ' : ''}rendering UI elements`;
+  } else if (hasFunctions) {
+    feature.description = `A utility module that provides functionality for ${fileName}`;
+  }
+
+  // Generate technical documentation suggestions
+  if (hasProps) {
+    feature.suggestions.push({
+      type: 'technical',
+      category: 'Props Documentation',
+      suggestion: 'Document the component props and their types',
+      priority: 'high'
     });
   }
-  
-  return features;
+
+  if (hasStateManagement) {
+    feature.suggestions.push({
+      type: 'technical',
+      category: 'State Management',
+      suggestion: 'Document the state management logic and data flow',
+      priority: 'high'
+    });
+  }
+
+  if (hasEffects) {
+    feature.suggestions.push({
+      type: 'technical',
+      category: 'Side Effects',
+      suggestion: 'Document the component lifecycle and side effects',
+      priority: 'medium'
+    });
+  }
+
+  if (hasAPI) {
+    feature.suggestions.push({
+      type: 'technical',
+      category: 'API Integration',
+      suggestion: 'Document the API endpoints and data structures used',
+      priority: 'high'
+    });
+  }
+
+  // Generate user documentation suggestions
+  if (hasJSX) {
+    feature.suggestions.push({
+      type: 'user',
+      category: 'Usage Guide',
+      suggestion: 'Provide examples of how to use this component',
+      priority: 'high'
+    });
+
+    if (hasProps) {
+      feature.suggestions.push({
+        type: 'user',
+        category: 'Configuration',
+        suggestion: 'Document the available configuration options',
+        priority: 'medium'
+      });
+    }
+  }
+
+  if (hasRouting) {
+    feature.suggestions.push({
+      type: 'user',
+      category: 'Navigation',
+      suggestion: 'Document the navigation flows and URL patterns',
+      priority: 'medium'
+    });
+  }
+
+  // Add accessibility suggestions if it's a UI component
+  if (hasJSX && hasStyles) {
+    feature.suggestions.push({
+      type: 'technical',
+      category: 'Accessibility',
+      suggestion: 'Document accessibility features and ARIA attributes',
+      priority: 'high'
+    });
+
+    feature.suggestions.push({
+      type: 'user',
+      category: 'Visual Guide',
+      suggestion: 'Add screenshots or videos demonstrating the component',
+      priority: 'medium'
+    });
+  }
+
+  return feature;
 }
