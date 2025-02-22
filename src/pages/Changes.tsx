@@ -1,8 +1,7 @@
-
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, ArrowLeft } from 'lucide-react';
+import { Plus, ArrowLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import {
@@ -64,6 +63,20 @@ export default function Changes() {
 
       if (error) throw error;
       return data as Feature;
+    },
+  });
+
+  const { data: product } = useQuery({
+    queryKey: ['product', productId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', productId)
+        .single();
+
+      if (error) throw error;
+      return data as { name: string };
     },
   });
 
@@ -132,6 +145,23 @@ export default function Changes() {
 
   return (
     <div className="container mx-auto py-10">
+      {/* Navigation Path */}
+      <div className="flex items-center gap-2 mb-8 text-sm text-muted-foreground">
+        <Link to="/products" className="hover:text-foreground transition-colors">
+          Products
+        </Link>
+        <ChevronRight className="h-4 w-4" />
+        <Link 
+          to={`/products/${productId}/features`}
+          className="hover:text-foreground transition-colors"
+        >
+          {product?.name || 'Loading...'}
+        </Link>
+        <ChevronRight className="h-4 w-4" />
+        <span className="font-medium text-foreground">{feature?.name || 'Loading...'}</span>
+      </div>
+
+      {/* Rest of the existing content */}
       <div className="mb-8">
         <Button variant="ghost" asChild className="mb-4">
           <Link to={`/products/${productId}/features`}>

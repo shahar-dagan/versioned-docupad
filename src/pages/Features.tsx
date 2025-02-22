@@ -1,9 +1,7 @@
-
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, ArrowLeft } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Plus, ArrowLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import {
@@ -124,6 +122,14 @@ export default function Features() {
 
   return (
     <div className="container mx-auto py-10">
+      <div className="flex items-center gap-2 mb-8 text-sm text-muted-foreground">
+        <Link to="/products" className="hover:text-foreground transition-colors">
+          Products
+        </Link>
+        <ChevronRight className="h-4 w-4" />
+        <span className="font-medium text-foreground">{product?.name || 'Loading...'}</span>
+      </div>
+
       <div className="mb-8">
         <Button variant="ghost" asChild className="mb-4">
           <Link to="/products">
