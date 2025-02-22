@@ -1,15 +1,15 @@
 
-import { FeatureAnalyzer } from './featureAnalysis';
+import { analyzeFeatures } from './featureAnalysis';
 
 export async function generateFeatureList(codebasePath: string) {
-  const analyzer = new FeatureAnalyzer();
-  const categories = await analyzer.analyzeCodebase(codebasePath);
-
-  const featureList: Record<string, string[]> = {};
-
-  for (const [category, data] of categories.entries()) {
-    featureList[category] = Array.from(data.features);
-  }
+  const analysisResult = await analyzeFeatures(codebasePath);
+  
+  const featureList: Record<string, string[]> = {
+    components: analysisResult.components.map(c => c.name),
+    functionality: analysisResult.functionality.map(f => f.name),
+    dataOperations: analysisResult.dataOperations.map(op => op.type),
+    security: analysisResult.security.map(s => s.type)
+  };
 
   return featureList;
 }
