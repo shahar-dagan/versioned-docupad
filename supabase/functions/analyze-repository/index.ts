@@ -54,7 +54,7 @@ serve(async (req) => {
       console.log(`Fetching contents of repository: ${repoFullName}`);
       const response = await fetch(`https://api.github.com/repos/${repoFullName}/contents`, {
         headers: {
-          'Authorization': `Bearer ${githubToken}`,
+          'Authorization': `token ${githubToken}`, // Changed from Bearer to token
           'Accept': 'application/vnd.github.v3+json',
           'User-Agent': 'Supabase-Edge-Function'
         },
