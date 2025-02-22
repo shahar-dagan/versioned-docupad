@@ -1,9 +1,9 @@
 
-import { BookOpen, Git, Brain, RefreshCw } from "lucide-react";
+import { BookOpen, Brain, RefreshCw } from "lucide-react";
 
 const features = [
   {
-    icon: Git,
+    icon: BookOpen, // Changed from Git to BookOpen
     title: "Version Control Aware",
     description: "Automatically tracks and documents changes as your codebase evolves"
   },
