@@ -1,7 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
-import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,7 +15,7 @@ serve(async (req) => {
 
   try {
     const { repoFullName, productId, userId } = await req.json();
-    console.log('Analyzing repository:', repoFullName);
+    console.log('Analyzing repository:', { repoFullName, productId, userId });
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -34,115 +33,92 @@ serve(async (req) => {
       throw new Error('Failed to get GitHub token');
     }
 
-    // Get repository details
-    const { data: repoData, error: repoError } = await supabase
-      .from('github_repositories')
-      .select('enterprise_url, enterprise_enabled')
-      .eq('repository_name', repoFullName)
-      .single();
-
-    if (repoError) {
-      console.error('Failed to get repository details:', repoError);
-      throw new Error('Failed to get repository details');
-    }
-
-    const baseUrl = repoData.enterprise_enabled && repoData.enterprise_url 
-      ? `${repoData.enterprise_url}/api/v3`
-      : 'https://api.github.com';
-
-    // Fetch repository content recursively
-    const fetchContent = async (path = '') => {
-      const response = await fetch(
-        `${baseUrl}/repos/${repoFullName}/contents/${path}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${tokenData.value}`,
-            'Accept': 'application/vnd.github.v3+json',
-          },
-        }
-      );
+    // Analyze files in the repository
+    const analyzeFiles = async () => {
+      const response = await fetch(`https://api.github.com/repos/${repoFullName}/contents`, {
+        headers: {
+          'Authorization': `Bearer ${tokenData.value}`,
+          'Accept': 'application/vnd.github.v3+json',
+        },
+      });
 
       if (!response.ok) {
-        console.error('Failed to fetch content:', await response.text());
-        throw new Error(`Failed to fetch content for path: ${path}`);
+        throw new Error('Failed to fetch repository contents');
       }
 
       const contents = await response.json();
-      return contents;
-    };
-
-    // Analyze content and gather feature information
-    const analyzeContent = async (contents: any[]): Promise<any[]> => {
       const features = [];
 
+      // Process only typescript/javascript files
       for (const item of contents) {
-        if (item.type === 'file' && item.name.endsWith('.tsx')) {
-          const response = await fetch(item.download_url, {
-            headers: {
-              'Authorization': `Bearer ${tokenData.value}`,
-            },
-          });
+        if (item.type === 'file' && 
+            (item.name.endsWith('.ts') || 
+             item.name.endsWith('.tsx') || 
+             item.name.endsWith('.js') || 
+             item.name.endsWith('.jsx'))) {
+          
+          const fileResponse = await fetch(item.download_url);
+          if (!fileResponse.ok) continue;
 
-          if (!response.ok) continue;
-
-          const content = await response.text();
+          const content = await fileResponse.text();
+          
+          // Simple feature detection based on common patterns
           const feature = {
-            path: item.path,
-            name: item.name.replace('.tsx', ''),
-            content: content,
-            type: 'component',
+            name: item.name.replace(/\.(tsx?|jsx?)$/, ''),
+            description: `Component or module from ${item.path}`,
             interactions: [],
           };
 
-          // Extract user interactions
-          const eventHandlerMatches = content.match(/on[A-Z]\w+={[^}]+}/g) || [];
-          const formMatches = content.match(/<form[^>]*>[\s\S]*?<\/form>/g) || [];
-          const buttonMatches = content.match(/<button[^>]*>[\s\S]*?<\/button>/g) || [];
+          // Detect React components
+          if (content.includes('export default') || content.includes('export function')) {
+            feature.interactions.push('Component definition found');
+          }
 
-          feature.interactions = [
-            ...eventHandlerMatches.map(match => ({ type: 'event', content: match })),
-            ...formMatches.map(match => ({ type: 'form', content: match })),
-            ...buttonMatches.map(match => ({ type: 'button', content: match })),
-          ];
+          // Detect event handlers
+          if (content.includes('onClick=') || content.includes('onChange=')) {
+            feature.interactions.push('User interaction handlers detected');
+          }
 
-          features.push(feature);
+          // Detect forms
+          if (content.includes('<form') || content.includes('handleSubmit')) {
+            feature.interactions.push('Form handling detected');
+          }
+
+          features.push({
+            product_id: productId,
+            name: feature.name,
+            description: feature.description,
+            author_id: userId,
+            status: 'active',
+            suggestions: feature.interactions,
+            last_analyzed_at: new Date().toISOString(),
+          });
         }
       }
 
       return features;
     };
 
-    // Start analysis
     console.log('Starting repository analysis');
-    const contents = await fetchContent();
-    const features = await analyzeContent(Array.isArray(contents) ? contents : [contents]);
+    const features = await analyzeFiles();
+    console.log('Analysis complete, found features:', features.length);
 
-    // Store analysis results
-    const { error: insertError } = await supabase
-      .from('features')
-      .upsert(
-        features.map(feature => ({
-          product_id: productId,
-          name: feature.name,
-          description: `Component: ${feature.path}`,
-          author_id: userId,
-          status: 'active',
-          suggestions: feature.interactions.map(i => 
-            `User interaction found: ${i.type} in ${feature.path}`
-          ),
-          last_analyzed_at: new Date().toISOString(),
-        }))
-      );
+    // Store the features
+    if (features.length > 0) {
+      const { error: insertError } = await supabase
+        .from('features')
+        .upsert(features);
 
-    if (insertError) {
-      console.error('Failed to store features:', insertError);
-      throw new Error('Failed to store features');
+      if (insertError) {
+        console.error('Failed to store features:', insertError);
+        throw insertError;
+      }
     }
 
     return new Response(
-      JSON.stringify({
+      JSON.stringify({ 
         message: 'Analysis completed successfully',
-        featuresAnalyzed: features.length,
+        featuresAnalyzed: features.length
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
