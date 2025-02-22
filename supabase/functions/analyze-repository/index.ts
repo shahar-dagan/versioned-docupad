@@ -17,6 +17,7 @@ serve(async (req) => {
   const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY')!;
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const githubToken = Deno.env.get('GITHUB_ACCESS_TOKEN')!;
 
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -24,14 +25,37 @@ serve(async (req) => {
   }
 
   try {
-    const { repoFullName, productId } = await req.json();
-    console.log('Analyzing repository:', repoFullName);
+    const { productId } = await req.json();
+    console.log('Analyzing repository for product:', productId);
 
     // Initialize Supabase client with service role key
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Get repository information
+    const { data: repoData } = await supabase
+      .from('github_repositories')
+      .select('repository_name')
+      .eq('product_id', productId)
+      .single();
+
+    if (!repoData) {
+      throw new Error('No repository found for this product');
+    }
+
+    console.log('Found repository:', repoData.repository_name);
+
     // Get repository files from GitHub API
-    const response = await fetch(`https://api.github.com/repos/${repoFullName}/contents`);
+    const response = await fetch(`https://api.github.com/repos/${repoData.repository_name}/contents`, {
+      headers: {
+        'Authorization': `Bearer ${githubToken}`,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`GitHub API error: ${response.statusText}`);
+    }
+
     const files = await response.json();
 
     // Filter and fetch content of relevant files
@@ -43,9 +67,15 @@ serve(async (req) => {
          file.name.endsWith('.jsx')))
       .slice(0, 5); // Limit to 5 files for initial analysis
 
+    console.log('Processing files:', relevantFiles.map((f: any) => f.name));
+
     const fileContents: RepoFile[] = await Promise.all(
       relevantFiles.map(async (file: any) => {
-        const contentResponse = await fetch(file.download_url);
+        const contentResponse = await fetch(file.download_url, {
+          headers: {
+            'Authorization': `Bearer ${githubToken}`,
+          }
+        });
         const content = await contentResponse.text();
         return { name: file.name, content };
       })
@@ -67,6 +97,8 @@ Based on the code, identify 3-5 key features this software offers or could offer
 
 Format your response as a JSON array of objects with "name", "description", and "suggestions" fields. Be specific and technical but clear.`;
 
+    console.log('Calling Claude API...');
+
     // Call Claude API
     const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -85,8 +117,23 @@ Format your response as a JSON array of objects with "name", "description", and 
       })
     });
 
+    if (!claudeResponse.ok) {
+      throw new Error(`Claude API error: ${claudeResponse.statusText}`);
+    }
+
     const analysisResult = await claudeResponse.json();
-    const features = JSON.parse(analysisResult.content[0].text);
+    console.log('Claude response:', analysisResult);
+
+    let features;
+    try {
+      features = JSON.parse(analysisResult.content[0].text);
+    } catch (error) {
+      console.error('Error parsing Claude response:', error);
+      console.log('Raw response:', analysisResult.content[0].text);
+      throw new Error('Failed to parse Claude response');
+    }
+
+    console.log('Parsed features:', features);
 
     // Store features in database
     for (const feature of features) {
