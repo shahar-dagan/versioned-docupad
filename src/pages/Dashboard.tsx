@@ -23,10 +23,10 @@ interface Repository {
   url: string;
 }
 
-type Profile = {
+interface Profile {
   username: string | null;
   avatar_url: string | null;
-} | null;
+}
 
 interface TeamMember {
   id: string;
@@ -81,7 +81,7 @@ export default function Dashboard() {
           id,
           user_id,
           role,
-          profiles:profiles (
+          profiles!inner (
             username,
             avatar_url
           )
@@ -90,7 +90,10 @@ export default function Dashboard() {
 
       if (error) throw error;
       
-      return data as TeamMember[];
+      return (data as any[]).map(member => ({
+        ...member,
+        profiles: member.profiles as Profile
+      })) as TeamMember[];
     },
     enabled: !!user,
   });
