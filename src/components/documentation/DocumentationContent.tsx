@@ -1,6 +1,6 @@
-
 import { Book, Code, User, Image, PlayCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 
 interface CodeSnippet {
   language: string;
