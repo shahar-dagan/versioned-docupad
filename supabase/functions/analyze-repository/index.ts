@@ -7,17 +7,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-interface CodeQLAlert {
-  rule: { id: string; description: string };
-  most_recent_instance: {
-    location: {
-      path: string;
-      start_line: number;
-      end_line: number;
-    };
-  };
-}
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -25,11 +14,11 @@ serve(async (req) => {
 
   try {
     const { repoFullName, productId, userId } = await req.json();
-    console.log('Analyzing repository:', { repoFullName, productId, userId });
+    console.log('Starting new CodeQL analysis for:', { repoFullName, productId, userId });
 
     const githubToken = Deno.env.get('GITHUB_ACCESS_TOKEN');
     if (!githubToken) {
-      throw new Error('GitHub token not found in environment variables');
+      throw new Error('GitHub token not found');
     }
 
     const headers = {
@@ -38,164 +27,154 @@ serve(async (req) => {
       'User-Agent': 'Supabase-Edge-Function'
     };
 
-    // First, check if CodeQL is enabled
-    console.log('Checking CodeQL status for repository:', repoFullName);
-    const codeQLStatusResponse = await fetch(
-      `https://api.github.com/repos/${repoFullName}/code-scanning/analyses`,
+    // First, check if the repository has Advanced Security enabled
+    const repoResponse = await fetch(
+      `https://api.github.com/repos/${repoFullName}`,
       { headers }
     );
 
-    let hasCodeQL = true;
-    if (!codeQLStatusResponse.ok) {
-      console.warn('CodeQL might not be enabled:', await codeQLStatusResponse.text());
-      hasCodeQL = false;
+    if (!repoResponse.ok) {
+      throw new Error('Failed to access repository');
     }
 
-    // Fetch CodeQL alerts if available
-    let codeQLAlerts: CodeQLAlert[] = [];
-    if (hasCodeQL) {
-      console.log('Fetching CodeQL alerts');
-      const alertsResponse = await fetch(
-        `https://api.github.com/repos/${repoFullName}/code-scanning/alerts`,
+    const repoData = await repoResponse.json();
+    if (!repoData.security_and_analysis?.advanced_security?.status === 'enabled') {
+      throw new Error('GitHub Advanced Security is not enabled for this repository');
+    }
+
+    // Create a new CodeQL workflow
+    const workflowContent = {
+      name: 'CodeQL Analysis',
+      on: {
+        workflow_dispatch: {},
+        schedule: [{ cron: '0 0 * * 0' }] // Weekly analysis
+      },
+      jobs: {
+        analyze: {
+          name: 'Analyze',
+          'runs-on': 'ubuntu-latest',
+          permissions: {
+            'security-events': 'write',
+            actions: 'read',
+            contents: 'read'
+          },
+          strategy: {
+            fail-fast: false,
+            matrix: {
+              language: ['javascript']
+            }
+          },
+          steps: [
+            {
+              name: 'Checkout repository',
+              uses: 'actions/checkout@v3'
+            },
+            {
+              name: 'Initialize CodeQL',
+              uses: 'github/codeql-action/init@v2',
+              with: {
+                languages: '${{ matrix.language }}'
+              }
+            },
+            {
+              name: 'Perform CodeQL Analysis',
+              uses: 'github/codeql-action/analyze@v2',
+              with: {
+                category: 'javascript-analysis'
+              }
+            }
+          ]
+        }
+      }
+    };
+
+    // Create/update the workflow file in the repository
+    const workflowPath = '.github/workflows/codeql-analysis.yml';
+    const workflowResponse = await fetch(
+      `https://api.github.com/repos/${repoFullName}/contents/${workflowPath}`,
+      {
+        method: 'PUT',
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: 'Add/Update CodeQL analysis workflow',
+          content: btoa(JSON.stringify(workflowContent, null, 2)),
+          branch: 'main'
+        })
+      }
+    );
+
+    if (!workflowResponse.ok) {
+      console.error('Failed to create workflow:', await workflowResponse.text());
+      throw new Error('Failed to create CodeQL workflow');
+    }
+
+    // Trigger the workflow
+    const triggerResponse = await fetch(
+      `https://api.github.com/repos/${repoFullName}/actions/workflows/codeql-analysis.yml/dispatches`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ ref: 'main' })
+      }
+    );
+
+    if (!triggerResponse.ok) {
+      throw new Error('Failed to trigger CodeQL analysis');
+    }
+
+    // Wait for analysis to start (poll the workflow run status)
+    let analysisStarted = false;
+    let attempts = 0;
+    while (!analysisStarted && attempts < 10) {
+      const runsResponse = await fetch(
+        `https://api.github.com/repos/${repoFullName}/actions/runs?event=workflow_dispatch`,
         { headers }
       );
-
-      if (alertsResponse.ok) {
-        codeQLAlerts = await alertsResponse.json();
-        console.log(`Found ${codeQLAlerts.length} CodeQL alerts`);
-      } else {
-        console.warn('Failed to fetch CodeQL alerts:', await alertsResponse.text());
-      }
-    }
-
-    // Fetch repository contents
-    const response = await fetch(`https://api.github.com/repos/${repoFullName}/contents`, {
-      headers
-    });
-
-    if (!response.ok) {
-      throw new Error(`Repository access failed: ${response.statusText}`);
-    }
-
-    const contents = await response.json();
-    console.log(`Found ${contents.length} files/directories in repository`);
-    
-    const features = [];
-    const processedPaths = new Set();
-
-    // First, process CodeQL alerts to identify important files
-    for (const alert of codeQLAlerts) {
-      const path = alert.most_recent_instance.location.path;
-      if (!processedPaths.has(path) && 
-          (path.endsWith('.ts') || path.endsWith('.tsx') || 
-           path.endsWith('.js') || path.endsWith('.jsx'))) {
-        
-        processedPaths.add(path);
-        console.log(`Processing file from CodeQL alert: ${path}`);
-        
-        try {
-          const fileResponse = await fetch(
-            `https://api.github.com/repos/${repoFullName}/contents/${path}`,
-            { headers }
-          );
-          
-          if (!fileResponse.ok) continue;
-          
-          const fileData = await fileResponse.json();
-          const content = atob(fileData.content);
-          
-          features.push({
-            product_id: productId,
-            name: path.split('/').pop()?.replace(/\.(tsx?|jsx?)$/, '') || 'Unknown',
-            description: `Found via CodeQL analysis - ${alert.rule.description}`,
-            author_id: userId,
-            status: 'active',
-            suggestions: [`Security consideration: ${alert.rule.description}`],
-            last_analyzed_at: new Date().toISOString(),
-          });
-        } catch (error) {
-          console.warn(`Failed to process file ${path}:`, error);
+      
+      if (runsResponse.ok) {
+        const runs = await runsResponse.json();
+        if (runs.workflow_runs?.length > 0) {
+          analysisStarted = true;
+          console.log('CodeQL analysis started:', runs.workflow_runs[0].id);
         }
       }
-    }
-
-    // Then process regular files
-    for (const item of contents) {
-      if (item.type === 'file' && 
-          !processedPaths.has(item.path) &&
-          (item.name.endsWith('.ts') || 
-           item.name.endsWith('.tsx') || 
-           item.name.endsWith('.js') || 
-           item.name.endsWith('.jsx'))) {
-        
-        processedPaths.add(item.path);
-        console.log(`Analyzing file: ${item.path}`);
-        
-        try {
-          const fileResponse = await fetch(item.download_url, { headers });
-          if (!fileResponse.ok) continue;
-          
-          const content = await fileResponse.text();
-          const suggestions = [];
-
-          if (content.includes('export default') || content.includes('export function')) {
-            suggestions.push('Component definition found');
-          }
-          if (content.includes('onClick=') || content.includes('onChange=')) {
-            suggestions.push('User interaction handlers detected');
-          }
-          if (content.includes('<form') || content.includes('handleSubmit')) {
-            suggestions.push('Form handling detected');
-          }
-          if (content.includes('fetch(') || content.includes('axios.')) {
-            suggestions.push('API integration detected');
-          }
-          if (content.includes('useState') || content.includes('useReducer')) {
-            suggestions.push('State management implementation');
-          }
-
-          features.push({
-            product_id: productId,
-            name: item.name.replace(/\.(tsx?|jsx?)$/, ''),
-            description: `Component or module from ${item.path}`,
-            author_id: userId,
-            status: 'active',
-            suggestions,
-            last_analyzed_at: new Date().toISOString(),
-          });
-        } catch (error) {
-          console.warn(`Failed to analyze file ${item.path}:`, error);
-        }
+      
+      if (!analysisStarted) {
+        attempts++;
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds between checks
       }
     }
 
-    console.log(`Analysis complete, found ${features.length} features`);
-
-    // Store features in Supabase
+    // Store analysis status in Supabase
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    if (features.length > 0) {
-      const { error: insertError } = await supabase
-        .from('features')
-        .upsert(features);
+    const { error: analysisError } = await supabase
+      .from('codeql_analyses')
+      .insert({
+        product_id: productId,
+        repository_name: repoFullName,
+        status: 'running',
+        triggered_by: userId
+      });
 
-      if (insertError) {
-        throw insertError;
-      }
+    if (analysisError) {
+      throw analysisError;
     }
 
     return new Response(
-      JSON.stringify({ 
-        message: 'Analysis completed successfully',
-        featuresAnalyzed: features.length,
-        codeQLEnabled: hasCodeQL,
-        codeQLAlerts: codeQLAlerts.length
+      JSON.stringify({
+        message: 'CodeQL analysis triggered successfully',
+        status: 'running',
+        analysisStarted
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
+        status: 200
       }
     );
 
@@ -205,7 +184,7 @@ serve(async (req) => {
       JSON.stringify({ error: error.message }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
+        status: 500
       }
     );
   }
