@@ -17,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { ProductCard } from '@/components/dashboard/ProductCard';
 import { useRepositoryLink } from '@/components/dashboard/useRepositoryLink';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 interface Product {
   id: string;
@@ -30,8 +31,9 @@ export default function Products() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const linkRepoMutation = useRepositoryLink();
+  const { user } = useAuth();
 
-  const { data: products, refetch } = useQuery({
+  const { data: products, refetch, isLoading, isError } = useQuery({
     queryKey: ['products'],
     queryFn: async () => {
       console.log('Fetching products...');
@@ -52,15 +54,12 @@ export default function Products() {
       console.log('Products fetched:', data);
       return data as (Product & { github_repositories: { repository_name: string } | null })[];
     },
+    enabled: !!user, // Only fetch if user is logged in
   });
 
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
     if (!user) {
       toast.error('You must be logged in to create a product');
       return;
@@ -103,12 +102,23 @@ export default function Products() {
 
       console.log('Product deleted successfully');
       toast.success('Product deleted successfully');
-      await refetch(); // Immediately refetch after successful deletion
+      await refetch();
     } catch (error) {
       console.error('Failed to delete product:', error);
       toast.error('Failed to delete product');
     }
   };
+
+  if (!user) {
+    return (
+      <div className="container mx-auto py-10">
+        <div className="text-center">
+          <h2 className="text-2xl font-semibold mb-2">Please Log In</h2>
+          <p className="text-muted-foreground">You need to be logged in to view and manage products.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto py-10">
@@ -158,22 +168,35 @@ export default function Products() {
         </Dialog>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {products?.map((product) => (
-          <ProductCard
-            key={product.id}
-            product={product}
-            onLinkRepo={async (productId, repo) => {
-              await linkRepoMutation.mutateAsync({ productId, repo });
-              refetch();
-            }}
-            onDelete={async () => {
-              await handleDeleteProduct(product.id);
-            }}
-          />
-        ))}
-      </div>
+      {isLoading ? (
+        <div className="text-center py-8">
+          <p className="text-muted-foreground">Loading products...</p>
+        </div>
+      ) : isError ? (
+        <div className="text-center py-8">
+          <p className="text-red-500">Error loading products. Please try again later.</p>
+        </div>
+      ) : products && products.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {products.map((product) => (
+            <ProductCard
+              key={product.id}
+              product={product}
+              onLinkRepo={async (productId, repo) => {
+                await linkRepoMutation.mutateAsync({ productId, repo });
+                refetch();
+              }}
+              onDelete={async () => {
+                await handleDeleteProduct(product.id);
+              }}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-8">
+          <p className="text-muted-foreground">No products found. Create your first product to get started!</p>
+        </div>
+      )}
     </div>
   );
 }
-
