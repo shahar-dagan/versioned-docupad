@@ -38,17 +38,12 @@ serve(async (req) => {
       )
     }
 
-    // Get access token from Supabase secrets
-    const { data: { secret: githubToken }, error: secretError } = await supabaseClient
-      .from('secrets')
-      .select('secret')
-      .eq('name', 'GITHUB_ACCESS_TOKEN')
-      .single()
-
-    if (secretError || !githubToken) {
-      console.error('Failed to get GitHub token:', secretError);
+    // Get GitHub token directly from environment variables
+    const githubToken = Deno.env.get('GITHUB_ACCESS_TOKEN');
+    if (!githubToken) {
+      console.error('GitHub token not found in environment variables');
       return new Response(
-        JSON.stringify({ error: 'Failed to get GitHub access token' }),
+        JSON.stringify({ error: 'GitHub access token not configured' }),
         { 
           status: 500, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
