@@ -7,13 +7,9 @@ import { Book, Code, FileText, GitBranch } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { Feature } from '@/types';
 
-interface Feature {
-  id: string;
-  name: string;
-  description: string;
-  technical_docs?: any;
-  user_docs?: any;
+interface ExtendedFeature extends Feature {
   code_changes?: Array<{
     change_description: string;
     file_path: string;
@@ -43,7 +39,7 @@ export function DocumentationGenerator({ featureId }: { featureId: string }) {
         .single();
 
       if (error) throw error;
-      return data as Feature;
+      return data as ExtendedFeature;
     },
   });
 
@@ -84,7 +80,7 @@ export function DocumentationGenerator({ featureId }: { featureId: string }) {
   };
 
   // Analyze code changes to identify patterns and user flows
-  const analyzeCodeChanges = (changes: Feature['code_changes']) => {
+  const analyzeCodeChanges = (changes: ExtendedFeature['code_changes']) => {
     const patterns = {
       userInputs: new Set<string>(),
       userActions: new Set<string>(),
@@ -113,10 +109,10 @@ export function DocumentationGenerator({ featureId }: { featureId: string }) {
   };
 
   // Generate user-friendly overview based on feature and changes
-  const generateOverview = (feature: Feature | undefined, patterns: any) => {
+  const generateOverview = (feature: ExtendedFeature | undefined, patterns: any) => {
     if (!feature) return '';
     
-    return `${feature.name} allows you to ${feature.description.toLowerCase()}. ` +
+    return `${feature.name} allows you to ${feature.description?.toLowerCase() || ''}. ` +
            `This feature helps you ${Array.from(patterns.userActions).join(', ')}.`;
   };
 
