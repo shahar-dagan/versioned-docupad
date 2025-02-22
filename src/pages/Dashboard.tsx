@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -42,8 +41,8 @@ interface TeamMember {
   user_id: string;
   role: string;
   profiles: {
-    username: string;
-    avatar_url: string;
+    username: string | null;
+    avatar_url: string | null;
   } | null;
 }
 
@@ -85,7 +84,7 @@ export default function Dashboard() {
         .from('teams')
         .select('id')
         .eq('owner_id', user?.id)
-        .single();
+        .maybeSingle();
 
       if (!teams) return [];
 
@@ -95,7 +94,7 @@ export default function Dashboard() {
           id,
           user_id,
           role,
-          profiles: user_id (
+          profiles:profiles!user_id(
             username,
             avatar_url
           )
@@ -103,7 +102,7 @@ export default function Dashboard() {
         .eq('team_id', teams.id);
 
       if (error) throw error;
-      return data as TeamMember[];
+      return (data as TeamMember[]) || [];
     },
     enabled: !!user,
   });
