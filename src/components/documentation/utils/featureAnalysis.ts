@@ -1,230 +1,297 @@
 
 import { ExtendedFeature, FeatureContext, DocumentationPatterns } from '../types';
+import * as parser from '@babel/parser';
+import traverse from '@babel/traverse';
+import { File, Node, Expression, Statement } from '@babel/types';
 
-const examineCodebase = (feature: ExtendedFeature) => {
-  const codeDetails = {
-    fileStructure: new Map<string, string[]>(),
-    componentRelations: new Map<string, Set<string>>(),
-    functionality: new Map<string, string[]>()
+interface CodeAnalysis {
+  components: Map<string, ComponentMetadata>;
+  routes: Map<string, RouteMetadata>;
+  dataFlow: Map<string, DataFlowMetadata>;
+  interactions: Map<string, InteractionMetadata>;
+  boundaries: Set<string>;
+}
+
+interface ComponentMetadata {
+  name: string;
+  imports: Set<string>;
+  stateUsage: Set<string>;
+  props: Set<string>;
+  eventHandlers: Set<string>;
+}
+
+interface RouteMetadata {
+  path: string;
+  component: string;
+  isProtected: boolean;
+  params: Set<string>;
+}
+
+interface DataFlowMetadata {
+  queries: Set<string>;
+  mutations: Set<string>;
+  context: Set<string>;
+  state: Set<string>;
+}
+
+interface InteractionMetadata {
+  type: 'click' | 'submit' | 'change' | 'input';
+  handler: string;
+  component: string;
+}
+
+const analyzeCodeStructure = (code: string): CodeAnalysis => {
+  const ast = parser.parse(code, {
+    sourceType: 'module',
+    plugins: ['jsx', 'typescript'],
+  });
+
+  const analysis: CodeAnalysis = {
+    components: new Map(),
+    routes: new Map(),
+    dataFlow: new Map(),
+    interactions: new Map(),
+    boundaries: new Set(),
   };
 
-  feature.code_changes?.forEach(change => {
-    if (!change.file_path) return;
-
-    const pathParts = change.file_path.split('/');
-    const category = pathParts[1] || 'root';
-    if (!codeDetails.fileStructure.has(category)) {
-      codeDetails.fileStructure.set(category, []);
-    }
-    codeDetails.fileStructure.get(category)?.push(change.file_path);
-
-    if (change.change_description) {
-      const relatedFiles = findRelatedFiles(change.change_description, feature.code_changes || []);
-      codeDetails.componentRelations.set(change.file_path, new Set(relatedFiles));
-    }
-
-    const functionType = determineFunctionType(change);
-    if (!codeDetails.functionality.has(functionType)) {
-      codeDetails.functionality.set(functionType, []);
-    }
-    codeDetails.functionality.get(functionType)?.push(change.change_description || '');
-  });
-
-  return codeDetails;
-};
-
-const summarizeFunctionalities = (codeDetails: ReturnType<typeof examineCodebase>) => {
-  const summary = {
-    features: new Set<string>(),
-    dependencies: new Map<string, Set<string>>(),
-    components: new Set<string>()
-  };
-
-  codeDetails.functionality.forEach((descriptions, type) => {
-    descriptions.forEach(desc => {
-      if (desc) summary.features.add(`${type}: ${desc}`);
-    });
-  });
-
-  codeDetails.componentRelations.forEach((related, file) => {
-    summary.dependencies.set(file, related);
-  });
-
-  codeDetails.fileStructure.forEach((files, category) => {
-    files.forEach(file => {
-      if (file.includes('component')) {
-        summary.components.add(file);
+  traverse(ast as any, {
+    // Detect React Components
+    FunctionDeclaration(path) {
+      if (isReactComponent(path.node)) {
+        const name = path.node.id?.name || '';
+        analysis.components.set(name, {
+          name,
+          imports: detectImports(path),
+          stateUsage: detectStateUsage(path),
+          props: detectProps(path),
+          eventHandlers: detectEventHandlers(path),
+        });
       }
-    });
+    },
+
+    // Detect Routes
+    JSXElement(path) {
+      if (isRouteElement(path.node)) {
+        const routeData = extractRouteData(path.node);
+        if (routeData) {
+          analysis.routes.set(routeData.path, routeData);
+        }
+      }
+    },
+
+    // Detect Data Flow
+    CallExpression(path) {
+      if (isDataFlowHook(path.node)) {
+        const dataFlow = extractDataFlowMetadata(path.node);
+        if (dataFlow) {
+          analysis.dataFlow.set(path.node.callee.name, dataFlow);
+        }
+      }
+    },
+
+    // Detect User Interactions
+    JSXAttribute(path) {
+      if (isEventHandler(path.node)) {
+        const interaction = extractInteractionMetadata(path.node);
+        if (interaction) {
+          analysis.interactions.set(interaction.handler, interaction);
+        }
+      }
+    },
   });
 
-  return summary;
+  return analysis;
 };
 
-const identifyUserFeatures = (
-  summary: ReturnType<typeof summarizeFunctionalities>,
-  feature: ExtendedFeature
-): FeatureContext => {
-  const userFlows = new Set<string>();
-  const interactions = new Set<string>();
-  const prerequisites = new Set<string>();
+const isReactComponent = (node: Node): boolean => {
+  return (
+    node.type === 'FunctionDeclaration' &&
+    Boolean(node.id?.name.match(/^[A-Z]/)) // Component names start with capital letter
+  );
+};
 
-  summary.components.forEach(component => {
-    const interaction = extractUserInteraction(component);
-    if (interaction) interactions.add(interaction);
+const detectImports = (path: any): Set<string> => {
+  const imports = new Set<string>();
+  path.traverse({
+    ImportDeclaration(importPath: any) {
+      imports.add(importPath.node.source.value);
+    },
   });
+  return imports;
+};
 
-  summary.features.forEach(featureDesc => {
-    const flow = extractUserFlow(featureDesc);
-    if (flow) userFlows.add(flow);
+const detectStateUsage = (path: any): Set<string> => {
+  const stateUsage = new Set<string>();
+  path.traverse({
+    CallExpression(callPath: any) {
+      if (callPath.node.callee.name === 'useState' ||
+          callPath.node.callee.name === 'useReducer') {
+        stateUsage.add(callPath.node.callee.name);
+      }
+    },
   });
+  return stateUsage;
+};
 
-  summary.dependencies.forEach((deps) => {
-    deps.forEach(dep => {
-      if (dep.includes('auth')) prerequisites.add('Authentication');
-      if (dep.includes('permission')) prerequisites.add('Required Permissions');
-    });
+const detectProps = (path: any): Set<string> => {
+  const props = new Set<string>();
+  path.traverse({
+    ObjectPattern(objPath: any) {
+      objPath.node.properties.forEach((prop: any) => {
+        props.add(prop.key.name);
+      });
+    },
+  });
+  return props;
+};
+
+const detectEventHandlers = (path: any): Set<string> => {
+  const handlers = new Set<string>();
+  path.traverse({
+    JSXAttribute(attrPath: any) {
+      if (attrPath.node.name.name.startsWith('on')) {
+        handlers.add(attrPath.node.name.name);
+      }
+    },
+  });
+  return handlers;
+};
+
+const isRouteElement = (node: any): boolean => {
+  return (
+    node.openingElement &&
+    node.openingElement.name &&
+    node.openingElement.name.name === 'Route'
+  );
+};
+
+const extractRouteData = (node: any): RouteMetadata | null => {
+  const pathAttr = node.openingElement.attributes
+    .find((attr: any) => attr.name.name === 'path');
+  const elementAttr = node.openingElement.attributes
+    .find((attr: any) => attr.name.name === 'element');
+
+  if (!pathAttr || !elementAttr) return null;
+
+  return {
+    path: pathAttr.value.value,
+    component: elementAttr.value.expression.name,
+    isProtected: Boolean(node.openingElement.name.name === 'PrivateRoute'),
+    params: extractRouteParams(pathAttr.value.value),
+  };
+};
+
+const extractRouteParams = (path: string): Set<string> => {
+  const params = new Set<string>();
+  const matches = path.match(/:[^/]+/g) || [];
+  matches.forEach(match => params.add(match.slice(1)));
+  return params;
+};
+
+const isDataFlowHook = (node: any): boolean => {
+  return (
+    node.callee &&
+    ['useQuery', 'useMutation', 'useContext', 'useState', 'useReducer']
+      .includes(node.callee.name)
+  );
+};
+
+const extractDataFlowMetadata = (node: any): DataFlowMetadata => {
+  return {
+    queries: new Set(node.callee.name === 'useQuery' ? [node.arguments[0]?.queryKey] : []),
+    mutations: new Set(node.callee.name === 'useMutation' ? [node.arguments[0]?.mutationKey] : []),
+    context: new Set(node.callee.name === 'useContext' ? [node.arguments[0]?.name] : []),
+    state: new Set(node.callee.name === 'useState' ? [node.arguments[0]] : []),
+  };
+};
+
+const isEventHandler = (node: any): boolean => {
+  return node.name && node.name.name && node.name.name.startsWith('on');
+};
+
+const extractInteractionMetadata = (node: any): InteractionMetadata | null => {
+  if (!node.value || !node.value.expression) return null;
+
+  return {
+    type: node.name.name.slice(2).toLowerCase() as 'click' | 'submit' | 'change' | 'input',
+    handler: node.value.expression.name || '',
+    component: node.parent.parent.openingElement.name.name,
+  };
+};
+
+export const identifyFeatureContext = (feature: ExtendedFeature): FeatureContext => {
+  const analysis = feature.code_changes?.reduce((acc: CodeAnalysis, change) => {
+    if (change.content) {
+      const changeAnalysis = analyzeCodeStructure(change.content);
+      // Merge analyses
+      changeAnalysis.components.forEach((v, k) => acc.components.set(k, v));
+      changeAnalysis.routes.forEach((v, k) => acc.routes.set(k, v));
+      changeAnalysis.dataFlow.forEach((v, k) => acc.dataFlow.set(k, v));
+      changeAnalysis.interactions.forEach((v, k) => acc.interactions.set(k, v));
+      changeAnalysis.boundaries.forEach(b => acc.boundaries.add(b));
+    }
+    return acc;
+  }, {
+    components: new Map(),
+    routes: new Map(),
+    dataFlow: new Map(),
+    interactions: new Map(),
+    boundaries: new Set(),
   });
 
   return {
     mainFeature: feature.name || 'Product Features',
-    subFeature: Array.from(userFlows)[0] || '',
-    userFlows: Array.from(userFlows).map(flow => ({
-      action: flow,
-      steps: generateStepsForFlow(flow),
-      expectedOutcome: `Successfully completed ${flow.toLowerCase()}`,
-      prerequisites: Array.from(prerequisites)
+    subFeature: Array.from(analysis.components.keys())[0] || '',
+    userFlows: Array.from(analysis.interactions.values()).map(interaction => ({
+      action: `${interaction.type} on ${interaction.component}`,
+      steps: generateStepsFromAnalysis(interaction, analysis),
+      expectedOutcome: `Successfully handled ${interaction.handler}`,
+      prerequisites: extractPrerequisites(analysis),
     })),
-    relatedFeatures: Array.from(interactions)
+    relatedFeatures: Array.from(analysis.boundaries),
   };
 };
 
-const craftFeatureDescriptions = (
-  context: FeatureContext,
-  patterns: DocumentationPatterns
-) => {
-  const descriptions = new Map<string, {
-    title: string;
-    explanation: string;
-    example: string;
-  }>();
-
-  context.userFlows.forEach(flow => {
-    const title = formatUserFriendlyTitle(flow.action);
-    const explanation = generateUserFriendlyExplanation(flow);
-    const example = generatePracticalExample(flow, patterns);
-
-    descriptions.set(flow.action, {
-      title,
-      explanation,
-      example
-    });
-  });
-
-  return descriptions;
-};
-
-const findRelatedFiles = (description: string, changes: ExtendedFeature['code_changes']): string[] => {
-  return changes
-    .filter(change => change.change_description?.toLowerCase()
-      .includes(description.toLowerCase()))
-    .map(change => change.file_path || '')
-    .filter(Boolean);
-};
-
-const determineFunctionType = (change: ExtendedFeature['code_changes'][0]): string => {
-  const desc = change.change_description?.toLowerCase() || '';
-  if (desc.includes('create')) return 'Creation';
-  if (desc.includes('update')) return 'Modification';
-  if (desc.includes('delete')) return 'Deletion';
-  if (desc.includes('view')) return 'Viewing';
-  if (desc.includes('auth')) return 'Authentication';
-  return 'General';
-};
-
-const extractUserInteraction = (component: string): string => {
-  const interactions: Record<string, string> = {
-    'form': 'Data Input',
-    'button': 'User Action',
-    'list': 'Data Display',
-    'modal': 'Interactive Dialog',
-    'nav': 'Navigation',
-    'table': 'Data Grid'
-  };
-
-  for (const [key, value] of Object.entries(interactions)) {
-    if (component.toLowerCase().includes(key)) {
-      return value;
-    }
-  }
-  return '';
-};
-
-const extractUserFlow = (featureDesc: string): string => {
-  const [type, desc] = featureDesc.split(': ');
-  if (!desc) return '';
-  return desc.charAt(0).toUpperCase() + desc.slice(1);
-};
-
-const generateStepsForFlow = (flow: string): string[] => {
+const generateStepsFromAnalysis = (
+  interaction: InteractionMetadata,
+  analysis: CodeAnalysis
+): string[] => {
   const steps: string[] = [];
-  const lowercaseFlow = flow.toLowerCase();
+  const component = analysis.components.get(interaction.component);
 
-  if (lowercaseFlow.includes('create')) {
-    steps.push('Click the create button');
-    steps.push('Fill in the required information');
-    steps.push('Save your changes');
-  } else if (lowercaseFlow.includes('update')) {
-    steps.push('Select the item to modify');
-    steps.push('Make your desired changes');
-    steps.push('Save the updates');
-  } else if (lowercaseFlow.includes('delete')) {
-    steps.push('Select the item to remove');
-    steps.push('Confirm the deletion');
-  } else {
-    steps.push('Navigate to the appropriate section');
-    steps.push('Select your desired action');
-    steps.push('Follow the on-screen instructions');
+  if (component) {
+    steps.push(`Navigate to the ${interaction.component} component`);
+    if (component.props.size > 0) {
+      steps.push(`Ensure required props are provided: ${Array.from(component.props).join(', ')}`);
+    }
+    steps.push(`Trigger the ${interaction.type} event`);
+    if (analysis.dataFlow.has(interaction.handler)) {
+      steps.push('Wait for data operation to complete');
+    }
   }
 
   return steps;
 };
 
-const formatUserFriendlyTitle = (action: string): string => {
-  return action.split(/(?=[A-Z])/).join(' ');
-};
+const extractPrerequisites = (analysis: CodeAnalysis): string[] => {
+  const prerequisites: string[] = [];
 
-const generateUserFriendlyExplanation = (flow: FeatureContext['userFlows'][0]): string => {
-  return `This feature allows you to ${flow.action.toLowerCase()}. ${
-    flow.prerequisites.length > 0 
-      ? `You'll need ${flow.prerequisites.join(' and ')} to use this feature.`
-      : ''
-  }`;
-};
+  analysis.routes.forEach(route => {
+    if (route.isProtected) {
+      prerequisites.push('Authentication required');
+    }
+    if (route.params.size > 0) {
+      prerequisites.push(`Required parameters: ${Array.from(route.params).join(', ')}`);
+    }
+  });
 
-const generatePracticalExample = (
-  flow: FeatureContext['userFlows'][0],
-  patterns: DocumentationPatterns
-): string => {
-  const action = flow.action.toLowerCase();
-  const components = Array.from(patterns.uiComponents);
-  const inputs = Array.from(patterns.userInputs);
+  analysis.dataFlow.forEach(flow => {
+    if (flow.context.size > 0) {
+      prerequisites.push(`Required context: ${Array.from(flow.context).join(', ')}`);
+    }
+  });
 
-  return `For example, you can ${action} using ${
-    components.length > 0 
-      ? `the ${components[0].toLowerCase()}`
-      : 'this feature'
-  }${
-    inputs.length > 0 
-      ? ` by providing ${inputs[0].toLowerCase()}`
-      : ''
-  }.`;
-};
-
-export const identifyFeatureContext = (feature: ExtendedFeature): FeatureContext => {
-  const codeDetails = examineCodebase(feature);
-  const summary = summarizeFunctionalities(codeDetails);
-  return identifyUserFeatures(summary, feature);
+  return prerequisites;
 };
 
 export const analyzeCodeChanges = (changes: ExtendedFeature['code_changes']): DocumentationPatterns => {
@@ -232,43 +299,40 @@ export const analyzeCodeChanges = (changes: ExtendedFeature['code_changes']): Do
     userInputs: new Set<string>(),
     userActions: new Set<string>(),
     dataOperations: new Set<string>(),
-    uiComponents: new Set<string>()
+    uiComponents: new Set<string>(),
   };
 
   changes?.forEach(change => {
-    const description = change.change_description?.toLowerCase() || '';
-    const path = change.file_path?.toLowerCase() || '';
+    if (!change.content) return;
 
-    // Detect user inputs from file paths and descriptions
-    if (path.includes('form') || path.includes('input')) {
-      patterns.userInputs.add(extractInputType(path));
-    }
+    const analysis = analyzeCodeStructure(change.content);
 
-    // Detect user actions from change descriptions
-    if (description) {
-      patterns.userActions.add(change.change_description);
-    }
+    // Map component interactions to user inputs
+    analysis.components.forEach(component => {
+      component.eventHandlers.forEach(handler => {
+        if (handler.includes('Change') || handler.includes('Input')) {
+          patterns.userInputs.add(component.name);
+        }
+      });
+    });
 
-    // Detect data operations
-    if (description.includes('save') || description.includes('update') || description.includes('delete')) {
-      patterns.dataOperations.add(change.change_description);
-    }
+    // Map interactions to user actions
+    analysis.interactions.forEach(interaction => {
+      patterns.userActions.add(`${interaction.type} ${interaction.handler}`);
+    });
 
-    // Detect UI components from file paths
-    if (path.includes('component')) {
-      patterns.uiComponents.add(extractComponentName(path));
-    }
+    // Map data flow to operations
+    analysis.dataFlow.forEach((flow, key) => {
+      if (flow.mutations.size > 0) {
+        patterns.dataOperations.add(key);
+      }
+    });
+
+    // Map components to UI components
+    analysis.components.forEach(component => {
+      patterns.uiComponents.add(component.name);
+    });
   });
 
   return patterns;
-};
-
-const extractInputType = (path: string): string => {
-  const matches = path.match(/(?:form|input)\/([^/]+)/i);
-  return matches ? matches[1].replace(/-/g, ' ') : 'Form input';
-};
-
-const extractComponentName = (path: string): string => {
-  const matches = path.match(/components\/([^/]+)/i);
-  return matches ? matches[1].replace(/-/g, ' ') : 'UI Component';
 };
