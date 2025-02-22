@@ -4,6 +4,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
 
 const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+const githubToken = Deno.env.get('GITHUB_ACCESS_TOKEN');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,6 +24,10 @@ serve(async (req) => {
       throw new Error('Missing required parameters');
     }
 
+    if (!githubToken) {
+      throw new Error('GitHub access token not configured');
+    }
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
@@ -32,12 +37,21 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
     
-    // Get repository content from GitHub
+    // Get repository content from GitHub with authentication
     const repoUrl = `https://api.github.com/repos/${repoFullName}/contents`;
     console.log('Fetching from GitHub URL:', repoUrl);
     
-    const response = await fetch(repoUrl);
+    const response = await fetch(repoUrl, {
+      headers: {
+        'Authorization': `Bearer ${githubToken}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Docupad-App'
+      }
+    });
+    
     if (!response.ok) {
+      const errorBody = await response.text();
+      console.error('GitHub API error details:', errorBody);
       throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
     }
     
