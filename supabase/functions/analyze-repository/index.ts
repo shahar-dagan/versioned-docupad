@@ -27,6 +27,23 @@ serve(async (req) => {
       'User-Agent': 'Supabase-Edge-Function'
     };
 
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Get repository ID from github_repositories table
+    const { data: repoData, error: repoError } = await supabase
+      .from('github_repositories')
+      .select('id')
+      .eq('repository_name', repoFullName)
+      .eq('product_id', productId)
+      .single();
+
+    if (repoError || !repoData) {
+      throw new Error('Repository not found in database');
+    }
+
     // Check if repository exists and is accessible
     const repoResponse = await fetch(
       `https://api.github.com/repos/${repoFullName}`,
@@ -37,7 +54,7 @@ serve(async (req) => {
       throw new Error('Failed to access repository');
     }
 
-    // Instead of creating a workflow, check for existing CodeQL alerts
+    // Fetch CodeQL alerts
     const alertsResponse = await fetch(
       `https://api.github.com/repos/${repoFullName}/code-scanning/alerts`,
       { headers }
@@ -51,25 +68,26 @@ serve(async (req) => {
       console.log('No existing CodeQL alerts found or access denied');
     }
 
-    // Store analysis attempt in Supabase
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
+    // Store analysis in database
     const { error: analysisError } = await supabase
       .from('codeql_analyses')
       .insert({
         product_id: productId,
-        repository_name: repoFullName,
+        repository_id: repoData.id,
         status: 'completed',
-        triggered_by: userId
+        triggered_by: userId,
+        analysis_results: {
+          alerts: alerts,
+          timestamp: new Date().toISOString(),
+          total_alerts: alerts.length
+        }
       });
 
     if (analysisError) {
       throw analysisError;
     }
 
-    // For repositories without CodeQL setup, provide instructions
+    // Prepare response with setup instructions if needed
     const setupInstructions = !alerts.length ? {
       message: 'No CodeQL alerts found. To enable CodeQL analysis:',
       steps: [

@@ -52,33 +52,33 @@ export type Database = {
       }
       codeql_analyses: {
         Row: {
-          analysis_date: string | null
           analysis_results: Json | null
           created_at: string | null
           id: string
           product_id: string | null
           repository_id: string | null
-          summary: string | null
+          status: string
+          triggered_by: string | null
           updated_at: string | null
         }
         Insert: {
-          analysis_date?: string | null
           analysis_results?: Json | null
           created_at?: string | null
           id?: string
           product_id?: string | null
           repository_id?: string | null
-          summary?: string | null
+          status: string
+          triggered_by?: string | null
           updated_at?: string | null
         }
         Update: {
-          analysis_date?: string | null
           analysis_results?: Json | null
           created_at?: string | null
           id?: string
           product_id?: string | null
           repository_id?: string | null
-          summary?: string | null
+          status?: string
+          triggered_by?: string | null
           updated_at?: string | null
         }
         Relationships: [
