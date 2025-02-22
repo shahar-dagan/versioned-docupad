@@ -22,7 +22,7 @@ import { GitHubRepoSelector } from './GitHubRepoSelector';
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 
 interface Product {
@@ -47,9 +47,8 @@ interface ProductCardProps {
 export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isLinkRepoDialogOpen, setIsLinkRepoDialogOpen] = useState(false);
-  const queryClient = useQueryClient();
 
-  // Fetch repository connection status
+  // Fetch repository connection status with staleTime: 0 to ensure fresh data
   const { data: repository } = useQuery({
     queryKey: ['github-repository', product.id],
     queryFn: async () => {
@@ -62,6 +61,7 @@ export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps)
       if (error) throw error;
       return data;
     },
+    staleTime: 0 // Always fetch fresh data
   });
 
   const handleDelete = async () => {
@@ -85,9 +85,6 @@ export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps)
   const handleLinkRepo = async (repo: Repository) => {
     try {
       await onLinkRepo(product.id, repo);
-      await queryClient.invalidateQueries({ 
-        queryKey: ['github-repository', product.id] 
-      });
       setIsLinkRepoDialogOpen(false);
     } catch (error) {
       console.error('Error linking repository:', error);

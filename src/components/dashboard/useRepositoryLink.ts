@@ -24,11 +24,17 @@ export function useRepositoryLink() {
         });
 
       if (error) throw error;
+      
+      // Return the productId for use in onSuccess
+      return { productId };
     },
-    onSuccess: () => {
+    onSuccess: ({ productId }) => {
       toast.success('Repository linked successfully!');
-      queryClient.invalidateQueries({ queryKey: ['github-repository'] });
-      queryClient.invalidateQueries({ queryKey: ['products'] });
+      // Invalidate the specific product's repository query
+      queryClient.invalidateQueries({ 
+        queryKey: ['github-repository', productId],
+        exact: true
+      });
     },
     onError: (error) => {
       toast.error('Failed to link repository: ' + error.message);
