@@ -23,22 +23,11 @@ serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get GitHub token
-    console.log('Fetching GitHub token from secrets...');
-    const { data: tokenData, error: tokenError } = await supabase
-      .from('secrets')
-      .select('value')
-      .eq('name', 'GITHUB_ACCESS_TOKEN')
-      .single();
-
-    if (tokenError) {
-      console.error('Failed to get GitHub token:', tokenError);
-      throw new Error(`Failed to get GitHub token: ${tokenError.message}`);
-    }
-
-    if (!tokenData) {
-      console.error('No GitHub token found in secrets');
-      throw new Error('GitHub token not found in secrets');
+    // Get GitHub token from environment variables
+    const githubToken = Deno.env.get('GITHUB_ACCESS_TOKEN');
+    if (!githubToken) {
+      console.error('No GitHub token found in environment');
+      throw new Error('GitHub token not found in environment variables');
     }
 
     console.log('Successfully retrieved GitHub token');
@@ -48,7 +37,7 @@ serve(async (req) => {
       console.log(`Fetching contents of repository: ${repoFullName}`);
       const response = await fetch(`https://api.github.com/repos/${repoFullName}/contents`, {
         headers: {
-          'Authorization': `Bearer ${tokenData.value}`,
+          'Authorization': `Bearer ${githubToken}`,
           'Accept': 'application/vnd.github.v3+json',
         },
       });
