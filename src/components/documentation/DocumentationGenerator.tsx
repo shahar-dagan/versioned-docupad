@@ -18,6 +18,20 @@ interface ExtendedFeature extends Feature {
   }>;
 }
 
+interface UserFlow {
+  action: string;
+  prerequisites?: string[];
+  steps: string[];
+  expectedOutcome: string;
+}
+
+interface FeatureContext {
+  mainFeature: string;
+  subFeature: string;
+  userFlows: UserFlow[];
+  relatedFeatures: string[];
+}
+
 export function DocumentationGenerator({ featureId }: { featureId: string }) {
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -43,19 +57,77 @@ export function DocumentationGenerator({ featureId }: { featureId: string }) {
     },
   });
 
+  const identifyFeatureContext = (feature: ExtendedFeature): FeatureContext => {
+    // Identify which main feature this belongs to based on file paths and descriptions
+    const paths = feature.code_changes?.map(c => c.file_path) || [];
+    const descriptions = feature.code_changes?.map(c => c.change_description) || [];
+    
+    const context: FeatureContext = {
+      mainFeature: '',
+      subFeature: '',
+      userFlows: [],
+      relatedFeatures: []
+    };
+
+    // Determine main feature category
+    if (paths.some(p => p.includes('auth'))) {
+      context.mainFeature = 'Authentication';
+      context.subFeature = paths.some(p => p.includes('signup')) ? 'Sign Up' : 'Login';
+    } else if (paths.some(p => p.includes('documentation'))) {
+      context.mainFeature = 'Documentation';
+      context.subFeature = paths.some(p => p.includes('generator')) ? 'Documentation Generation' : 'Documentation Viewing';
+    } else if (paths.some(p => p.includes('features'))) {
+      context.mainFeature = 'Features';
+      context.subFeature = 'Feature Management';
+    }
+
+    // Identify user flows
+    const userFlows: UserFlow[] = [];
+    descriptions.forEach(desc => {
+      if (!desc) return;
+      
+      if (desc.toLowerCase().includes('user can')) {
+        const flow: UserFlow = {
+          action: desc.replace('User can', '').trim(),
+          steps: [],
+          expectedOutcome: `Successfully ${desc.toLowerCase().replace('user can', '').trim()}`
+        };
+        
+        // Add prerequisites if auth-related
+        if (context.mainFeature === 'Authentication') {
+          flow.prerequisites = ['Valid email address', 'Password meeting security requirements'];
+        }
+        
+        userFlows.push(flow);
+      }
+    });
+
+    context.userFlows = userFlows;
+    
+    // Identify related features
+    if (context.mainFeature === 'Authentication') {
+      context.relatedFeatures = ['User Profile', 'Password Reset', 'Session Management'];
+    } else if (context.mainFeature === 'Documentation') {
+      context.relatedFeatures = ['Feature Analysis', 'Code Change Tracking', 'Documentation Export'];
+    }
+
+    return context;
+  };
+
   const generateDocumentation = async () => {
     setIsGenerating(true);
     try {
-      // Analyze code changes to understand feature context
-      const codeChanges = feature?.code_changes || [];
-      const changePatterns = analyzeCodeChanges(codeChanges);
+      if (!feature) throw new Error('Feature not found');
+      
+      const featureContext = identifyFeatureContext(feature);
+      const patterns = analyzeCodeChanges(feature.code_changes);
 
       // Generate user-focused documentation
       const userDocs = {
-        overview: generateOverview(feature, changePatterns),
-        steps: generateSteps(changePatterns),
-        use_cases: generateUseCases(changePatterns),
-        faq: generateFAQ(changePatterns),
+        overview: generateOverview(feature, featureContext),
+        steps: generateSteps(featureContext.userFlows),
+        use_cases: generateUseCases(featureContext),
+        faq: generateFAQ(featureContext, patterns),
       };
 
       // Update the feature with new documentation
@@ -79,7 +151,6 @@ export function DocumentationGenerator({ featureId }: { featureId: string }) {
     }
   };
 
-  // Analyze code changes to identify patterns and user flows
   const analyzeCodeChanges = (changes: ExtendedFeature['code_changes']) => {
     const patterns = {
       userInputs: new Set<string>(),
@@ -108,41 +179,47 @@ export function DocumentationGenerator({ featureId }: { featureId: string }) {
     return patterns;
   };
 
-  // Generate user-friendly overview based on feature and changes
-  const generateOverview = (feature: ExtendedFeature | undefined, patterns: any) => {
-    if (!feature) return '';
-    
-    return `${feature.name} allows you to ${feature.description?.toLowerCase() || ''}. ` +
-           `This feature helps you ${Array.from(patterns.userActions).join(', ')}.`;
+  const generateOverview = (feature: ExtendedFeature, context: FeatureContext) => {
+    return `${feature.name} is part of the ${context.mainFeature} system, specifically handling ${context.subFeature}. ` +
+           `This feature provides a user-friendly way to ${feature.description?.toLowerCase() || ''}. ` +
+           `It's commonly used alongside ${context.relatedFeatures.join(', ')}.`;
   };
 
-  // Generate step-by-step instructions based on user actions
-  const generateSteps = (patterns: any) => {
+  const generateSteps = (userFlows: UserFlow[]) => {
     const steps: string[] = [];
-    patterns.userActions.forEach((action: string) => {
-      steps.push(action.replace('User can', 'You can'));
+    userFlows.forEach(flow => {
+      if (flow.prerequisites) {
+        steps.push(`Before ${flow.action}, ensure you have: ${flow.prerequisites.join(', ')}`);
+      }
+      steps.push(`To ${flow.action}:`);
+      flow.steps.forEach(step => steps.push(step));
     });
     return steps;
   };
 
-  // Generate use cases based on identified patterns
-  const generateUseCases = (patterns: any) => {
-    const useCases: string[] = [];
-    patterns.userActions.forEach((action: string) => {
-      useCases.push(`Use this feature when you need to ${action.toLowerCase()}`);
-    });
+  const generateUseCases = (context: FeatureContext) => {
+    const useCases = context.userFlows.map(flow => 
+      `Use this feature when you need to ${flow.action.toLowerCase()}`
+    );
     return useCases;
   };
 
-  // Generate FAQ based on common patterns and potential issues
-  const generateFAQ = (patterns: any) => {
+  const generateFAQ = (context: FeatureContext, patterns: any) => {
     const faq: Array<{ question: string; answer: string }> = [];
     
-    // Add general usage questions
+    // Add context-specific questions
     faq.push({
-      question: "How do I get started with this feature?",
-      answer: "Start by reviewing the step-by-step guide above and make sure you're logged in to your account.",
+      question: `How does this feature fit into the ${context.mainFeature} system?`,
+      answer: `This feature is a key part of ${context.subFeature}, helping users to ${context.userFlows[0]?.action.toLowerCase() || 'perform actions'} within the ${context.mainFeature} system.`
     });
+
+    // Add related features question
+    if (context.relatedFeatures.length > 0) {
+      faq.push({
+        question: "What other features should I know about?",
+        answer: `This feature works well with ${context.relatedFeatures.join(', ')}. Consider exploring these related features to get the most out of the system.`
+      });
+    }
 
     // Add data-related questions if applicable
     if (patterns.dataOperations.size > 0) {
