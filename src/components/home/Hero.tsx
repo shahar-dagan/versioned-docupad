@@ -1,8 +1,11 @@
 
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, LogIn } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 export const Hero = () => {
+  const { user } = useAuth();
+  
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-br from-secondary/50 to-background z-0" />
@@ -22,12 +25,21 @@ export const Hero = () => {
         </p>
         
         <div className="flex items-center justify-center gap-6 animate-fade-in" style={{ animationDelay: "600ms" }}>
-          <Link
-            to="/docs"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            Get Started <ArrowRight className="w-4 h-4" />
-          </Link>
+          {!user ? (
+            <Link
+              to="/auth"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              Get Started <LogIn className="w-4 h-4" />
+            </Link>
+          ) : (
+            <Link
+              to="/docs"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              View Docs <ArrowRight className="w-4 h-4" />
+            </Link>
+          )}
           
           <Link
             to="/demo"
