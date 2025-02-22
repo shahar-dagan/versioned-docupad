@@ -169,7 +169,8 @@ export class FeatureAnalyzer {
       (attr: any) => attr.name?.name === 'onClick'
     );
     if (onClick) {
-      return this.normalizeHandlerName(onClick.value?.expression?.name);
+      const handlerName = onClick.value?.expression?.name || '';
+      return this.normalizeFeature(handlerName); // Changed to use normalizeFeature instead
     }
     return null;
   }

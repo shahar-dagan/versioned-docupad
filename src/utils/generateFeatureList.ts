@@ -1,3 +1,6 @@
+
+import { FeatureAnalyzer } from './featureAnalysis';
+
 export async function generateFeatureList(codebasePath: string) {
   const analyzer = new FeatureAnalyzer();
   const categories = await analyzer.analyzeCodebase(codebasePath);
