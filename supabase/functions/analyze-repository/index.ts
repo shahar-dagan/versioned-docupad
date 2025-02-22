@@ -24,19 +24,30 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Get GitHub token from secrets table
+    console.log('Fetching GitHub token from secrets table...');
     const { data: secretData, error: secretError } = await supabase
       .from('secrets')
       .select('value')
       .eq('name', 'GITHUB_ACCESS_TOKEN')
-      .single();
+      .maybeSingle();
 
-    if (secretError || !secretData) {
-      console.error('Failed to get GitHub token:', secretError);
-      throw new Error('Failed to get GitHub token: ' + (secretError?.message || 'Token not found'));
+    if (secretError) {
+      console.error('Error fetching GitHub token:', secretError);
+      throw new Error('Failed to fetch GitHub token: ' + secretError.message);
+    }
+
+    if (!secretData) {
+      console.error('No GitHub token found in secrets table');
+      throw new Error('GitHub token not found in secrets table');
     }
 
     const githubToken = secretData.value;
-    console.log('Successfully retrieved GitHub token');
+    console.log('Successfully retrieved GitHub token. Token length:', githubToken.length);
+
+    // Log first few characters of token (for debugging, never log full token)
+    if (githubToken.length > 4) {
+      console.log('Token starts with:', githubToken.substring(0, 4) + '...');
+    }
 
     // Analyze files in the repository
     const analyzeFiles = async () => {
@@ -45,14 +56,16 @@ serve(async (req) => {
         headers: {
           'Authorization': `Bearer ${githubToken}`,
           'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'Supabase-Edge-Function'
         },
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('GitHub API error:', {
+        console.error('GitHub API error details:', {
           status: response.status,
           statusText: response.statusText,
+          headers: Object.fromEntries(response.headers.entries()),
           error: errorText
         });
         throw new Error(`Failed to fetch repository contents: ${response.statusText}`);
