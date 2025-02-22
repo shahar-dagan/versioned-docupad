@@ -1,6 +1,5 @@
-
 import { Link } from 'react-router-dom';
-import { Github, Trash2, CheckCircle } from 'lucide-react';
+import { Github, Trash2, CheckCircle, Book } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -48,7 +47,6 @@ export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isLinkRepoDialogOpen, setIsLinkRepoDialogOpen] = useState(false);
 
-  // Fetch repository connection status with staleTime: 0 to ensure fresh data
   const { data: repository } = useQuery({
     queryKey: ['github-repository', product.id],
     queryFn: async () => {
@@ -61,7 +59,7 @@ export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps)
       if (error) throw error;
       return data;
     },
-    staleTime: 0 // Always fetch fresh data
+    staleTime: 0
   });
 
   const handleDelete = async () => {
@@ -74,7 +72,6 @@ export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps)
       if (error) throw error;
 
       toast.success('Product deleted successfully');
-      // Ensure we call onDelete after successful deletion
       await onDelete?.();
     } catch (error) {
       console.error('Error deleting product:', error);
@@ -127,11 +124,6 @@ export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps)
           </div>
         )}
         <div className="flex flex-col space-y-2">
-          <Button variant="outline" className="w-full" asChild>
-            <Link to={`/products/${product.id}/features`}>
-              View Features
-            </Link>
-          </Button>
           <Dialog open={isLinkRepoDialogOpen} onOpenChange={setIsLinkRepoDialogOpen}>
             <DialogTrigger asChild>
               <Button 
@@ -157,6 +149,17 @@ export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps)
               </div>
             </DialogContent>
           </Dialog>
+          <Button variant="outline" className="w-full" asChild>
+            <Link to={`/products/${product.id}/features`}>
+              View Features
+            </Link>
+          </Button>
+          <Link to={`/products/${product.id}/docs`}>
+            <Button variant="outline">
+              <Book className="mr-2 h-4 w-4" />
+              View Documentation
+            </Button>
+          </Link>
           <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
             <DialogTrigger asChild>
               <Button 
