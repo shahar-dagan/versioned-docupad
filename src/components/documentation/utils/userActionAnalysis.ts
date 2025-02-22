@@ -5,151 +5,174 @@ interface UserAction {
   type: 'view' | 'create' | 'edit' | 'delete' | 'navigate' | 'submit' | 'interact';
   description: string;
   location: string;
-  prerequisites?: string[];
-  relatedActions?: string[];
+  route?: string;
+  componentName?: string;
 }
 
 interface ActionableFeature {
   name: string;
   description: string;
-  path?: string;
+  path: string;
+  route?: string;
   actions: UserAction[];
+  childFeatures?: ActionableFeature[];
   requiredAuth?: boolean;
 }
 
-// Patterns to identify user actions
-const actionPatterns = {
-  create: ['create', 'add', 'new', 'insert'],
-  edit: ['edit', 'update', 'modify', 'change'],
-  delete: ['delete', 'remove', 'archive'],
-  view: ['view', 'display', 'show', 'list'],
-  submit: ['submit', 'send', 'save'],
-  interact: ['click', 'select', 'choose']
+const extractRouteFeatures = (content: string): string[] => {
+  const routePattern = /<Route[^>]*path=["']([^"']+)["'][^>]*>/g;
+  const matches = Array.from(content.matchAll(routePattern));
+  return matches.map(match => match[1]);
 };
 
-const determineActionType = (content: string): 'view' | 'create' | 'edit' | 'delete' | 'navigate' | 'submit' | 'interact' => {
-  const lowerContent = content.toLowerCase();
-  
-  for (const [key, patterns] of Object.entries(actionPatterns)) {
-    if (patterns.some(pattern => lowerContent.includes(pattern))) {
-      return key as any;
-    }
-  }
-  
-  return 'interact';
+const extractComponentName = (filePath: string): string => {
+  const parts = filePath.split('/');
+  const fileName = parts[parts.length - 1].replace(/\.[^/.]+$/, '');
+  return fileName;
 };
 
-const extractUserActions = (fileContent: string, filePath: string): UserAction[] => {
+const analyzeUserInteractions = (content: string, filePath: string, route?: string): UserAction[] => {
   const actions: UserAction[] = [];
+  const componentName = extractComponentName(filePath);
 
-  // Find event handlers
-  const eventHandlerPattern = /on[A-Z]\w+={([^}]+)}/g;
-  const eventMatches = fileContent.matchAll(eventHandlerPattern);
-  
-  for (const match of Array.from(eventMatches)) {
-    if (match[1]) {
-      const handlerName = match[1].trim();
-      actions.push({
-        type: determineActionType(handlerName),
-        description: handlerName.split(/(?=[A-Z])/).join(' ').toLowerCase(),
-        location: filePath,
-      });
-    }
-  }
-
-  // Find form submissions
-  const formPattern = /<form[^>]*onSubmit={([^}]+)}/g;
-  const formMatches = fileContent.matchAll(formPattern);
-  
+  // Analyze forms and their submissions
+  const formPattern = /<form[^>]*onSubmit={([^}]+)}[^>]*>[\s\S]*?<\/form>/g;
+  const formMatches = content.matchAll(formPattern);
   for (const match of Array.from(formMatches)) {
-    if (match[1]) {
+    const formContent = match[0];
+    const submitHandler = match[1];
+    
+    // Extract form purpose from surrounding context
+    const formPurpose = formContent.includes('create') ? 'create' :
+                       formContent.includes('edit') ? 'edit' :
+                       formContent.includes('delete') ? 'delete' : 'submit';
+    
+    actions.push({
+      type: formPurpose as any,
+      description: `${formPurpose} ${componentName.toLowerCase()}`,
+      location: filePath,
+      route,
+      componentName
+    });
+  }
+
+  // Analyze interactive elements (buttons, links)
+  const interactionPatterns = [
+    /<button[^>]*onClick={([^}]+)}[^>]*>[^<]*<\/button>/g,
+    /<Link[^>]*to=["']([^"']+)["'][^>]*>/g
+  ];
+
+  for (const pattern of interactionPatterns) {
+    const matches = content.matchAll(pattern);
+    for (const match of Array.from(matches)) {
+      const handler = match[1];
+      const actionType = handler.includes('delete') ? 'delete' :
+                        handler.includes('edit') ? 'edit' :
+                        handler.includes('create') ? 'create' :
+                        'interact';
+
       actions.push({
-        type: 'submit',
-        description: `Submit form: ${match[1].trim()}`,
+        type: actionType,
+        description: handler,
         location: filePath,
+        route,
+        componentName
       });
     }
   }
 
-  // Find navigation links
-  const linkPattern = /<Link[^>]*to=["']([^"']+)["'][^>]*>/g;
-  const linkMatches = fileContent.matchAll(linkPattern);
-  
-  for (const match of Array.from(linkMatches)) {
-    if (match[1]) {
-      actions.push({
-        type: 'navigate',
-        description: `Navigate to ${match[1]}`,
-        location: filePath,
-      });
-    }
+  // Look for data display patterns
+  if (content.includes('map(') || content.includes('forEach(')) {
+    actions.push({
+      type: 'view',
+      description: `View ${componentName.toLowerCase()} list`,
+      location: filePath,
+      route,
+      componentName
+    });
   }
 
   return actions;
 };
 
-const analyzeRouteProtection = (fileContent: string): boolean => {
-  return fileContent.includes('PrivateRoute') || 
-         fileContent.includes('RequireAuth') || 
-         fileContent.includes('isAuthenticated');
-};
-
-const extractFeatureName = (filePath: string): string => {
-  const parts = filePath.split('/');
-  const fileName = parts[parts.length - 1].replace(/\.[^/.]+$/, '');
-  return fileName.split(/(?=[A-Z])/).join(' ').trim();
-};
-
-const identifyRelatedActions = (actions: UserAction[]): UserAction[] => {
-  return actions.map(action => ({
-    ...action,
-    relatedActions: actions
-      .filter(a => a.location === action.location && a !== action)
-      .map(a => a.description)
-  }));
-};
-
-const groupActionsByFeature = (actions: UserAction[], filePaths: string[]): ActionableFeature[] => {
+const buildFeatureHierarchy = (
+  actions: UserAction[], 
+  routes: string[]
+): ActionableFeature[] => {
   const featureMap = new Map<string, ActionableFeature>();
 
-  filePaths.forEach(filePath => {
-    const featureName = extractFeatureName(filePath);
-    const featureActions = actions.filter(action => action.location === filePath);
-    
-    if (featureActions.length > 0) {
-      featureMap.set(filePath, {
-        name: featureName,
-        description: `Manage ${featureName.toLowerCase()}`,
-        path: filePath,
-        actions: identifyRelatedActions(featureActions),
-        requiredAuth: analyzeRouteProtection(filePath)
+  // Group actions by their component/route context
+  actions.forEach(action => {
+    const key = action.route || action.location;
+    if (!featureMap.has(key)) {
+      featureMap.set(key, {
+        name: action.componentName || extractComponentName(action.location),
+        description: `Manage ${action.componentName?.toLowerCase() || 'feature'}`,
+        path: action.location,
+        route: action.route,
+        actions: [],
+        childFeatures: []
       });
     }
+    featureMap.get(key)?.actions.push(action);
   });
 
-  return Array.from(featureMap.values());
-};
-
-export const analyzeUserActions = async (feature: ExtendedFeature): Promise<ActionableFeature[]> => {
-  const allActions: UserAction[] = [];
-  const filePaths: string[] = [];
-
-  // Analyze each code change
-  feature.code_changes?.forEach(change => {
-    if (change?.content && change.file_path) {
-      // Skip configuration, test, and utility files
-      if (
-        !change.file_path.includes('test') &&
-        !change.file_path.includes('config') &&
-        !change.file_path.includes('utils') &&
-        !change.file_path.includes('.d.ts')
-      ) {
-        const actions = extractUserActions(change.content, change.file_path);
-        allActions.push(...actions);
-        filePaths.push(change.file_path);
+  // Build hierarchy based on route nesting
+  const rootFeatures: ActionableFeature[] = [];
+  routes.forEach(route => {
+    const feature = Array.from(featureMap.values())
+      .find(f => f.route === route);
+    
+    if (feature) {
+      // Find parent route
+      const parentRoute = routes.find(r => 
+        r !== route && route.startsWith(r)
+      );
+      
+      if (parentRoute) {
+        const parentFeature = Array.from(featureMap.values())
+          .find(f => f.route === parentRoute);
+        parentFeature?.childFeatures?.push(feature);
+      } else {
+        rootFeatures.push(feature);
       }
     }
   });
 
-  return groupActionsByFeature(allActions, filePaths);
+  return rootFeatures;
+};
+
+export const analyzeUserActions = async (feature: ExtendedFeature): Promise<ActionableFeature[]> => {
+  const allActions: UserAction[] = [];
+  const routes: string[] = [];
+
+  // Start with App.tsx to get routes
+  feature.code_changes?.forEach(change => {
+    if (change?.content && change.file_path) {
+      // Skip non-UI files
+      if (
+        !change.file_path.includes('test') &&
+        !change.file_path.includes('config') &&
+        !change.file_path.includes('utils') &&
+        !change.file_path.includes('.d.ts') &&
+        !change.file_path.includes('.css') &&
+        !change.file_path.includes('types')
+      ) {
+        // Extract routes if this is App.tsx
+        if (change.file_path.includes('App.tsx')) {
+          routes.push(...extractRouteFeatures(change.content));
+        }
+
+        // Analyze user interactions in the component
+        const actions = analyzeUserInteractions(
+          change.content, 
+          change.file_path,
+          routes.find(route => change.file_path.toLowerCase().includes(route.toLowerCase()))
+        );
+        allActions.push(...actions);
+      }
+    }
+  });
+
+  return buildFeatureHierarchy(allActions, routes);
 };
