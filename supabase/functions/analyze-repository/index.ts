@@ -34,9 +34,14 @@ serve(async (req) => {
     
     // Get repository content from GitHub
     const repoUrl = `https://api.github.com/repos/${repoFullName}/contents`;
+    console.log('Fetching from GitHub URL:', repoUrl);
+    
     const response = await fetch(repoUrl);
+    if (!response.ok) {
+      throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
+    }
+    
     const files = await response.json();
-
     console.log('Files fetched from GitHub:', files);
 
     // Analyze repository structure with OpenAI
@@ -51,41 +56,49 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `You are a code analysis tool that identifies features in repositories.
-            You MUST respond with a valid JSON array of features.
-            Each feature MUST have exactly these fields:
-            - name (string): short feature name
-            - description (string): detailed description
-            - suggestions (string[]): array of improvement suggestions`
+            content: 'You are a code analysis tool. Respond ONLY with a valid JSON object that has a "features" array. Each feature object must have "name" (string), "description" (string), and "suggestions" (string array). Example: {"features": [{"name": "Authentication", "description": "User login system", "suggestions": ["Add 2FA"]}]}'
           },
           {
             role: 'user',
-            content: `Analyze this repository structure and list the main features as JSON:
-              ${JSON.stringify(files, null, 2)}`
+            content: `Analyze this repository structure and output ONLY a JSON object with features array: ${JSON.stringify(files, null, 2)}`
           }
         ],
-        temperature: 0.7,
+        temperature: 0,
         response_format: { type: "json_object" }
       }),
     });
 
-    const aiData = await openAIResponse.json();
-    console.log('OpenAI response:', aiData);
-
-    let features;
-    try {
-      features = JSON.parse(aiData.choices[0].message.content).features;
-      if (!Array.isArray(features)) {
-        throw new Error('Features must be an array');
-      }
-    } catch (error) {
-      console.error('Failed to parse OpenAI response:', error);
-      throw new Error('Failed to parse features from AI response');
+    if (!openAIResponse.ok) {
+      const errorData = await openAIResponse.json();
+      console.error('OpenAI API error:', errorData);
+      throw new Error(`OpenAI API error: ${openAIResponse.status} ${openAIResponse.statusText}`);
     }
 
-    console.log('Parsed features:', features);
+    const aiData = await openAIResponse.json();
+    console.log('Raw OpenAI response:', aiData);
 
-    // Insert features into database
+    if (!aiData.choices?.[0]?.message?.content) {
+      throw new Error('Invalid response format from OpenAI');
+    }
+
+    let parsedContent;
+    try {
+      parsedContent = JSON.parse(aiData.choices[0].message.content);
+      console.log('Parsed OpenAI content:', parsedContent);
+    } catch (error) {
+      console.error('JSON parse error:', error);
+      console.error('Raw content that failed to parse:', aiData.choices[0].message.content);
+      throw new Error('Failed to parse OpenAI response as JSON');
+    }
+
+    if (!parsedContent.features || !Array.isArray(parsedContent.features)) {
+      throw new Error('OpenAI response missing features array');
+    }
+
+    const features = parsedContent.features;
+    console.log('Features to be inserted:', features);
+
+    let featuresCreated = 0;
     for (const feature of features) {
       if (!feature.name || !feature.description || !Array.isArray(feature.suggestions)) {
         console.error('Invalid feature format:', feature);
@@ -107,12 +120,13 @@ serve(async (req) => {
         console.error('Error inserting feature:', error);
         throw error;
       }
+      featuresCreated++;
     }
 
     return new Response(JSON.stringify({ 
       success: true, 
       message: 'Repository analyzed successfully',
-      featuresCreated: features.length
+      featuresCreated
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
