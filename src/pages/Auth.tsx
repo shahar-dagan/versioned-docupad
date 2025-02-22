@@ -16,24 +16,40 @@ export default function Auth() {
 
   // Redirect if user is already logged in
   if (user) {
+    console.log('User is already logged in:', user);
     return <Navigate to="/" replace />;
   }
 
   const handleSubmit = async (action: 'login' | 'signup') => {
     try {
+      console.log(`Attempting ${action} with email:`, email);
+      
       if (action === 'login') {
-        await signIn(email, password);
+        const result = await signIn(email, password);
+        console.log('Sign in result:', result);
       } else {
-        await signUp(email, password);
+        const result = await signUp(email, password);
+        console.log('Sign up result:', result);
       }
+
       toast({
         title: "Success",
         description: action === 'login' ? "Successfully logged in" : "Account created successfully",
       });
     } catch (error) {
+      console.error(`${action} error:`, error);
+      
+      // More specific error messages
+      let errorMessage = error instanceof Error ? error.message : "An error occurred";
+      if (errorMessage.includes('Invalid login credentials')) {
+        errorMessage = 'Invalid email or password. Please try again.';
+      } else if (errorMessage.includes('Email not confirmed')) {
+        errorMessage = 'Please verify your email before logging in.';
+      }
+
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "An error occurred",
+        description: errorMessage,
         variant: "destructive",
       });
     }
