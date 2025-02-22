@@ -1,9 +1,11 @@
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders } from '../_shared/cors.ts';
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 
-const GITHUB_ACCESS_TOKEN = Deno.env.get('GITHUB_ACCESS_TOKEN');
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
 interface RequestBody {
   repoFullName: string;
@@ -11,163 +13,119 @@ interface RequestBody {
   userId: string;
 }
 
-async function fetchRepoData(repoFullName: string) {
-  const response = await fetch(`https://api.github.com/repos/${repoFullName}`, {
-    headers: {
-      'Authorization': `Bearer ${GITHUB_ACCESS_TOKEN}`,
-      'Accept': 'application/vnd.github.v3+json',
-    },
-  });
-  
-  if (!response.ok) {
-    throw new Error(`GitHub API error: ${response.statusText}`);
-  }
-  
-  return await response.json();
-}
-
-async function analyzeRepository(repoFullName: string) {
-  console.log('Starting repository analysis for:', repoFullName);
-  
-  try {
-    // Fetch repository metadata
-    const repoData = await fetchRepoData(repoFullName);
-    console.log('Repository metadata:', repoData);
-
-    // Get repository languages
-    const languagesResponse = await fetch(`https://api.github.com/repos/${repoFullName}/languages`, {
-      headers: {
-        'Authorization': `Bearer ${GITHUB_ACCESS_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json',
-      },
-    });
-    const languages = await languagesResponse.json();
-    console.log('Repository languages:', languages);
-
-    // Get recent commits
-    const commitsResponse = await fetch(`https://api.github.com/repos/${repoFullName}/commits?per_page=10`, {
-      headers: {
-        'Authorization': `Bearer ${GITHUB_ACCESS_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json',
-      },
-    });
-    const commits = await commitsResponse.json();
-    console.log('Recent commits:', commits);
-
-    // Analyze and extract features based on the repository data
-    const features = [];
-
-    // Core functionality feature
-    if (repoData.description) {
-      features.push({
-        name: 'Core Functionality',
-        description: repoData.description,
-        suggestions: [
-          'Review and update project documentation',
-          'Consider adding integration tests',
-        ],
-      });
-    }
-
-    // Languages and technologies feature
-    const languagesList = Object.keys(languages);
-    if (languagesList.length > 0) {
-      features.push({
-        name: 'Technical Stack',
-        description: `Project primarily uses ${languagesList.join(', ')}`,
-        suggestions: [
-          'Consider adding type checking for JavaScript files',
-          'Implement automated testing for main functionalities',
-        ],
-      });
-    }
-
-    // Recent development activity
-    if (commits.length > 0) {
-      const recentChanges = commits
-        .slice(0, 5)
-        .map((commit: any) => commit.commit.message)
-        .filter((message: string) => message.length < 100);
-
-      features.push({
-        name: 'Recent Development',
-        description: 'Based on recent commit history',
-        suggestions: [
-          'Consider implementing automated deployment',
-          'Add more detailed commit messages',
-        ],
-        code_changes: recentChanges.map((message: string) => ({
-          change_description: message,
-          created_at: new Date().toISOString(),
-        })),
-      });
-    }
-
-    return features;
-  } catch (error) {
-    console.error('Error analyzing repository:', error);
-    throw error;
-  }
-}
-
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders })
   }
 
   try {
     const { repoFullName, productId, userId } = await req.json() as RequestBody;
+    console.log('Analyzing repository:', repoFullName, 'for product:', productId);
 
-    if (!GITHUB_ACCESS_TOKEN) {
-      throw new Error('GitHub access token not configured');
-    }
-
-    if (!repoFullName || !productId || !userId) {
-      throw new Error('Missing required parameters');
-    }
-
-    const features = await analyzeRepository(repoFullName);
-    
     // Initialize Supabase client
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-    );
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Store features in the database
-    for (const feature of features) {
-      const { error: insertError } = await supabaseClient
-        .from('features')
-        .insert({
-          product_id: productId,
-          name: feature.name,
-          description: feature.description,
-          suggestions: feature.suggestions,
-          author_id: userId,
-          status: 'active',
-        });
+    // Get GitHub token
+    const { data: { value: githubToken }, error: tokenError } = await supabase
+      .from('secrets')
+      .select('value')
+      .eq('name', 'GITHUB_ACCESS_TOKEN')
+      .single();
 
-      if (insertError) {
-        console.error('Error inserting feature:', insertError);
-        throw insertError;
-      }
+    if (tokenError || !githubToken) {
+      throw new Error('Failed to retrieve GitHub token');
+    }
+
+    // Initialize GitHub API client
+    const githubApi = 'https://api.github.com';
+    
+    // Get repository details to check if it's an enterprise repo
+    const { data: repoData, error: repoError } = await supabase
+      .from('github_repositories')
+      .select('enterprise_url, enterprise_enabled')
+      .eq('repository_name', repoFullName)
+      .single();
+
+    if (repoError) {
+      throw new Error('Failed to get repository details');
+    }
+
+    const baseUrl = repoData.enterprise_enabled && repoData.enterprise_url 
+      ? `${repoData.enterprise_url}/api/v3`
+      : githubApi;
+
+    // Fetch latest commit
+    const commitResponse = await fetch(`${baseUrl}/repos/${repoFullName}/commits`, {
+      headers: {
+        'Authorization': `Bearer ${githubToken}`,
+        'Accept': 'application/vnd.github.v3+json',
+      },
+    });
+
+    if (!commitResponse.ok) {
+      throw new Error('Failed to fetch repository commits');
+    }
+
+    const commits = await commitResponse.json();
+    const latestCommit = commits[0];
+
+    // Start CodeQL analysis
+    const analysisResponse = await fetch(`${baseUrl}/repos/${repoFullName}/code-scanning/analyses`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${githubToken}`,
+        'Accept': 'application/vnd.github.v3+json',
+      },
+      body: JSON.stringify({
+        ref: latestCommit.sha,
+        tool_name: 'CodeQL',
+        analysis_key: `codeql-${Date.now()}`,
+      }),
+    });
+
+    if (!analysisResponse.ok) {
+      const error = await analysisResponse.text();
+      console.error('CodeQL analysis failed:', error);
+      throw new Error('Failed to start CodeQL analysis');
+    }
+
+    const analysis = await analysisResponse.json();
+
+    // Store analysis information
+    const { error: insertError } = await supabase
+      .from('codeql_analyses')
+      .insert({
+        product_id: productId,
+        repository_id: repoFullName,
+        analysis_date: new Date().toISOString(),
+        summary: `CodeQL analysis started for commit ${latestCommit.sha}`,
+        analysis_results: analysis,
+      });
+
+    if (insertError) {
+      throw new Error('Failed to store analysis results');
     }
 
     return new Response(
-      JSON.stringify({ success: true, features }),
+      JSON.stringify({ message: 'Analysis started successfully', analysis }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
-      },
+      }
     );
+
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error in analyze-repository function:', error);
+    
     return new Response(
       JSON.stringify({ error: error.message }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
-      },
+      }
     );
   }
-});
+})

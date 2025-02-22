@@ -1,14 +1,4 @@
 
 project_id = "zdyzxhngkvlbmfhaljel"
-[api]
-enabled = true
-[auth]
-enabled = true
-[auth.experimental]
-enabled = true
-[db]
-enabled = true
-[realtime]
-enabled = true
-[storage]
-enabled = true
+[functions.analyze-repository]
+verify_jwt = true
