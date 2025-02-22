@@ -175,10 +175,9 @@ async function processRepositoryContents(contents: any[], repoFullName: string, 
 }
 
 function analyzeFileContent(content: string, fileName: string) {
-  // Extract component name from file name
   const componentName = fileName.replace(/\.[^/.]+$/, '');
   
-  // Initialize feature object with documentation structures
+  // Initialize feature object
   const feature = {
     name: componentName,
     description: '',
@@ -193,6 +192,7 @@ function analyzeFileContent(content: string, fileName: string) {
       overview: '',
       steps: [] as string[],
       use_cases: [] as string[],
+      visuals: [] as Array<{ type: 'screenshot' | 'video', url: string, caption: string }>,
       faq: [] as Array<{ question: string, answer: string }>
     },
     suggestions: [] as Array<{
@@ -203,133 +203,210 @@ function analyzeFileContent(content: string, fileName: string) {
     }>
   };
 
-  // Analyze code patterns
-  const hasExports = content.includes('export');
-  const hasFunctions = content.includes('function');
-  const hasProps = content.includes('interface') || content.includes('type');
-  const hasJSX = content.includes('return (') || content.includes('return <');
-  const hasStyles = content.includes('className=');
-  const hasStateManagement = content.includes('useState') || content.includes('useReducer');
-  const hasEffects = content.includes('useEffect');
-  const hasAPI = content.includes('fetch') || content.includes('axios');
-  const hasRouting = content.includes('useRouter') || content.includes('useNavigate');
-
-  // Extract dependencies
-  const dependencies = new Set<string>();
-  content.match(/import .* from ['"](.*)['"];?/g)?.forEach(importStatement => {
-    const match = importStatement.match(/from ['"](.*)['"];?/);
-    if (match?.[1] && !match[1].startsWith('.')) {
-      dependencies.add(match[1]);
-    }
+  // Analyze UI patterns and interactions
+  const hasForm = content.includes('form') || content.includes('onSubmit');
+  const hasInputs = content.includes('input') || content.includes('select') || content.includes('textarea');
+  const hasButtons = content.includes('button') || content.includes('onClick');
+  const hasNavigation = content.includes('Link') || content.includes('useNavigate');
+  const hasFileHandling = content.includes('File') || content.includes('upload');
+  const hasAuthentication = content.includes('auth') || content.includes('login') || content.includes('signup');
+  const hasTables = content.includes('table') || content.includes('thead') || content.includes('tbody');
+  const hasFiltering = content.includes('filter') || content.includes('search');
+  const hasSorting = content.includes('sort');
+  const hasPagination = content.includes('pagination') || content.includes('page');
+  const hasModals = content.includes('Dialog') || content.includes('Modal');
+  const hasToasts = content.includes('toast') || content.includes('alert') || content.includes('notification');
+  
+  // Identify the main user workflow
+  const workflows = identifyWorkflows({
+    hasForm,
+    hasInputs,
+    hasButtons,
+    hasNavigation,
+    hasFileHandling,
+    hasAuthentication,
+    hasTables,
+    hasFiltering,
+    hasSorting,
+    hasPagination,
+    hasModals,
+    hasToasts
   });
 
-  // Generate basic description
-  if (hasJSX) {
-    feature.description = `A React component that ${hasStateManagement ? 'manages state and ' : ''}${hasProps ? 'accepts props for ' : ''}${hasAPI ? 'interfaces with external data for ' : ''}rendering UI elements`;
-  } else if (hasFunctions) {
-    feature.description = `A utility module that provides functionality for ${fileName}`;
-  }
-
-  // Generate technical documentation
-  feature.technical_docs = {
-    architecture: generateArchitectureDoc(hasJSX, hasStateManagement, hasProps, hasAPI, hasEffects),
-    setup: generateSetupDoc(Array.from(dependencies)),
-    api_details: hasAPI ? generateAPIDoc(content) : '',
-    code_snippets: extractCodeSnippets(content, fileName),
-    dependencies: Array.from(dependencies)
-  };
+  // Generate user-focused description
+  feature.description = generateUserDescription(workflows, componentName);
 
   // Generate user documentation
   feature.user_docs = {
-    overview: generateOverview(feature.description, hasJSX, hasProps),
-    steps: generateUsageSteps(hasProps, hasStateManagement, hasAPI),
-    use_cases: generateUseCases(hasJSX, hasAPI, hasRouting),
-    faq: generateFAQ(hasProps, hasStateManagement, hasAPI)
+    overview: generateUserOverview(workflows, componentName),
+    steps: generateWorkflowSteps(workflows),
+    use_cases: generateUserStories(workflows),
+    visuals: [], // Placeholder for screenshots/videos
+    faq: generateUserFAQ(workflows)
   };
 
-  // Generate suggestions (existing suggestion generation code)
-  if (hasProps) {
-    feature.suggestions.push({
-      type: 'technical',
-      category: 'Props Documentation',
-      suggestion: 'Document the component props and their types',
-      priority: 'high'
-    });
-  }
-
-  if (hasStateManagement) {
-    feature.suggestions.push({
-      type: 'technical',
-      category: 'State Management',
-      suggestion: 'Document the state management logic and data flow',
-      priority: 'high'
-    });
-  }
-
-  if (hasEffects) {
-    feature.suggestions.push({
-      type: 'technical',
-      category: 'Side Effects',
-      suggestion: 'Document the component lifecycle and side effects',
-      priority: 'medium'
-    });
-  }
-
-  if (hasAPI) {
-    feature.suggestions.push({
-      type: 'technical',
-      category: 'API Integration',
-      suggestion: 'Document the API endpoints and data structures used',
-      priority: 'high'
-    });
-  }
-
-  // Generate user documentation suggestions
-  if (hasJSX) {
-    feature.suggestions.push({
-      type: 'user',
-      category: 'Usage Guide',
-      suggestion: 'Provide examples of how to use this component',
-      priority: 'high'
-    });
-
-    if (hasProps) {
-      feature.suggestions.push({
-        type: 'user',
-        category: 'Configuration',
-        suggestion: 'Document the available configuration options',
-        priority: 'medium'
-      });
-    }
-  }
-
-  if (hasRouting) {
-    feature.suggestions.push({
-      type: 'user',
-      category: 'Navigation',
-      suggestion: 'Document the navigation flows and URL patterns',
-      priority: 'medium'
-    });
-  }
-
-  // Add accessibility suggestions if it's a UI component
-  if (hasJSX && hasStyles) {
-    feature.suggestions.push({
-      type: 'technical',
-      category: 'Accessibility',
-      suggestion: 'Document accessibility features and ARIA attributes',
-      priority: 'high'
-    });
-
-    feature.suggestions.push({
-      type: 'user',
-      category: 'Visual Guide',
-      suggestion: 'Add screenshots or videos demonstrating the component',
-      priority: 'medium'
-    });
-  }
+  // Add documentation suggestions
+  feature.suggestions = generateDocSuggestions(workflows);
 
   return feature;
+}
+
+interface Workflow {
+  type: string;
+  description: string;
+  actions: string[];
+  userGoal: string;
+}
+
+function identifyWorkflows(patterns: Record<string, boolean>): Workflow[] {
+  const workflows: Workflow[] = [];
+
+  if (patterns.hasAuthentication) {
+    workflows.push({
+      type: 'authentication',
+      description: 'User authentication and account management',
+      actions: ['Sign up for a new account', 'Log in to existing account', 'Reset password'],
+      userGoal: 'Access secure features and personalized content'
+    });
+  }
+
+  if (patterns.hasForm && patterns.hasInputs) {
+    workflows.push({
+      type: 'data-entry',
+      description: 'Data input and form submission',
+      actions: ['Fill out form fields', 'Validate input', 'Submit data'],
+      userGoal: 'Submit or update information in the system'
+    });
+  }
+
+  if (patterns.hasTables && (patterns.hasFiltering || patterns.hasSorting || patterns.hasPagination)) {
+    workflows.push({
+      type: 'data-management',
+      description: 'Data browsing and management',
+      actions: [
+        patterns.hasFiltering ? 'Filter data' : '',
+        patterns.hasSorting ? 'Sort results' : '',
+        patterns.hasPagination ? 'Navigate between pages' : ''
+      ].filter(Boolean),
+      userGoal: 'Find and manage specific information efficiently'
+    });
+  }
+
+  if (patterns.hasFileHandling) {
+    workflows.push({
+      type: 'file-handling',
+      description: 'File upload and management',
+      actions: ['Select files', 'Upload files', 'View upload progress', 'Manage uploaded files'],
+      userGoal: 'Add and manage files in the system'
+    });
+  }
+
+  if (patterns.hasNavigation) {
+    workflows.push({
+      type: 'navigation',
+      description: 'Application navigation',
+      actions: ['Navigate between sections', 'Access different features', 'Return to previous views'],
+      userGoal: 'Move between different parts of the application'
+    });
+  }
+
+  return workflows;
+}
+
+function generateUserDescription(workflows: Workflow[], componentName: string): string {
+  if (!workflows.length) {
+    return `The ${componentName} component provides user interface elements for interacting with the application.`;
+  }
+
+  const mainWorkflow = workflows[0];
+  return `The ${componentName} component helps users ${mainWorkflow.userGoal.toLowerCase()}. It provides a streamlined interface for ${mainWorkflow.description.toLowerCase()}.`;
+}
+
+function generateUserOverview(workflows: Workflow[], componentName: string): string {
+  if (!workflows.length) {
+    return `This section of the application provides user interface elements for basic interactions.`;
+  }
+
+  const workflowDescriptions = workflows
+    .map(w => `- ${w.description}: Allows users to ${w.userGoal.toLowerCase()}`)
+    .join('\n');
+
+  return `This part of the application helps you accomplish the following:
+
+${workflowDescriptions}
+
+The interface is designed to be intuitive and guide you through each process step by step.`;
+}
+
+function generateWorkflowSteps(workflows: Workflow[]): string[] {
+  const steps: string[] = [];
+
+  workflows.forEach(workflow => {
+    steps.push(`To ${workflow.userGoal}:`);
+    workflow.actions.forEach(action => {
+      steps.push(action);
+    });
+  });
+
+  return steps;
+}
+
+function generateUserStories(workflows: Workflow[]): string[] {
+  return workflows.map(workflow => 
+    `As a user, I want to ${workflow.userGoal.toLowerCase()} by ${workflow.actions[0].toLowerCase()}`
+  );
+}
+
+function generateUserFAQ(workflows: Workflow[]): Array<{ question: string; answer: string }> {
+  const faqs: Array<{ question: string; answer: string }> = [];
+
+  workflows.forEach(workflow => {
+    faqs.push({
+      question: `How do I ${workflow.userGoal.toLowerCase()}?`,
+      answer: `You can ${workflow.userGoal.toLowerCase()} by following these steps: ${workflow.actions.join(', ').toLowerCase()}.`
+    });
+
+    faqs.push({
+      question: `What happens after I ${workflow.actions[workflow.actions.length - 1].toLowerCase()}?`,
+      answer: `After you ${workflow.actions[workflow.actions.length - 1].toLowerCase()}, the system will process your request and provide appropriate feedback.`
+    });
+  });
+
+  return faqs;
+}
+
+function generateDocSuggestions(workflows: Workflow[]): Array<{
+  type: 'technical' | 'user';
+  category: string;
+  suggestion: string;
+  priority: 'high' | 'medium' | 'low';
+}> {
+  const suggestions = [];
+
+  workflows.forEach(workflow => {
+    suggestions.push({
+      type: 'user',
+      category: 'User Guide',
+      suggestion: `Add step-by-step guide for ${workflow.description.toLowerCase()}`,
+      priority: 'high'
+    });
+
+    suggestions.push({
+      type: 'user',
+      category: 'Visual Documentation',
+      suggestion: `Add screenshots or videos demonstrating ${workflow.description.toLowerCase()}`,
+      priority: 'high'
+    });
+
+    suggestions.push({
+      type: 'technical',
+      category: 'Implementation Guide',
+      suggestion: `Document the technical implementation of ${workflow.description.toLowerCase()}`,
+      priority: 'medium'
+    });
+  });
+
+  return suggestions;
 }
 
 function generateArchitectureDoc(hasJSX: boolean, hasStateManagement: boolean, hasProps: boolean, hasAPI: boolean, hasEffects: boolean): string {
@@ -398,76 +475,4 @@ function extractCodeSnippets(content: string, fileName: string): Array<{ languag
   }
 
   return snippets;
-}
-
-function generateOverview(description: string, hasJSX: boolean, hasProps: boolean): string {
-  return `${description}
-${hasJSX ? '\nThis component provides a user interface that ' + (hasProps ? 'can be customized through various properties.' : 'renders a specific view.') : ''}
-${hasProps ? '\nYou can configure this component through its properties to adapt it to your specific needs.' : ''}`;
-}
-
-function generateUsageSteps(hasProps: boolean, hasStateManagement: boolean, hasAPI: boolean): string[] {
-  const steps = ['Import the component into your React application'];
-  
-  if (hasProps) {
-    steps.push('Configure the required properties');
-  }
-  
-  if (hasStateManagement) {
-    steps.push('Initialize any required state in your parent component');
-  }
-  
-  if (hasAPI) {
-    steps.push('Ensure your API endpoints are properly configured');
-  }
-  
-  steps.push('Add the component to your JSX');
-  
-  return steps;
-}
-
-function generateUseCases(hasJSX: boolean, hasAPI: boolean, hasRouting: boolean): string[] {
-  const useCases = [];
-  
-  if (hasJSX) {
-    useCases.push('Display dynamic content in a user interface');
-  }
-  
-  if (hasAPI) {
-    useCases.push('Fetch and display data from external sources');
-    useCases.push('Submit user input to backend services');
-  }
-  
-  if (hasRouting) {
-    useCases.push('Handle navigation between different views');
-  }
-  
-  return useCases;
-}
-
-function generateFAQ(hasProps: boolean, hasStateManagement: boolean, hasAPI: boolean): Array<{ question: string; answer: string }> {
-  const faq = [];
-  
-  if (hasProps) {
-    faq.push({
-      question: 'What properties can I configure?',
-      answer: 'The component accepts various properties to customize its behavior. Check the technical documentation for a full list of available props.'
-    });
-  }
-  
-  if (hasStateManagement) {
-    faq.push({
-      question: 'How does the component handle state?',
-      answer: 'The component manages its internal state using React hooks, providing a seamless user experience while maintaining data consistency.'
-    });
-  }
-  
-  if (hasAPI) {
-    faq.push({
-      question: 'What happens if the API request fails?',
-      answer: 'The component includes error handling for API requests. You should implement appropriate error states and user feedback in your application.'
-    });
-  }
-  
-  return faq;
 }
