@@ -24,10 +24,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { useState } from 'react';
 
 export function ProfileMenu() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const { data: profile } = useQuery({
     queryKey: ['profile', user?.id],
@@ -71,7 +73,6 @@ export function ProfileMenu() {
         throw new Error('No URL returned from OAuth provider');
       }
 
-      // Redirect to GitHub OAuth flow
       window.location.href = data.url;
     } catch (error) {
       console.error('Error connecting to GitHub:', error);
@@ -92,6 +93,8 @@ export function ProfileMenu() {
     } catch (error) {
       console.error('Error deleting account:', error);
       toast.error('Failed to delete account');
+    } finally {
+      setIsDeleteDialogOpen(false);
     }
   };
 
@@ -128,9 +131,15 @@ export function ProfileMenu() {
           <span>Connect GitHub</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <Dialog>
+        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
           <DialogTrigger asChild>
-            <DropdownMenuItem className="text-red-600">
+            <DropdownMenuItem 
+              className="text-red-600"
+              onSelect={(event) => {
+                event.preventDefault();
+                setIsDeleteDialogOpen(true);
+              }}
+            >
               <Trash2 className="mr-2 h-4 w-4" />
               <span>Delete Account</span>
             </DropdownMenuItem>
@@ -143,7 +152,9 @@ export function ProfileMenu() {
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <Button variant="ghost">Cancel</Button>
+              <Button variant="ghost" onClick={() => setIsDeleteDialogOpen(false)}>
+                Cancel
+              </Button>
               <Button variant="destructive" onClick={handleDeleteAccount}>
                 Delete Account
               </Button>
