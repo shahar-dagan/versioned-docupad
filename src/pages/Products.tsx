@@ -51,11 +51,26 @@ export default function Products() {
 
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      toast({
+        title: 'Error',
+        description: 'You must be logged in to create a product',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       const { error } = await supabase.from('products').insert([
         {
           name,
           description,
+          author_id: user.id,
         },
       ]);
 
