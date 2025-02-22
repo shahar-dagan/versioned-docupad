@@ -50,6 +50,54 @@ export type Database = {
           },
         ]
       }
+      codeql_analyses: {
+        Row: {
+          analysis_date: string | null
+          analysis_results: Json | null
+          created_at: string | null
+          id: string
+          product_id: string | null
+          repository_id: string | null
+          summary: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          analysis_date?: string | null
+          analysis_results?: Json | null
+          created_at?: string | null
+          id?: string
+          product_id?: string | null
+          repository_id?: string | null
+          summary?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          analysis_date?: string | null
+          analysis_results?: Json | null
+          created_at?: string | null
+          id?: string
+          product_id?: string | null
+          repository_id?: string | null
+          summary?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "codeql_analyses_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "codeql_analyses_repository_id_fkey"
+            columns: ["repository_id"]
+            isOneToOne: false
+            referencedRelation: "github_repositories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_versions: {
         Row: {
           author_id: string | null
@@ -284,6 +332,8 @@ export type Database = {
       github_repositories: {
         Row: {
           created_at: string | null
+          enterprise_enabled: boolean | null
+          enterprise_url: string | null
           id: string
           product_id: string | null
           repository_id: string
@@ -293,6 +343,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          enterprise_enabled?: boolean | null
+          enterprise_url?: string | null
           id?: string
           product_id?: string | null
           repository_id: string
@@ -302,6 +354,8 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          enterprise_enabled?: boolean | null
+          enterprise_url?: string | null
           id?: string
           product_id?: string | null
           repository_id?: string
