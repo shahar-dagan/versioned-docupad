@@ -1,34 +1,14 @@
-import { useEffect, useState } from 'react';
+
+import { useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Plus, BarChart2, GitBranch, Users, Github, Check } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { ProductCard } from '@/components/dashboard/ProductCard';
+import { DashboardStats } from '@/components/dashboard/DashboardStats';
 
 interface Product {
   id: string;
@@ -64,10 +44,6 @@ interface DashboardStats {
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
-  const [newTeamMemberEmail, setNewTeamMemberEmail] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedRepo, setSelectedRepo] = useState<string>('');
 
   useEffect(() => {
     if (!user) {
@@ -114,12 +90,7 @@ export default function Dashboard() {
 
       if (error) throw error;
       
-      const transformedData = data?.map(member => ({
-        ...member,
-        profiles: Array.isArray(member.profiles) ? member.profiles[0] : member.profiles
-      })) as TeamMember[];
-
-      return transformedData || [];
+      return data as TeamMember[];
     },
     enabled: !!user,
   });
@@ -142,57 +113,6 @@ export default function Dashboard() {
     enabled: !!products && !!teamMembers,
   });
 
-  const { data: repositories } = useQuery({
-    queryKey: ['github-repos'],
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('github', {
-        method: 'GET',
-      });
-      
-      if (error) throw error;
-      return data.repos as Repository[];
-    },
-  });
-
-  const inviteTeamMemberMutation = useMutation({
-    mutationFn: async (email: string) => {
-      const { data: teams } = await supabase
-        .from('teams')
-        .select('id')
-        .eq('owner_id', user?.id)
-        .maybeSingle();
-
-      if (!teams) throw new Error('No team found');
-
-      const { data: invitedUser, error: userError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', email)
-        .maybeSingle();
-
-      if (userError || !invitedUser) {
-        throw new Error('User not found');
-      }
-
-      const { error } = await supabase
-        .from('team_members')
-        .insert({
-          team_id: teams.id,
-          user_id: invitedUser.id,
-          role: 'member',
-        });
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success('Team member invited successfully!');
-      setNewTeamMemberEmail('');
-    },
-    onError: (error) => {
-      toast.error('Failed to invite team member: ' + error.message);
-    },
-  });
-
   const linkRepoMutation = useMutation({
     mutationFn: async ({ productId, repo }: { productId: string, repo: Repository }) => {
       const { error } = await supabase
@@ -208,18 +128,11 @@ export default function Dashboard() {
     },
     onSuccess: () => {
       toast.success('Repository linked successfully!');
-      setSelectedProduct(null);
-      setSelectedRepo('');
-      setSearchTerm('');
     },
     onError: (error) => {
       toast.error('Failed to link repository: ' + error.message);
     },
   });
-
-  const filteredRepositories = repositories?.filter(repo =>
-    repo.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   return (
     <div className="container mx-auto py-10">
@@ -238,186 +151,23 @@ export default function Dashboard() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Products</CardTitle>
-            <BarChart2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{products?.length || 0}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Features</CardTitle>
-            <GitBranch className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalFeatures || 0}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Team Members</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalTeamMembers || 0}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold mb-4">Team Members</h2>
-        <Card>
-          <CardHeader>
-            <CardTitle>Manage Team</CardTitle>
-            <CardDescription>
-              Add or remove team members to collaborate on your products
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {teamMembers?.map((member) => (
-                <div key={member.id} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {member.profiles?.avatar_url && (
-                      <img
-                        src={member.profiles.avatar_url}
-                        alt={member.profiles.username || 'Team member'}
-                        className="w-8 h-8 rounded-full"
-                      />
-                    )}
-                    <span>{member.profiles?.username || member.user_id}</span>
-                    <span className="text-sm text-muted-foreground">{member.role}</span>
-                  </div>
-                </div>
-              ))}
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button variant="outline" className="w-full">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Team Member
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add Team Member</DialogTitle>
-                    <DialogDescription>
-                      Enter the email address of the user you want to invite
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <Input
-                      placeholder="Email address"
-                      value={newTeamMemberEmail}
-                      onChange={(e) => setNewTeamMemberEmail(e.target.value)}
-                    />
-                    <Button
-                      onClick={() => {
-                        if (newTeamMemberEmail) {
-                          inviteTeamMemberMutation.mutate(newTeamMemberEmail);
-                        }
-                      }}
-                    >
-                      Send Invitation
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <DashboardStats
+        productCount={products?.length || 0}
+        featureCount={stats?.totalFeatures || 0}
+        teamMemberCount={stats?.totalTeamMembers || 0}
+      />
 
       <div className="mb-8">
         <h2 className="text-2xl font-bold mb-4">Recent Products</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {products?.slice(0, 3).map((product) => (
-            <Card key={product.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <CardTitle>{product.name}</CardTitle>
-                <CardDescription>
-                  Created on {new Date(product.created_at).toLocaleDateString()}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground mb-4">{product.description}</p>
-                <div className="flex flex-col space-y-2">
-                  <Button variant="outline" className="w-full" asChild>
-                    <Link to={`/products/${product.id}/features`}>
-                      View Features
-                    </Link>
-                  </Button>
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button 
-                        variant="outline" 
-                        className="w-full"
-                        onClick={() => {
-                          setSelectedProduct(product.id);
-                          setSelectedRepo('');
-                          setSearchTerm('');
-                        }}
-                      >
-                        <Github className="mr-2 h-4 w-4" />
-                        Link GitHub Repo
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Link GitHub Repository</DialogTitle>
-                        <DialogDescription>
-                          Choose a repository to link to {product.name}
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="grid gap-4 py-4">
-                        <Input
-                          placeholder="Search repositories..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          className="mb-4"
-                        />
-                        <Select
-                          value={selectedRepo}
-                          onValueChange={(value) => setSelectedRepo(value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a repository" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {filteredRepositories?.map((repo) => (
-                              <SelectItem key={repo.id} value={repo.id}>
-                                <div className="flex items-center gap-2">
-                                  <Github className="h-4 w-4" />
-                                  {repo.name}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          className="w-full"
-                          disabled={!selectedRepo}
-                          onClick={() => {
-                            const repo = repositories?.find(r => r.id === selectedRepo);
-                            if (selectedProduct && repo) {
-                              linkRepoMutation.mutate({
-                                productId: selectedProduct,
-                                repo,
-                              });
-                            }
-                          }}
-                        >
-                          Link Repository
-                        </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              </CardContent>
-            </Card>
+            <ProductCard
+              key={product.id}
+              product={product}
+              onLinkRepo={(productId, repo) => {
+                linkRepoMutation.mutate({ productId, repo });
+              }}
+            />
           ))}
         </div>
         {products && products.length > 3 && (
