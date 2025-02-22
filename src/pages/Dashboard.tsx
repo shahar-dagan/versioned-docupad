@@ -37,20 +37,27 @@ interface Repository {
   url: string;
 }
 
+interface TeamMember {
+  id: string;
+  user_id: string;
+  role: string;
+  profiles: {
+    username: string;
+    avatar_url: string;
+  } | null;
+}
+
 interface DashboardStats {
   totalProducts: number;
   totalFeatures: number;
-  recentActivity: {
-    type: string;
-    name: string;
-    date: string;
-  }[];
+  totalTeamMembers: number;
 }
 
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
+  const [newTeamMemberEmail, setNewTeamMemberEmail] = useState('');
 
   useEffect(() => {
     if (!user) {
@@ -71,6 +78,36 @@ export default function Dashboard() {
     },
   });
 
+  const { data: teamMembers } = useQuery({
+    queryKey: ['team-members'],
+    queryFn: async () => {
+      const { data: teams } = await supabase
+        .from('teams')
+        .select('id')
+        .eq('owner_id', user?.id)
+        .single();
+
+      if (!teams) return [];
+
+      const { data, error } = await supabase
+        .from('team_members')
+        .select(`
+          id,
+          user_id,
+          role,
+          profiles: user_id (
+            username,
+            avatar_url
+          )
+        `)
+        .eq('team_id', teams.id);
+
+      if (error) throw error;
+      return data as TeamMember[];
+    },
+    enabled: !!user,
+  });
+
   const { data: stats } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: async () => {
@@ -83,9 +120,10 @@ export default function Dashboard() {
       return {
         totalProducts: products?.length || 0,
         totalFeatures: features?.[0]?.count || 0,
+        totalTeamMembers: teamMembers?.length || 0,
       } as DashboardStats;
     },
-    enabled: !!products,
+    enabled: !!products && !!teamMembers,
   });
 
   const { data: repositories } = useQuery({
@@ -97,6 +135,45 @@ export default function Dashboard() {
       
       if (error) throw error;
       return data.repos as Repository[];
+    },
+  });
+
+  const inviteTeamMemberMutation = useMutation({
+    mutationFn: async (email: string) => {
+      const { data: teams } = await supabase
+        .from('teams')
+        .select('id')
+        .eq('owner_id', user?.id)
+        .single();
+
+      if (!teams) throw new Error('No team found');
+
+      const { data: invitedUser, error: userError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', email)
+        .single();
+
+      if (userError || !invitedUser) {
+        throw new Error('User not found');
+      }
+
+      const { error } = await supabase
+        .from('team_members')
+        .insert({
+          team_id: teams.id,
+          user_id: invitedUser.id,
+          role: 'member',
+        });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Team member invited successfully!');
+      setNewTeamMemberEmail('');
+    },
+    onError: (error) => {
+      toast.error('Failed to invite team member: ' + error.message);
     },
   });
 
@@ -165,7 +242,71 @@ export default function Dashboard() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1</div>
+            <div className="text-2xl font-bold">{stats?.totalTeamMembers || 0}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Team Management */}
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold mb-4">Team Members</h2>
+        <Card>
+          <CardHeader>
+            <CardTitle>Manage Team</CardTitle>
+            <CardDescription>
+              Add or remove team members to collaborate on your products
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {teamMembers?.map((member) => (
+                <div key={member.id} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {member.profiles?.avatar_url && (
+                      <img
+                        src={member.profiles.avatar_url}
+                        alt={member.profiles.username || 'Team member'}
+                        className="w-8 h-8 rounded-full"
+                      />
+                    )}
+                    <span>{member.profiles?.username || member.user_id}</span>
+                    <span className="text-sm text-muted-foreground">{member.role}</span>
+                  </div>
+                </div>
+              ))}
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="w-full">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Team Member
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add Team Member</DialogTitle>
+                    <DialogDescription>
+                      Enter the email address of the user you want to invite
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <Input
+                      placeholder="Email address"
+                      value={newTeamMemberEmail}
+                      onChange={(e) => setNewTeamMemberEmail(e.target.value)}
+                    />
+                    <Button
+                      onClick={() => {
+                        if (newTeamMemberEmail) {
+                          inviteTeamMemberMutation.mutate(newTeamMemberEmail);
+                        }
+                      }}
+                    >
+                      Send Invitation
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
           </CardContent>
         </Card>
       </div>
