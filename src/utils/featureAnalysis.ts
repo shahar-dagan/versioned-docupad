@@ -12,9 +12,11 @@ interface FeatureCategory {
 
 interface ComponentAnalysis {
   name: string;
+  features: Set<string>;
   props: string[];
   events: string[];
-  userActions: string[];
+  hooks: string[];
+  apiCalls: string[];
   category?: string;
 }
 
@@ -23,22 +25,16 @@ export class FeatureAnalyzer {
   private components: Map<string, ComponentAnalysis> = new Map();
 
   async analyzeCodebase(rootDir: string): Promise<Map<string, FeatureCategory>> {
-    console.log('🔍 Starting codebase analysis...');
+    console.log('🔍 Starting enhanced feature analysis...');
     const files = await glob('src/**/*.{tsx,ts}', { cwd: rootDir });
-    console.log(`📁 Found ${files.length} files to analyze`);
-
+    
     for (const file of files) {
-      if (file.includes('.test.') || file.includes('.spec.') || file.includes('/utils/')) {
-        continue;
-      }
-
-      console.log(`\n📄 Analyzing file: ${file}`);
+      if (file.includes('.test.') || file.includes('.spec.')) continue;
+      
+      console.log(`\n📄 Analyzing: ${file}`);
       const content = readFileSync(`${rootDir}/${file}`, 'utf-8');
-      const ast = parseTypeScript(content, {
-        jsx: true,
-        tokens: true,
-      });
-
+      const ast = parseTypeScript(content, { jsx: true });
+      
       this.analyzeComponent(ast, file);
     }
 
@@ -53,37 +49,60 @@ export class FeatureAnalyzer {
 
     const analysis: ComponentAnalysis = {
       name: componentName,
+      features: new Set<string>(),
       props: [],
       events: [],
-      userActions: [],
+      hooks: [],
+      apiCalls: [],
     };
 
     this.traverseAST(ast, {
       [AST_NODE_TYPES.JSXElement]: (node: any) => {
-        if (this.isInteractiveElement(node)) {
-          const action = this.extractUserAction(node);
-          if (action) {
-            analysis.userActions.push(action);
-            console.log(`👆 Detected user action: ${action}`);
+        // Detect UI components and their props
+        const elementName = node.openingElement?.name?.name;
+        if (elementName) {
+          if (this.isUIComponent(elementName)) {
+            analysis.features.add(`UI: ${this.normalizeFeature(elementName)}`);
+            console.log(`🎨 Detected UI component: ${elementName}`);
+          }
+          
+          // Analyze interactive elements
+          if (this.isInteractiveElement(node)) {
+            const interactions = this.extractInteractions(node);
+            interactions.forEach(interaction => {
+              analysis.features.add(`Action: ${interaction}`);
+              console.log(`👆 Detected interaction: ${interaction}`);
+            });
           }
         }
       },
-      [AST_NODE_TYPES.Property]: (node: any) => {
+      [AST_NODE_TYPES.CallExpression]: (node: any) => {
+        // Detect hooks usage
+        if (node.callee?.name?.startsWith('use')) {
+          const hookName = node.callee.name;
+          analysis.hooks.push(hookName);
+          
+          if (hookName === 'useQuery' || hookName === 'useMutation') {
+            analysis.features.add(`Data: ${this.extractQueryFeature(node)}`);
+            console.log(`🔄 Detected data operation: ${hookName}`);
+          }
+        }
+        
+        // Detect API calls
+        if (this.isAPICall(node)) {
+          const apiFeature = this.extractAPIFeature(node);
+          analysis.features.add(`API: ${apiFeature}`);
+          console.log(`🌐 Detected API call: ${apiFeature}`);
+        }
+      },
+      [AST_NODE_TYPES.FunctionDeclaration]: (node: any) => {
+        // Detect event handlers and business logic
         if (this.isEventHandler(node)) {
-          const event = this.extractEventName(node);
-          if (event) {
-            analysis.events.push(event);
-            console.log(`🎯 Detected event handler: ${event}`);
-          }
+          const handlerFeature = this.extractHandlerFeature(node);
+          analysis.features.add(`Handler: ${handlerFeature}`);
+          console.log(`🎯 Detected event handler: ${handlerFeature}`);
         }
-      },
-      [AST_NODE_TYPES.TSTypeAnnotation]: (node: any) => {
-        const prop = this.extractPropName(node);
-        if (prop) {
-          analysis.props.push(prop);
-          console.log(`🔧 Detected prop: ${prop}`);
-        }
-      },
+      }
     });
 
     this.components.set(componentName, analysis);
@@ -91,92 +110,116 @@ export class FeatureAnalyzer {
 
   private categorizeFeatures(): Map<string, FeatureCategory> {
     console.log('\n📊 Categorizing features...');
+    
+    // Reset categories
+    this.categories.clear();
 
     for (const [componentName, analysis] of this.components.entries()) {
-      const category = this.determineCategory(componentName, analysis);
-      analysis.category = category;
-
-      console.log(`\n🏷️ Component "${componentName}" categorized as: ${category}`);
-
-      if (!this.categories.has(category)) {
-        this.categories.set(category, {
-          name: category,
-          features: new Set(),
-          description: this.generateCategoryDescription(category),
-        });
-      }
-
-      const categoryData = this.categories.get(category)!;
-      analysis.userActions.forEach(action => {
-        const normalizedFeature = this.normalizeFeature(action);
-        categoryData.features.add(normalizedFeature);
-        console.log(`✨ Added feature: ${normalizedFeature}`);
+      const features = Array.from(analysis.features);
+      
+      features.forEach(feature => {
+        const category = this.determineFeatureCategory(feature);
+        if (!this.categories.has(category)) {
+          this.categories.set(category, {
+            name: category,
+            features: new Set(),
+            description: this.generateCategoryDescription(category)
+          });
+        }
+        
+        this.categories.get(category)?.features.add(feature);
+        console.log(`✨ Categorized: ${feature} -> ${category}`);
       });
     }
-
-    // Log final categorization
-    console.log('\n📋 Final Feature Categories:');
-    this.categories.forEach((category, name) => {
-      console.log(`\n${name}:`);
-      console.log('Features:', Array.from(category.features));
-      console.log('Description:', category.description);
-    });
 
     return this.categories;
   }
 
-  private determineCategory(componentName: string, analysis: ComponentAnalysis): string {
-    // Enhanced categorization logic
-    if (componentName.toLowerCase().includes('auth')) return 'Authentication';
-    if (componentName.toLowerCase().includes('product')) return 'Product Management';
-    if (componentName.toLowerCase().includes('feature')) return 'Feature Management';
-    if (componentName.toLowerCase().includes('doc')) return 'Documentation';
-    if (componentName.toLowerCase().includes('team')) return 'Team Management';
+  private isUIComponent(name: string): boolean {
+    const uiPrefixes = ['Button', 'Card', 'Input', 'Form', 'Modal', 'Dialog', 'Menu'];
+    return uiPrefixes.some(prefix => name.includes(prefix));
+  }
+
+  private isInteractiveElement(node: any): boolean {
+    const interactiveElements = ['button', 'a', 'input', 'form', 'select'];
+    const elementName = node.openingElement?.name?.name?.toLowerCase();
+    return interactiveElements.includes(elementName);
+  }
+
+  private extractInteractions(node: any): string[] {
+    const interactions: string[] = [];
+    const attributes = node.openingElement?.attributes || [];
     
-    // New categories based on component behavior
-    if (analysis.events.some(e => e.includes('submit') || e.includes('save'))) return 'Form Management';
-    if (analysis.events.some(e => e.includes('delete') || e.includes('remove'))) return 'Data Management';
-    if (analysis.events.some(e => e.includes('search') || e.includes('filter'))) return 'Search & Filter';
-    if (analysis.props.some(p => p.includes('chart') || p.includes('graph'))) return 'Analytics';
-    
+    attributes.forEach((attr: any) => {
+      if (attr.name?.name?.startsWith('on')) {
+        const eventName = attr.name.name.slice(2).toLowerCase();
+        const handlerName = attr.value?.expression?.name || 'anonymous';
+        interactions.push(`${eventName}:${handlerName}`);
+      }
+    });
+
+    return interactions;
+  }
+
+  private isAPICall(node: any): boolean {
+    const callee = node.callee;
+    return (
+      (callee?.object?.name === 'supabase') ||
+      (callee?.property?.name === 'fetch') ||
+      (callee?.object?.name === 'axios')
+    );
+  }
+
+  private extractAPIFeature(node: any): string {
+    const method = node.callee?.property?.name || 'unknown';
+    const args = node.arguments || [];
+    const endpoint = args[0]?.value || 'unknown';
+    return `${method}:${endpoint}`;
+  }
+
+  private extractQueryFeature(node: any): string {
+    const queryKey = node.arguments[0]?.properties?.find((p: any) => 
+      p.key?.name === 'queryKey'
+    )?.value?.elements?.[0]?.value || 'unknown';
+    return `query:${queryKey}`;
+  }
+
+  private isEventHandler(node: any): boolean {
+    const name = node.id?.name || '';
+    return (
+      name.startsWith('handle') ||
+      name.includes('Handler') ||
+      name.includes('Callback')
+    );
+  }
+
+  private extractHandlerFeature(node: any): string {
+    return this.normalizeFeature(node.id?.name || 'anonymous');
+  }
+
+  private determineFeatureCategory(feature: string): string {
+    if (feature.startsWith('UI:')) return 'User Interface';
+    if (feature.startsWith('Action:')) return 'User Interactions';
+    if (feature.startsWith('Data:')) return 'Data Management';
+    if (feature.startsWith('API:')) return 'API Integration';
+    if (feature.startsWith('Handler:')) return 'Event Handling';
     return 'General Features';
   }
 
   private generateCategoryDescription(category: string): string {
     const descriptions: Record<string, string> = {
-      'Authentication': 'User authentication and authorization features',
-      'Product Management': 'Features related to product creation, editing, and deletion',
-      'Feature Management': 'Features for managing product features and capabilities',
-      'Documentation': 'Documentation generation and management features',
-      'Team Management': 'Team collaboration and management features',
-      'Form Management': 'Form handling and data submission features',
-      'Data Management': 'Data manipulation and storage features',
-      'Search & Filter': 'Search, filtering, and data organization features',
-      'Analytics': 'Data visualization and analytics features',
-      'General Features': 'General application features and utilities',
+      'User Interface': 'Visual components and UI elements',
+      'User Interactions': 'User actions and interactive features',
+      'Data Management': 'Data fetching, caching, and state management',
+      'API Integration': 'External API calls and integrations',
+      'Event Handling': 'Event handlers and callbacks',
+      'General Features': 'Miscellaneous application features',
     };
-
     return descriptions[category] || 'Miscellaneous features';
   }
 
-  private isInteractiveElement(node: any): boolean {
-    const interactiveElements = ['button', 'a', 'input', 'form', 'select', 'textarea'];
-    return interactiveElements.includes(node.openingElement?.name?.name?.toLowerCase());
-  }
-
-  private extractUserAction(node: any): string | null {
-    const onClick = node.openingElement?.attributes?.find(
-      (attr: any) => attr.name?.name === 'onClick'
-    );
-    if (onClick) {
-      const handlerName = onClick.value?.expression?.name || '';
-      return this.normalizeFeature(handlerName); // Changed to use normalizeFeature instead
-    }
-    return null;
-  }
-
-  private normalizeFeature(action: string): string {
-    return action
+  private normalizeFeature(name: string): string {
+    return name
       .replace(/([A-Z])/g, ' $1')
       .toLowerCase()
       .trim();
@@ -185,18 +228,6 @@ export class FeatureAnalyzer {
   private extractComponentName(filePath: string): string | null {
     const match = filePath.match(/\/([^\/]+)\.(tsx|ts)$/);
     return match ? match[1] : null;
-  }
-
-  private isEventHandler(node: any): boolean {
-    return node.key?.name?.startsWith('on');
-  }
-
-  private extractEventName(node: any): string | null {
-    return node.key?.name || null;
-  }
-
-  private extractPropName(node: any): string | null {
-    return node.typeAnnotation?.typeAnnotation?.type === 'TSStringKeyword' ? node.key?.name : null;
   }
 
   private traverseAST(ast: any, visitors: Record<string, (node: any) => void>) {

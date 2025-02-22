@@ -12,4 +12,4 @@ export async function generateFeatureList(codebasePath: string) {
   }
 
   return featureList;
-} 
+}
