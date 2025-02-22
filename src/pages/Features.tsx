@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 
 interface Feature {
   id: string;
@@ -50,7 +50,6 @@ export default function Features() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const { toast } = useToast();
 
   const { data: product } = useQuery({
     queryKey: ['product', productId],
@@ -107,25 +106,23 @@ export default function Features() {
         },
       });
 
+      // Log the full response for debugging
+      console.log('Analysis response:', response);
+
       if (response.error) {
-        throw new Error(response.error.message);
+        console.error('Analysis error:', response.error);
+        throw new Error(response.error.message || 'Failed to analyze repository');
       }
 
       return response.data;
     },
-    onSuccess: () => {
-      toast({
-        title: 'Success',
-        description: 'Repository analysis complete',
-      });
-      refetch();
-    },
     onError: (error: Error) => {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
+      console.error('Analysis mutation error:', error);
+      toast.error(`Analysis failed: ${error.message}`);
+    },
+    onSuccess: () => {
+      toast.success('Repository analysis complete');
+      refetch();
     },
   });
 
@@ -137,11 +134,7 @@ export default function Features() {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      toast({
-        title: 'Error',
-        description: 'You must be logged in to create a feature',
-        variant: 'destructive',
-      });
+      toast.error('You must be logged in to create a feature');
       return;
     }
 
@@ -158,22 +151,14 @@ export default function Features() {
 
       if (error) throw error;
 
-      toast({
-        title: 'Success',
-        description: 'Feature created successfully',
-      });
-
+      toast.success('Feature created successfully');
       setOpen(false);
       setName('');
       setDescription('');
       refetch();
     } catch (error) {
       console.error('Error creating feature:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to create feature',
-        variant: 'destructive',
-      });
+      toast.error('Failed to create feature');
     }
   };
 
