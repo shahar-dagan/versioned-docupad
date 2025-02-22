@@ -76,10 +76,11 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         throw new Error('No repository linked to this product');
       }
 
+      console.log('Analyzing repository:', repository.repository_name);
+      
       const response = await supabase.functions.invoke('analyze-code', {
         body: {
           repository: repository.repository_name,
-          productId,
         },
       });
 
