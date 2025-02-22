@@ -1,14 +1,21 @@
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
 
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-const githubToken = Deno.env.get('GITHUB_ACCESS_TOKEN');
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { Octokit } from "https://esm.sh/octokit";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+interface FileAnalysis {
+  name: string;
+  path: string;
+  type: 'component' | 'utility' | 'style' | 'config' | 'test' | 'other';
+  dependencies: string[];
+  exports: string[];
+  description: string;
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -17,179 +24,353 @@ serve(async (req) => {
 
   try {
     const { repoFullName, productId, userId } = await req.json();
-    console.log('Analyzing repository:', { repoFullName, productId, userId });
+    console.log('Analyzing repository:', repoFullName);
 
-    if (!repoFullName || !productId || !userId) {
-      throw new Error('Missing required parameters');
+    if (!repoFullName) {
+      throw new Error('Repository name is required');
     }
 
+    const githubToken = Deno.env.get('GITHUB_ACCESS_TOKEN');
     if (!githubToken) {
-      throw new Error('GitHub access token not configured');
+      throw new Error('GitHub token not configured');
     }
 
+    const octokit = new Octokit({ auth: githubToken });
+    const [owner, repo] = repoFullName.split('/');
+
+    // Get repository structure
+    console.log('Getting repository structure...');
+    const { data: repoContent } = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path: '',
+    });
+
+    // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    
     if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Missing Supabase configuration');
+      throw new Error('Supabase configuration missing');
     }
-
     const supabase = createClient(supabaseUrl, supabaseKey);
-    
-    // Get repository content from GitHub with authentication
-    const repoUrl = `https://api.github.com/repos/${repoFullName}/contents`;
-    console.log('Fetching from GitHub URL:', repoUrl);
-    
-    const response = await fetch(repoUrl, {
-      headers: {
-        'Authorization': `Bearer ${githubToken}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Docupad-App'
-      }
-    });
-    
-    if (!response.ok) {
-      const errorBody = await response.text();
-      console.error('GitHub API error details:', errorBody);
-      throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
-    }
-    
-    const files = await response.json();
-    console.log('Files fetched from GitHub:', files);
 
-    // Enhanced prompt for better feature analysis
-    const systemPrompt = `You are a technical documentation expert. Follow these steps carefully:
+    // Analyze source files
+    const sourceFiles: FileAnalysis[] = [];
+    const analyzedPaths = new Set<string>();
 
-Step 1: First, analyze the provided code thoroughly and break down its functionality into clear components.
-        Make notes about what each part does and how they work together.
+    async function analyzeDirectory(path: string) {
+      if (analyzedPaths.has(path)) return;
+      analyzedPaths.add(path);
 
-Step 2: Create a comprehensive list of all functionality present in the code, including both
-        backend processes and user-facing features.
+      console.log('Analyzing directory:', path);
+      const { data: contents } = await octokit.rest.repos.getContent({
+        owner,
+        repo,
+        path,
+      });
 
-Step 3: From this list, identify and shortlist only the features that users directly interact with.
-        Focus on actual user touchpoints and interface elements.
+      if (!Array.isArray(contents)) return;
 
-Step 4: For each user-facing feature identified, create clear, user-friendly documentation.
+      for (const item of contents) {
+        if (item.type === 'dir' && isRelevantDirectory(item.name)) {
+          await analyzeDirectory(item.path);
+        } else if (item.type === 'file' && isRelevantFile(item.name)) {
+          try {
+            const fileContent = await octokit.rest.repos.getContent({
+              owner,
+              repo,
+              path: item.path,
+            });
 
-For each feature, structure your response as a JSON object with the following format:
-{
-  "features": [{
-    "name": "A clear, user-friendly feature name",
-    "description": "A simple explanation that any user can understand",
-    "user_docs": {
-      "overview": "High-level explanation for users",
-      "steps": ["Step-by-step instructions written in plain language"],
-      "use_cases": ["Real-world examples of how to use this feature"],
-      "faq": [{"question": "Common user question", "answer": "Clear, helpful answer"}]
-    },
-    "technical_docs": {
-      "architecture": "Technical overview",
-      "setup": "Setup requirements",
-      "api_details": "API information if applicable",
-      "dependencies": ["Required dependencies"]
-    },
-    "suggestions": ["Potential improvements for better user experience"]
-  }]
-}
+            // Get actual content from base64
+            const content = typeof fileContent.data === 'object' && 'content' in fileContent.data
+              ? Buffer.from(fileContent.data.content, 'base64').toString()
+              : '';
 
-Focus on making the documentation practical and user-centric, avoiding technical jargon in user-facing sections.`;
-
-    const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',  // Changed from 'gpt-4' to 'gpt-4o-mini'
-        messages: [
-          {
-            role: 'system',
-            content: systemPrompt
-          },
-          {
-            role: 'user',
-            content: `Analyze this repository structure and create detailed, practical documentation for each major feature: ${JSON.stringify(files, null, 2)}`
+            const analysis = analyzeFile(item.name, item.path, content);
+            if (analysis) {
+              sourceFiles.push(analysis);
+            }
+          } catch (error) {
+            console.error(`Error analyzing file ${item.path}:`, error);
           }
-        ],
-        temperature: 0.7,
-        response_format: { type: "json_object" }
-      }),
-    });
-
-    if (!openAIResponse.ok) {
-      const errorData = await openAIResponse.json();
-      console.error('OpenAI API error:', errorData);
-      throw new Error(`OpenAI API error: ${openAIResponse.status} ${openAIResponse.statusText}`);
+        }
+      }
     }
 
-    const aiData = await openAIResponse.json();
-    console.log('Raw OpenAI response:', aiData);
+    // Start analysis from root
+    await analyzeDirectory('');
 
-    if (!aiData.choices?.[0]?.message?.content) {
-      throw new Error('Invalid response format from OpenAI');
-    }
+    // Group files by feature
+    const features = groupFilesByFeature(sourceFiles);
 
-    let parsedContent;
-    try {
-      parsedContent = JSON.parse(aiData.choices[0].message.content);
-      console.log('Parsed OpenAI content:', parsedContent);
-    } catch (error) {
-      console.error('JSON parse error:', error);
-      console.error('Raw content that failed to parse:', aiData.choices[0].message.content);
-      throw new Error('Failed to parse OpenAI response as JSON');
-    }
-
-    if (!parsedContent.features || !Array.isArray(parsedContent.features)) {
-      throw new Error('OpenAI response missing features array');
-    }
-
-    const features = parsedContent.features;
-    console.log('Features to be inserted:', features);
-
-    let featuresCreated = 0;
+    // Store analysis results
+    console.log('Storing analysis results...');
     for (const feature of features) {
-      if (!feature.name || !feature.description) {
-        console.error('Invalid feature format:', feature);
+      const { data: existingFeature, error: queryError } = await supabase
+        .from('features')
+        .select('id')
+        .eq('name', feature.name)
+        .eq('product_id', productId)
+        .single();
+
+      if (queryError && queryError.code !== 'PGRST116') {
+        console.error('Error querying feature:', queryError);
         continue;
       }
 
-      const { error } = await supabase
-        .from('features')
-        .insert([{
-          name: feature.name,
-          description: feature.description,
-          technical_docs: feature.technical_docs,
-          user_docs: feature.user_docs,
-          suggestions: feature.suggestions,
-          product_id: productId,
-          author_id: userId,
-          status: 'active',
-        }]);
+      const featureData = {
+        name: feature.name,
+        description: feature.description,
+        product_id: productId,
+        user_id: userId,
+        technical_docs: {
+          architecture: generateArchitectureDoc(feature.files),
+          setup: generateSetupDoc(feature.files),
+          dependencies: extractDependencies(feature.files),
+        },
+        user_docs: {
+          overview: generateUserOverview(feature),
+          steps: generateUserSteps(feature),
+          use_cases: generateUseCases(feature),
+        },
+      };
 
-      if (error) {
-        console.error('Error inserting feature:', error);
-        throw error;
+      if (existingFeature) {
+        const { error: updateError } = await supabase
+          .from('features')
+          .update(featureData)
+          .eq('id', existingFeature.id);
+
+        if (updateError) {
+          console.error('Error updating feature:', updateError);
+        }
+      } else {
+        const { error: insertError } = await supabase
+          .from('features')
+          .insert(featureData);
+
+        if (insertError) {
+          console.error('Error inserting feature:', insertError);
+        }
       }
-      featuresCreated++;
     }
 
-    return new Response(JSON.stringify({ 
-      success: true, 
-      message: 'Repository analyzed successfully',
-      featuresCreated
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({
+        message: 'Repository analysis completed',
+        features: features.length,
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
 
   } catch (error) {
-    console.error('Error in analyze-repository function:', error);
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: error.message 
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    console.error('Error:', error);
+    return new Response(
+      JSON.stringify({
+        error: error.message || 'An error occurred during analysis',
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   }
 });
+
+// Helper functions
+function isRelevantDirectory(name: string): boolean {
+  const relevantDirs = ['src', 'components', 'pages', 'features', 'utils', 'hooks'];
+  return relevantDirs.includes(name) || !name.startsWith('.');
+}
+
+function isRelevantFile(name: string): boolean {
+  return /\.(ts|tsx|js|jsx)$/.test(name) && !name.includes('.test.') && !name.includes('.spec.');
+}
+
+function analyzeFile(name: string, path: string, content: string): FileAnalysis | null {
+  // Skip test files and type definitions
+  if (name.includes('.test.') || name.includes('.spec.') || name.endsWith('.d.ts')) {
+    return null;
+  }
+
+  const type = determineFileType(path);
+  const dependencies = extractImports(content);
+  const exports = extractExports(content);
+  const description = generateFileDescription(content, type);
+
+  return {
+    name,
+    path,
+    type,
+    dependencies,
+    exports,
+    description,
+  };
+}
+
+function determineFileType(path: string): FileAnalysis['type'] {
+  if (path.includes('/components/')) return 'component';
+  if (path.includes('/utils/')) return 'utility';
+  if (path.includes('/styles/')) return 'style';
+  if (path.includes('config')) return 'config';
+  if (path.includes('.test.') || path.includes('.spec.')) return 'test';
+  return 'other';
+}
+
+function extractImports(content: string): string[] {
+  const imports = new Set<string>();
+  const importRegex = /import\s+(?:{[^}]*}|\w+)\s+from\s+['"]([^'"]+)['"]/g;
+  let match;
+  
+  while ((match = importRegex.exec(content)) !== null) {
+    imports.add(match[1]);
+  }
+
+  return Array.from(imports);
+}
+
+function extractExports(content: string): string[] {
+  const exports = new Set<string>();
+  const exportRegex = /export\s+(?:default\s+)?(?:const|function|class|interface|type)\s+(\w+)/g;
+  let match;
+  
+  while ((match = exportRegex.exec(content)) !== null) {
+    exports.add(match[1]);
+  }
+
+  return Array.from(exports);
+}
+
+function generateFileDescription(content: string, type: FileAnalysis['type']): string {
+  // Extract JSDoc comments if present
+  const jsdocRegex = /\/\*\*\s*([\s\S]*?)\s*\*\//g;
+  const jsdocMatch = jsdocRegex.exec(content);
+  if (jsdocMatch) {
+    return jsdocMatch[1].replace(/\s*\*\s*/g, ' ').trim();
+  }
+
+  // Generate description based on file content and type
+  const lines = content.split('\n');
+  const nonEmptyLines = lines.filter(line => line.trim() && !line.trim().startsWith('import'));
+  
+  if (type === 'component') {
+    return `React ${nonEmptyLines[0].includes('function') ? 'functional' : 'class'} component`;
+  }
+  
+  return `${type.charAt(0).toUpperCase() + type.slice(1)} module`;
+}
+
+interface FeatureGroup {
+  name: string;
+  description: string;
+  files: FileAnalysis[];
+}
+
+function groupFilesByFeature(files: FileAnalysis[]): FeatureGroup[] {
+  const features: FeatureGroup[] = [];
+  const featureMap = new Map<string, FileAnalysis[]>();
+
+  // Group files by directory structure
+  for (const file of files) {
+    const parts = file.path.split('/');
+    let featureName = 'Core';
+
+    // Try to identify feature name from path
+    for (const part of parts) {
+      if (['features', 'components', 'pages'].includes(part)) {
+        const nextPart = parts[parts.indexOf(part) + 1];
+        if (nextPart && !nextPart.includes('.')) {
+          featureName = nextPart.charAt(0).toUpperCase() + nextPart.slice(1);
+          break;
+        }
+      }
+    }
+
+    if (!featureMap.has(featureName)) {
+      featureMap.set(featureName, []);
+    }
+    featureMap.get(featureName)!.push(file);
+  }
+
+  // Convert map to feature groups
+  for (const [name, files] of featureMap.entries()) {
+    features.push({
+      name,
+      description: generateFeatureDescription(files),
+      files,
+    });
+  }
+
+  return features;
+}
+
+function generateFeatureDescription(files: FileAnalysis[]): string {
+  const componentFiles = files.filter(f => f.type === 'component');
+  const utilityFiles = files.filter(f => f.type === 'utility');
+
+  return `Feature containing ${componentFiles.length} components and ${utilityFiles.length} utility functions`;
+}
+
+function generateArchitectureDoc(files: FileAnalysis[]): string {
+  const components = files.filter(f => f.type === 'component');
+  const utilities = files.filter(f => f.type === 'utility');
+
+  return `
+## Architecture Overview
+
+### Components (${components.length})
+${components.map(c => `- ${c.name}: ${c.description}`).join('\n')}
+
+### Utilities (${utilities.length})
+${utilities.map(u => `- ${u.name}: ${u.description}`).join('\n')}
+
+### Dependencies
+${Array.from(new Set(files.flatMap(f => f.dependencies))).map(d => `- ${d}`).join('\n')}
+  `.trim();
+}
+
+function generateSetupDoc(files: FileAnalysis[]): string {
+  const configFiles = files.filter(f => f.type === 'config');
+  const dependencies = new Set(files.flatMap(f => f.dependencies));
+
+  return `
+## Setup Guide
+
+### Prerequisites
+${Array.from(dependencies).map(d => `- ${d}`).join('\n')}
+
+### Configuration
+${configFiles.map(c => `- ${c.name}: ${c.description}`).join('\n')}
+  `.trim();
+}
+
+function extractDependencies(files: FileAnalysis[]): string[] {
+  return Array.from(new Set(files.flatMap(f => f.dependencies)));
+}
+
+function generateUserOverview(feature: FeatureGroup): string {
+  return `
+# ${feature.name}
+
+${feature.description}
+
+## Available Functionality
+${feature.files
+  .filter(f => f.type === 'component')
+  .map(f => `- ${f.name.replace(/\.[^/.]+$/, '')}`).join('\n')}
+  `.trim();
+}
+
+function generateUserSteps(feature: FeatureGroup): string[] {
+  const components = feature.files.filter(f => f.type === 'component');
+  return components.map(c => `Use ${c.name.replace(/\.[^/.]+$/, '')} to ${c.description.toLowerCase()}`);
+}
+
+function generateUseCases(feature: FeatureGroup): string[] {
+  return feature.files
+    .filter(f => f.type === 'component')
+    .map(f => `Implement ${f.name.replace(/\.[^/.]+$/, '')} for ${f.description.toLowerCase()}`);
+}
