@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Plus, Trash2, Github } from 'lucide-react';
+import { Plus, Trash2, Github, Check, Wand2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import {
@@ -62,11 +62,16 @@ export default function Products() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('products')
-        .select('*')
+        .select(`
+          *,
+          github_repositories (
+            repository_name
+          )
+        `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as Product[];
+      return data as (Product & { github_repositories: { repository_name: string } | null })[];
     },
   });
 
@@ -79,6 +84,36 @@ export default function Products() {
       
       if (error) throw error;
       return data.repos as Repository[];
+    },
+  });
+
+  const analyzeRepositoryMutation = useMutation({
+    mutationFn: async (productId: string) => {
+      const response = await supabase.functions.invoke('analyze-repository', {
+        body: {
+          productId,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      return response.data;
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Success',
+        description: 'Repository analyzed and features generated successfully',
+      });
+      refetch();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
     },
   });
 
@@ -180,11 +215,13 @@ export default function Products() {
         });
 
       if (error) throw error;
+
+      await analyzeRepositoryMutation.mutateAsync(productId);
     },
     onSuccess: () => {
       toast({
         title: 'Success',
-        description: 'Repository linked successfully',
+        description: 'Repository linked successfully and feature analysis started',
       });
       setSelectedProduct(null);
       setLinkDialogOpen(false);
@@ -277,13 +314,32 @@ export default function Products() {
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground mb-4">{product.description}</p>
-              <div className="space-y-2">
-                <Button variant="outline" className="w-full" asChild>
-                  <Link to={`/products/${product.id}/features`}>
-                    View Features
-                  </Link>
-                </Button>
-                <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
+              {product.github_repositories ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+                    <Check className="h-4 w-4 text-green-500" />
+                    <span>Linked to: {product.github_repositories.repository_name}</span>
+                  </div>
+                  <Button variant="outline" className="w-full" asChild>
+                    <Link to={`/products/${product.id}/features`}>
+                      View Features
+                    </Link>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => analyzeRepositoryMutation.mutate(product.id)}
+                    disabled={analyzeRepositoryMutation.isPending}
+                  >
+                    <Wand2 className="mr-2 h-4 w-4" />
+                    {analyzeRepositoryMutation.isPending ? 'Analyzing...' : 'Regenerate Features'}
+                  </Button>
+                </div>
+              ) : (
+                <Dialog open={linkDialogOpen && selectedProduct === product.id} onOpenChange={(open) => {
+                  setLinkDialogOpen(open);
+                  if (!open) setSelectedProduct(null);
+                }}>
                   <DialogTrigger asChild>
                     <Button 
                       variant="outline" 
@@ -335,7 +391,7 @@ export default function Products() {
                     </div>
                   </DialogContent>
                 </Dialog>
-              </div>
+              )}
             </CardContent>
           </Card>
         ))}
