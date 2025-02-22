@@ -235,7 +235,9 @@ export type Database = {
           product_id: string
           status: string | null
           suggestions: string[] | null
+          technical_docs: Json | null
           updated_at: string
+          user_docs: Json | null
         }
         Insert: {
           author_id: string
@@ -249,7 +251,9 @@ export type Database = {
           product_id: string
           status?: string | null
           suggestions?: string[] | null
+          technical_docs?: Json | null
           updated_at?: string
+          user_docs?: Json | null
         }
         Update: {
           author_id?: string
@@ -263,7 +267,9 @@ export type Database = {
           product_id?: string
           status?: string | null
           suggestions?: string[] | null
+          technical_docs?: Json | null
           updated_at?: string
+          user_docs?: Json | null
         }
         Relationships: [
           {
