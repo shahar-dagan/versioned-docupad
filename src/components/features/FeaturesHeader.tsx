@@ -1,7 +1,7 @@
 
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Book, ChevronRight, Wand2, Code } from 'lucide-react';
+import { ArrowLeft, Book, ChevronRight, Wand2 } from 'lucide-react';
 import { Repository } from '@/types';
 import { CreateFeatureDialog } from './CreateFeatureDialog';
 
@@ -12,7 +12,6 @@ interface FeaturesHeaderProps {
   featuresCount: number;
   repository?: Repository;
   onAnalyze: () => void;
-  onAnalyzeCode: () => void;
   isAnalyzing: boolean;
   onFeatureCreated: () => void;
 }
@@ -24,7 +23,6 @@ export function FeaturesHeader({
   featuresCount,
   repository,
   onAnalyze,
-  onAnalyzeCode,
   isAnalyzing,
   onFeatureCreated,
 }: FeaturesHeaderProps) {
@@ -60,16 +58,10 @@ export function FeaturesHeader({
         </div>
         <div className="flex gap-2">
           {repository && (
-            <>
-              <Button onClick={onAnalyze} disabled={isAnalyzing}>
-                <Wand2 className="mr-2 h-4 w-4" />
-                {isAnalyzing ? 'Analyzing...' : 'Analyze Repository'}
-              </Button>
-              <Button onClick={onAnalyzeCode} disabled={isAnalyzing} variant="secondary">
-                <Code className="mr-2 h-4 w-4" />
-                {isAnalyzing ? 'Analyzing...' : 'Analyze Code'}
-              </Button>
-            </>
+            <Button onClick={onAnalyze} disabled={isAnalyzing}>
+              <Wand2 className="mr-2 h-4 w-4" />
+              {isAnalyzing ? 'Analyzing...' : 'Analyze Repository'}
+            </Button>
           )}
           <Link to={`/products/${productId}/docs`}>
             <Button variant="outline">
