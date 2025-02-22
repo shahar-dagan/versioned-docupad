@@ -1,6 +1,6 @@
 
 import { Link } from 'react-router-dom';
-import { Github, Trash2, CheckCircle, XCircle } from 'lucide-react';
+import { Github, Trash2, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -90,7 +90,10 @@ export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps)
             </CardDescription>
           </div>
           {repository && (
-            <div className="flex items-center text-green-500" title="GitHub repository connected">
+            <div 
+              className="flex items-center gap-2 text-green-500" 
+              title="GitHub repository connected"
+            >
               <CheckCircle className="h-5 w-5" />
             </div>
           )}
@@ -98,6 +101,12 @@ export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps)
       </CardHeader>
       <CardContent>
         <p className="text-muted-foreground mb-4">{product.description}</p>
+        {repository && (
+          <div className="mb-4 p-2 bg-muted rounded-md flex items-center gap-2">
+            <Github className="h-4 w-4" />
+            <span className="text-sm font-medium">{repository.repository_name}</span>
+          </div>
+        )}
         <div className="flex flex-col space-y-2">
           <Button variant="outline" className="w-full" asChild>
             <Link to={`/products/${product.id}/features`}>
