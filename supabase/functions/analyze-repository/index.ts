@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
@@ -58,35 +57,42 @@ serve(async (req) => {
     const files = await response.json();
     console.log('Files fetched from GitHub:', files);
 
-    // Enhanced prompt for more detailed documentation
-    const systemPrompt = `You are a technical documentation expert. For each feature, create comprehensive documentation that includes:
+    // Enhanced prompt for better feature analysis
+    const systemPrompt = `You are a technical documentation expert. Follow these steps carefully:
 
-1. A clear name and description of the feature
-2. A detailed user guide with step-by-step instructions
-3. Common use cases and examples
-4. Technical documentation for developers
-5. Suggestions for improvements
+Step 1: First, analyze the provided code thoroughly and break down its functionality into clear components.
+        Make notes about what each part does and how they work together.
 
-Respond ONLY with a valid JSON object that has a "features" array. Each feature object must have:
+Step 2: Create a comprehensive list of all functionality present in the code, including both
+        backend processes and user-facing features.
+
+Step 3: From this list, identify and shortlist only the features that users directly interact with.
+        Focus on actual user touchpoints and interface elements.
+
+Step 4: For each user-facing feature identified, create clear, user-friendly documentation.
+
+For each feature, structure your response as a JSON object with the following format:
 {
-  "name": "string",
-  "description": "string",
-  "user_docs": {
-    "overview": "string",
-    "steps": ["string"],
-    "use_cases": ["string"],
-    "faq": [{"question": "string", "answer": "string"}]
-  },
-  "technical_docs": {
-    "architecture": "string",
-    "setup": "string",
-    "api_details": "string",
-    "dependencies": ["string"]
-  },
-  "suggestions": ["string"]
+  "features": [{
+    "name": "A clear, user-friendly feature name",
+    "description": "A simple explanation that any user can understand",
+    "user_docs": {
+      "overview": "High-level explanation for users",
+      "steps": ["Step-by-step instructions written in plain language"],
+      "use_cases": ["Real-world examples of how to use this feature"],
+      "faq": [{"question": "Common user question", "answer": "Clear, helpful answer"}]
+    },
+    "technical_docs": {
+      "architecture": "Technical overview",
+      "setup": "Setup requirements",
+      "api_details": "API information if applicable",
+      "dependencies": ["Required dependencies"]
+    },
+    "suggestions": ["Potential improvements for better user experience"]
+  }]
 }
 
-Make the documentation practical and actionable, focusing on HOW to use the feature rather than just describing what it is.`;
+Focus on making the documentation practical and user-centric, avoiding technical jargon in user-facing sections.`;
 
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
