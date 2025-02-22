@@ -228,6 +228,44 @@ export type Database = {
           },
         ]
       }
+      github_repositories: {
+        Row: {
+          created_at: string | null
+          id: string
+          product_id: string | null
+          repository_id: string
+          repository_name: string
+          repository_url: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          product_id?: string | null
+          repository_id: string
+          repository_name: string
+          repository_url: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          product_id?: string | null
+          repository_id?: string
+          repository_name?: string
+          repository_url?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "github_repositories_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           author_id: string

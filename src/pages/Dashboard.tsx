@@ -1,8 +1,8 @@
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { Plus, BarChart2, GitBranch, Users, Settings } from 'lucide-react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { Plus, BarChart2, GitBranch, Users, Github } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
@@ -13,12 +13,28 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 
 interface Product {
   id: string;
   name: string;
   description: string;
   created_at: string;
+}
+
+interface Repository {
+  id: string;
+  name: string;
+  url: string;
 }
 
 interface DashboardStats {
@@ -34,6 +50,7 @@ interface DashboardStats {
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -69,6 +86,40 @@ export default function Dashboard() {
       } as DashboardStats;
     },
     enabled: !!products,
+  });
+
+  const { data: repositories } = useQuery({
+    queryKey: ['github-repos'],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('github', {
+        method: 'GET',
+      });
+      
+      if (error) throw error;
+      return data.repos as Repository[];
+    },
+  });
+
+  const linkRepoMutation = useMutation({
+    mutationFn: async ({ productId, repo }: { productId: string, repo: Repository }) => {
+      const { error } = await supabase
+        .from('github_repositories')
+        .insert({
+          product_id: productId,
+          repository_name: repo.name,
+          repository_url: repo.url,
+          repository_id: repo.id,
+        });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Repository linked successfully!');
+      setSelectedProduct(null);
+    },
+    onError: (error) => {
+      toast.error('Failed to link repository: ' + error.message);
+    },
   });
 
   return (
@@ -132,13 +183,53 @@ export default function Dashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">{product.description}</p>
-                <div className="mt-4">
+                <p className="text-muted-foreground mb-4">{product.description}</p>
+                <div className="flex flex-col space-y-2">
                   <Button variant="outline" className="w-full" asChild>
                     <Link to={`/products/${product.id}/features`}>
                       View Features
                     </Link>
                   </Button>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        className="w-full"
+                        onClick={() => setSelectedProduct(product.id)}
+                      >
+                        <Github className="mr-2 h-4 w-4" />
+                        Link GitHub Repo
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Link GitHub Repository</DialogTitle>
+                        <DialogDescription>
+                          Choose a repository to link to {product.name}
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="grid gap-4 py-4">
+                        {repositories?.map((repo) => (
+                          <div key={repo.id} className="flex items-center gap-4">
+                            <Github className="h-4 w-4" />
+                            <span className="flex-grow">{repo.name}</span>
+                            <Button
+                              onClick={() => {
+                                if (selectedProduct) {
+                                  linkRepoMutation.mutate({
+                                    productId: selectedProduct,
+                                    repo,
+                                  });
+                                }
+                              }}
+                            >
+                              Link
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </CardContent>
             </Card>
