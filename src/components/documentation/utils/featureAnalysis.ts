@@ -1,7 +1,5 @@
+
 import { ExtendedFeature, FeatureContext, DocumentationPatterns } from '../types';
-import * as parser from '@babel/parser';
-import traverse from '@babel/traverse';
-import { File, Node, Expression, Statement } from '@babel/types';
 
 interface CodeAnalysis {
   components: Map<string, ComponentMetadata>;
@@ -39,12 +37,8 @@ interface InteractionMetadata {
   component: string;
 }
 
+// Simple pattern-based code analysis
 const analyzeCodeStructure = (code: string): CodeAnalysis => {
-  const ast = parser.parse(code, {
-    sourceType: 'module',
-    plugins: ['jsx', 'typescript'],
-  });
-
   const analysis: CodeAnalysis = {
     components: new Map<string, ComponentMetadata>(),
     routes: new Map<string, RouteMetadata>(),
@@ -53,131 +47,100 @@ const analyzeCodeStructure = (code: string): CodeAnalysis => {
     boundaries: new Set<string>(),
   };
 
-  traverse(ast as any, {
-    // Detect React Components
-    FunctionDeclaration(path) {
-      if (isReactComponent(path.node)) {
-        const name = path.node.id?.name || '';
-        analysis.components.set(name, {
-          name,
-          imports: detectImports(path),
-          stateUsage: detectStateUsage(path),
-          props: detectProps(path),
-          eventHandlers: detectEventHandlers(path),
+  try {
+    // Find component definitions
+    const componentMatches = code.match(/(?:export\s+)?(?:const|function)\s+([A-Z]\w+)/g) || [];
+    componentMatches.forEach(match => {
+      const name = match.split(/\s+/).pop() || '';
+      analysis.components.set(name, {
+        name,
+        imports: extractImports(code),
+        stateUsage: extractStateUsage(code),
+        props: extractProps(code),
+        eventHandlers: extractEventHandlers(code),
+      });
+    });
+
+    // Find routes
+    const routeMatches = code.match(/<Route[^>]*>/g) || [];
+    routeMatches.forEach(match => {
+      const path = match.match(/path=["']([^"']+)["']/) || [];
+      const component = match.match(/component=["']([^"']+)["']/) || [];
+      if (path[1] && component[1]) {
+        analysis.routes.set(path[1], {
+          path: path[1],
+          component: component[1],
+          isProtected: match.includes('PrivateRoute'),
+          params: extractRouteParams(path[1]),
         });
       }
-    },
+    });
 
-    // Detect Routes
-    JSXElement(path) {
-      if (isRouteElement(path.node)) {
-        const routeData = extractRouteData(path.node);
-        if (routeData) {
-          analysis.routes.set(routeData.path, routeData);
-        }
-      }
-    },
+    // Find data flow patterns
+    const hookMatches = code.match(/use(?:Query|Mutation|Context|State|Reducer)\(/g) || [];
+    hookMatches.forEach(match => {
+      const hookName = match.slice(0, -1);
+      analysis.dataFlow.set(hookName, {
+        queries: new Set(hookName === 'useQuery' ? ['query'] : []),
+        mutations: new Set(hookName === 'useMutation' ? ['mutation'] : []),
+        context: new Set(hookName === 'useContext' ? ['context'] : []),
+        state: new Set(['state']),
+      });
+    });
 
-    // Detect Data Flow
-    CallExpression(path) {
-      if (isDataFlowHook(path.node)) {
-        const dataFlow = extractDataFlowMetadata(path.node);
-        if (dataFlow) {
-          analysis.dataFlow.set(path.node.callee.name, dataFlow);
-        }
+    // Find user interactions
+    const handlerMatches = code.match(/on[A-Z]\w+={[^}]+}/g) || [];
+    handlerMatches.forEach(match => {
+      const type = match.match(/on([A-Z]\w+)/) || [];
+      const handler = match.match(/{([^}]+)}/) || [];
+      if (type[1] && handler[1]) {
+        analysis.interactions.set(handler[1], {
+          type: type[1].toLowerCase() as 'click' | 'submit' | 'change' | 'input',
+          handler: handler[1],
+          component: 'Unknown', // We can't reliably determine this without proper parsing
+        });
       }
-    },
+    });
 
-    // Detect User Interactions
-    JSXAttribute(path) {
-      if (isEventHandler(path.node)) {
-        const interaction = extractInteractionMetadata(path.node);
-        if (interaction) {
-          analysis.interactions.set(interaction.handler, interaction);
-        }
-      }
-    },
-  });
+  } catch (error) {
+    console.error('Error analyzing code:', error);
+  }
 
   return analysis;
 };
 
-const isReactComponent = (node: Node): boolean => {
-  return (
-    node.type === 'FunctionDeclaration' &&
-    Boolean(node.id?.name.match(/^[A-Z]/)) // Component names start with capital letter
-  );
-};
-
-const detectImports = (path: any): Set<string> => {
+const extractImports = (code: string): Set<string> => {
   const imports = new Set<string>();
-  path.traverse({
-    ImportDeclaration(importPath: any) {
-      imports.add(importPath.node.source.value);
-    },
+  const importMatches = code.match(/import\s+.*?\s+from\s+['"]([^'"]+)['"]/g) || [];
+  importMatches.forEach(match => {
+    const path = match.match(/from\s+['"]([^'"]+)['"]/) || [];
+    if (path[1]) imports.add(path[1]);
   });
   return imports;
 };
 
-const detectStateUsage = (path: any): Set<string> => {
+const extractStateUsage = (code: string): Set<string> => {
   const stateUsage = new Set<string>();
-  path.traverse({
-    CallExpression(callPath: any) {
-      if (callPath.node.callee.name === 'useState' ||
-          callPath.node.callee.name === 'useReducer') {
-        stateUsage.add(callPath.node.callee.name);
-      }
-    },
-  });
+  const stateMatches = code.match(/use(?:State|Reducer)\(/g) || [];
+  stateMatches.forEach(match => stateUsage.add(match.slice(0, -1)));
   return stateUsage;
 };
 
-const detectProps = (path: any): Set<string> => {
+const extractProps = (code: string): Set<string> => {
   const props = new Set<string>();
-  path.traverse({
-    ObjectPattern(objPath: any) {
-      objPath.node.properties.forEach((prop: any) => {
-        props.add(prop.key.name);
-      });
-    },
+  const propMatches = code.match(/(?:interface|type)\s+\w+Props\s*=\s*{([^}]+)}/g) || [];
+  propMatches.forEach(match => {
+    const propDefinitions = match.match(/(\w+)\s*:/) || [];
+    if (propDefinitions[1]) props.add(propDefinitions[1]);
   });
   return props;
 };
 
-const detectEventHandlers = (path: any): Set<string> => {
+const extractEventHandlers = (code: string): Set<string> => {
   const handlers = new Set<string>();
-  path.traverse({
-    JSXAttribute(attrPath: any) {
-      if (attrPath.node.name.name.startsWith('on')) {
-        handlers.add(attrPath.node.name.name);
-      }
-    },
-  });
+  const handlerMatches = code.match(/on[A-Z]\w+=/g) || [];
+  handlerMatches.forEach(match => handlers.add(match.slice(0, -1)));
   return handlers;
-};
-
-const isRouteElement = (node: any): boolean => {
-  return (
-    node.openingElement &&
-    node.openingElement.name &&
-    node.openingElement.name.name === 'Route'
-  );
-};
-
-const extractRouteData = (node: any): RouteMetadata | null => {
-  const pathAttr = node.openingElement.attributes
-    .find((attr: any) => attr.name.name === 'path');
-  const elementAttr = node.openingElement.attributes
-    .find((attr: any) => attr.name.name === 'element');
-
-  if (!pathAttr || !elementAttr) return null;
-
-  return {
-    path: pathAttr.value.value,
-    component: elementAttr.value.expression.name,
-    isProtected: Boolean(node.openingElement.name.name === 'PrivateRoute'),
-    params: extractRouteParams(pathAttr.value.value),
-  };
 };
 
 const extractRouteParams = (path: string): Set<string> => {
@@ -187,42 +150,10 @@ const extractRouteParams = (path: string): Set<string> => {
   return params;
 };
 
-const isDataFlowHook = (node: any): boolean => {
-  return (
-    node.callee &&
-    ['useQuery', 'useMutation', 'useContext', 'useState', 'useReducer']
-      .includes(node.callee.name)
-  );
-};
-
-const extractDataFlowMetadata = (node: any): DataFlowMetadata => {
-  return {
-    queries: new Set(node.callee.name === 'useQuery' ? [node.arguments[0]?.queryKey] : []),
-    mutations: new Set(node.callee.name === 'useMutation' ? [node.arguments[0]?.mutationKey] : []),
-    context: new Set(node.callee.name === 'useContext' ? [node.arguments[0]?.name] : []),
-    state: new Set(node.callee.name === 'useState' ? [node.arguments[0]] : []),
-  };
-};
-
-const isEventHandler = (node: any): boolean => {
-  return node.name && node.name.name && node.name.name.startsWith('on');
-};
-
-const extractInteractionMetadata = (node: any): InteractionMetadata | null => {
-  if (!node.value || !node.value.expression) return null;
-
-  return {
-    type: node.name.name.slice(2).toLowerCase() as 'click' | 'submit' | 'change' | 'input',
-    handler: node.value.expression.name || '',
-    component: node.parent.parent.openingElement.name.name,
-  };
-};
-
 export const identifyFeatureContext = (feature: ExtendedFeature): FeatureContext => {
   const analysis = feature.code_changes?.reduce((acc: CodeAnalysis, change) => {
     if (change?.content) {
       const changeAnalysis = analyzeCodeStructure(change.content);
-      // Merge analyses with proper typing
       changeAnalysis.components.forEach((v: ComponentMetadata, k: string) => acc.components.set(k, v));
       changeAnalysis.routes.forEach((v: RouteMetadata, k: string) => acc.routes.set(k, v));
       changeAnalysis.dataFlow.forEach((v: DataFlowMetadata, k: string) => acc.dataFlow.set(k, v));
