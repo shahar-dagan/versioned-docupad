@@ -99,10 +99,19 @@ export default function Features() {
         throw new Error('No repository linked to this product');
       }
 
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        throw new Error('You must be logged in to analyze repositories');
+      }
+
       const response = await supabase.functions.invoke('analyze-repository', {
         body: {
           repoFullName: repository.repository_name,
           productId,
+          userId: user.id  // Add the user ID to the request
         },
       });
 

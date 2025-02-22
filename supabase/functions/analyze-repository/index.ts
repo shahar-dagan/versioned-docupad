@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
@@ -24,8 +25,18 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const githubToken = Deno.env.get('GITHUB_ACCESS_TOKEN')!;
 
-    const { repoFullName, productId } = await req.json();
-    console.log('Analyzing repository:', repoFullName, 'for product:', productId);
+    const { repoFullName, productId, userId } = await req.json();
+    console.log('Analyzing repository:', repoFullName, 'for product:', productId, 'requested by user:', userId);
+
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ error: 'User ID is required' }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
 
     // Initialize Supabase client with service role key
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -216,7 +227,7 @@ ${fileDescriptions}`;
 
     console.log('Successfully parsed features:', features);
 
-    // Store features in database
+    // Store features in database with author_id
     for (const feature of features) {
       const { error: insertError } = await supabase
         .from('features')
@@ -225,7 +236,8 @@ ${fileDescriptions}`;
           name: feature.name,
           description: feature.description,
           status: 'suggested',
-          suggestions: feature.suggestions
+          suggestions: feature.suggestions,
+          author_id: userId  // Add the author_id field
         });
 
       if (insertError) {
