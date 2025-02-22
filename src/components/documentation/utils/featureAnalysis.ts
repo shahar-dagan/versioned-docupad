@@ -31,7 +31,8 @@ export const identifyFeatureContext = (feature: ExtendedFeature): FeatureContext
     .map(desc => ({
       action: desc!.replace('User can', '').trim(),
       steps: [],
-      expectedOutcome: `Successfully ${desc!.toLowerCase().replace('user can', '').trim()}`
+      expectedOutcome: `Successfully ${desc!.toLowerCase().replace('user can', '').trim()}`,
+      prerequisites: [] as string[] // Initialize prerequisites as empty array
     }));
 
   // Add prerequisites for auth-related features
