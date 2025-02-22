@@ -41,9 +41,21 @@ serve(async (req) => {
     // Initialize Supabase client with service role key
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // First, get the default branch and latest commit SHA from the repository
+    // Ensure proper repository name format
+    const [owner, repo] = repoFullName.split('/');
+    if (!owner || !repo) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid repository name format. Expected format: owner/repo' }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    // First, get the repository information
     console.log('Fetching repository information...');
-    const repoResponse = await fetch(`https://api.github.com/repos/${repoFullName}`, {
+    const repoResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
       headers: {
         'Authorization': `Bearer ${githubToken}`,
         'Accept': 'application/vnd.github.v3+json'
@@ -51,46 +63,31 @@ serve(async (req) => {
     });
 
     if (!repoResponse.ok) {
-      throw new Error(`GitHub API error: ${repoResponse.statusText} when fetching repository info`);
+      const repoErrorText = await repoResponse.text();
+      console.error('Repository response error:', repoErrorText);
+      throw new Error(`GitHub API error: ${repoResponse.statusText} when fetching repository info. Details: ${repoErrorText}`);
     }
 
     const repoData = await repoResponse.json();
     const defaultBranch = repoData.default_branch;
     console.log('Default branch:', defaultBranch);
 
-    // Get the latest commit SHA
-    const commitsResponse = await fetch(`https://api.github.com/repos/${repoFullName}/commits/${defaultBranch}`, {
+    // Get the repository contents directly
+    console.log(`Fetching repository contents...`);
+    const contentsResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`, {
       headers: {
         'Authorization': `Bearer ${githubToken}`,
         'Accept': 'application/vnd.github.v3+json'
       }
     });
 
-    if (!commitsResponse.ok) {
-      throw new Error(`GitHub API error: ${commitsResponse.statusText} when fetching commits`);
+    if (!contentsResponse.ok) {
+      const errorText = await contentsResponse.text();
+      console.error('Contents response error:', errorText);
+      throw new Error(`GitHub API error: ${contentsResponse.statusText} when fetching contents. Details: ${errorText}`);
     }
 
-    const commitData = await commitsResponse.json();
-    const treeSha = commitData.commit.tree.sha;
-    console.log(`Using tree SHA: ${treeSha} from latest commit`);
-
-    // Get repository tree using the commit's tree SHA
-    console.log(`Fetching repository tree...`);
-    const treeResponse = await fetch(`https://api.github.com/repos/${repoFullName}/git/trees/${treeSha}?recursive=1`, {
-      headers: {
-        'Authorization': `Bearer ${githubToken}`,
-        'Accept': 'application/vnd.github.v3+json'
-      }
-    });
-
-    if (!treeResponse.ok) {
-      const errorText = await treeResponse.text();
-      console.error('Tree response error:', errorText);
-      throw new Error(`GitHub API error: ${treeResponse.statusText} when fetching tree. Details: ${errorText}`);
-    }
-
-    const treeData = await treeResponse.json();
-
+    const treeData = await contentsResponse.json();
     console.log('Found repository tree with', treeData.tree.length, 'items');
     
     // Filter relevant files
@@ -127,7 +124,7 @@ serve(async (req) => {
       relevantFiles.map(async (file: any) => {
         console.log(`Fetching content for ${file.path}`);
         try {
-          const contentResponse = await fetch(`https://api.github.com/repos/${repoFullName}/git/blobs/${file.sha}`, {
+          const contentResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/blobs/${file.sha}`, {
             headers: {
               'Authorization': `Bearer ${githubToken}`,
               'Accept': 'application/vnd.github.v3+json'
@@ -263,7 +260,7 @@ ${fileDescriptions}`;
           description: feature.description,
           status: 'suggested',
           suggestions: feature.suggestions,
-          author_id: userId  // Add the author_id field
+          author_id: userId
         });
 
       if (insertError) {
