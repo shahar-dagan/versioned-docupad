@@ -1,47 +1,38 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-interface RequestBody {
-  repoFullName: string;
-  productId: string;
-  userId: string;
-}
-
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const { repoFullName, productId, userId } = await req.json() as RequestBody;
-    console.log('Analyzing repository:', repoFullName, 'for product:', productId);
+    const { repoFullName, productId, userId } = await req.json();
+    console.log('Analyzing repository:', repoFullName);
 
-    // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get tokens
-    const [githubTokenResult, openAiTokenResult] = await Promise.all([
-      supabase.from('secrets').select('value').eq('name', 'GITHUB_ACCESS_TOKEN').single(),
-      supabase.from('secrets').select('value').eq('name', 'OPENAI_API_KEY').single()
-    ]);
+    // Get GitHub token
+    const { data: tokenData, error: tokenError } = await supabase
+      .from('secrets')
+      .select('value')
+      .eq('name', 'GITHUB_ACCESS_TOKEN')
+      .single();
 
-    if (githubTokenResult.error || !githubTokenResult.data?.value) {
-      throw new Error('Failed to retrieve GitHub token');
+    if (tokenError || !tokenData) {
+      console.error('Failed to get GitHub token:', tokenError);
+      throw new Error('Failed to get GitHub token');
     }
-    if (openAiTokenResult.error || !openAiTokenResult.data?.value) {
-      throw new Error('Failed to retrieve OpenAI token');
-    }
-
-    const githubToken = githubTokenResult.data.value;
-    const openAiKey = openAiTokenResult.data.value;
 
     // Get repository details
     const { data: repoData, error: repoError } = await supabase
@@ -51,6 +42,7 @@ serve(async (req) => {
       .single();
 
     if (repoError) {
+      console.error('Failed to get repository details:', repoError);
       throw new Error('Failed to get repository details');
     }
 
@@ -58,127 +50,99 @@ serve(async (req) => {
       ? `${repoData.enterprise_url}/api/v3`
       : 'https://api.github.com';
 
-    // Fetch latest commit and code content
-    const [commitResponse, contentResponse] = await Promise.all([
-      fetch(`${baseUrl}/repos/${repoFullName}/commits`, {
-        headers: {
-          'Authorization': `Bearer ${githubToken}`,
-          'Accept': 'application/vnd.github.v3+json',
-        },
-      }),
-      fetch(`${baseUrl}/repos/${repoFullName}/contents`, {
-        headers: {
-          'Authorization': `Bearer ${githubToken}`,
-          'Accept': 'application/vnd.github.v3+json',
-        },
-      })
-    ]);
-
-    if (!commitResponse.ok || !contentResponse.ok) {
-      throw new Error('Failed to fetch repository data');
-    }
-
-    const commits = await commitResponse.json();
-    const contents = await contentResponse.json();
-    const latestCommit = commits[0];
-
-    // Start CodeQL analysis with specific queries
-    const analysisResponse = await fetch(`${baseUrl}/repos/${repoFullName}/code-scanning/analyses`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${githubToken}`,
-        'Accept': 'application/vnd.github.v3+json',
-      },
-      body: JSON.stringify({
-        ref: latestCommit.sha,
-        tool_name: 'CodeQL',
-        analysis_key: `codeql-${Date.now()}`,
-        queries: [
-          'security-and-quality',
-          'security-extended',
-          'maintainability'
-        ]
-      }),
-    });
-
-    if (!analysisResponse.ok) {
-      const error = await analysisResponse.text();
-      console.error('CodeQL analysis failed:', error);
-      throw new Error('Failed to start CodeQL analysis');
-    }
-
-    const analysis = await analysisResponse.json();
-
-    // Use OpenAI to analyze the codebase structure and provide suggestions
-    const openAiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert code reviewer focusing on security, maintainability, and best practices.'
+    // Fetch repository content recursively
+    const fetchContent = async (path = '') => {
+      const response = await fetch(
+        `${baseUrl}/repos/${repoFullName}/contents/${path}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${tokenData.value}`,
+            'Accept': 'application/vnd.github.v3+json',
           },
-          {
-            role: 'user',
-            content: `Analyze this repository structure and provide specific suggestions for improvement:
-              Repository: ${repoFullName}
-              Latest Commit: ${latestCommit.sha}
-              Files: ${JSON.stringify(contents)}
-              CodeQL Analysis: ${JSON.stringify(analysis)}
-            `
-          }
-        ],
-      }),
-    });
+        }
+      );
 
-    if (!openAiResponse.ok) {
-      throw new Error('Failed to get AI analysis');
-    }
+      if (!response.ok) {
+        console.error('Failed to fetch content:', await response.text());
+        throw new Error(`Failed to fetch content for path: ${path}`);
+      }
 
-    const aiAnalysis = await openAiResponse.json();
-    const suggestions = aiAnalysis.choices[0].message.content.split('\n')
-      .filter(line => line.trim().length > 0)
-      .map(line => line.replace(/^[•\-]\s*/, '').trim());
+      const contents = await response.json();
+      return contents;
+    };
 
-    // Store combined analysis results
+    // Analyze content and gather feature information
+    const analyzeContent = async (contents: any[]): Promise<any[]> => {
+      const features = [];
+
+      for (const item of contents) {
+        if (item.type === 'file' && item.name.endsWith('.tsx')) {
+          const response = await fetch(item.download_url, {
+            headers: {
+              'Authorization': `Bearer ${tokenData.value}`,
+            },
+          });
+
+          if (!response.ok) continue;
+
+          const content = await response.text();
+          const feature = {
+            path: item.path,
+            name: item.name.replace('.tsx', ''),
+            content: content,
+            type: 'component',
+            interactions: [],
+          };
+
+          // Extract user interactions
+          const eventHandlerMatches = content.match(/on[A-Z]\w+={[^}]+}/g) || [];
+          const formMatches = content.match(/<form[^>]*>[\s\S]*?<\/form>/g) || [];
+          const buttonMatches = content.match(/<button[^>]*>[\s\S]*?<\/button>/g) || [];
+
+          feature.interactions = [
+            ...eventHandlerMatches.map(match => ({ type: 'event', content: match })),
+            ...formMatches.map(match => ({ type: 'form', content: match })),
+            ...buttonMatches.map(match => ({ type: 'button', content: match })),
+          ];
+
+          features.push(feature);
+        }
+      }
+
+      return features;
+    };
+
+    // Start analysis
+    console.log('Starting repository analysis');
+    const contents = await fetchContent();
+    const features = await analyzeContent(Array.isArray(contents) ? contents : [contents]);
+
+    // Store analysis results
     const { error: insertError } = await supabase
-      .from('codeql_analyses')
-      .insert({
-        product_id: productId,
-        repository_id: repoFullName,
-        analysis_date: new Date().toISOString(),
-        summary: `CodeQL analysis completed for commit ${latestCommit.sha}`,
-        analysis_results: analysis,
-        ai_suggestions: suggestions
-      });
+      .from('features')
+      .upsert(
+        features.map(feature => ({
+          product_id: productId,
+          name: feature.name,
+          description: `Component: ${feature.path}`,
+          author_id: userId,
+          status: 'active',
+          suggestions: feature.interactions.map(i => 
+            `User interaction found: ${i.type} in ${feature.path}`
+          ),
+          last_analyzed_at: new Date().toISOString(),
+        }))
+      );
 
     if (insertError) {
-      throw new Error('Failed to store analysis results');
-    }
-
-    // Update the features table with suggestions
-    const { error: updateError } = await supabase
-      .from('features')
-      .update({
-        last_analyzed_at: new Date().toISOString(),
-        suggestions: suggestions
-      })
-      .eq('product_id', productId);
-
-    if (updateError) {
-      console.error('Failed to update features with suggestions:', updateError);
+      console.error('Failed to store features:', insertError);
+      throw new Error('Failed to store features');
     }
 
     return new Response(
       JSON.stringify({
         message: 'Analysis completed successfully',
-        analysis,
-        suggestions
+        featuresAnalyzed: features.length,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -196,4 +160,4 @@ serve(async (req) => {
       }
     );
   }
-})
+});
