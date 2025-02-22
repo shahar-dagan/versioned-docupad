@@ -34,6 +34,7 @@ export default function Products() {
   const { data: products, refetch } = useQuery({
     queryKey: ['products'],
     queryFn: async () => {
+      console.log('Fetching products...');
       const { data, error } = await supabase
         .from('products')
         .select(`
@@ -44,7 +45,11 @@ export default function Products() {
         `)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching products:', error);
+        throw error;
+      }
+      console.log('Products fetched:', data);
       return data as (Product & { github_repositories: { repository_name: string } | null })[];
     },
   });
@@ -80,6 +85,28 @@ export default function Products() {
     } catch (error) {
       console.error('Error creating product:', error);
       toast.error('Failed to create product');
+    }
+  };
+
+  const handleDeleteProduct = async (productId: string) => {
+    try {
+      console.log('Deleting product:', productId);
+      const { error } = await supabase
+        .from('products')
+        .delete()
+        .eq('id', productId);
+
+      if (error) {
+        console.error('Error deleting product:', error);
+        throw error;
+      }
+
+      console.log('Product deleted successfully');
+      toast.success('Product deleted successfully');
+      await refetch(); // Immediately refetch after successful deletion
+    } catch (error) {
+      console.error('Failed to delete product:', error);
+      toast.error('Failed to delete product');
     }
   };
 
@@ -141,9 +168,7 @@ export default function Products() {
               refetch();
             }}
             onDelete={async () => {
-              // Wait a small delay to ensure the delete operation has completed
-              await new Promise(resolve => setTimeout(resolve, 100));
-              await refetch();
+              await handleDeleteProduct(product.id);
             }}
           />
         ))}
@@ -151,3 +176,4 @@ export default function Products() {
     </div>
   );
 }
+
