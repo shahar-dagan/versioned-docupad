@@ -9,12 +9,41 @@ import { DocumentationNav } from '@/components/documentation/DocumentationNav';
 import { DocumentationContent } from '@/components/documentation/DocumentationContent';
 import { MobileNav } from '@/components/documentation/MobileNav';
 
+interface DocumentationSuggestion {
+  type: 'technical' | 'user';
+  category: string;
+  suggestion: string;
+  priority: 'high' | 'medium' | 'low';
+}
+
 interface Feature {
   id: string;
   name: string;
   description: string;
   status: string;
-  suggestions?: string[];
+  technical_docs?: {
+    architecture?: string;
+    setup?: string;
+    api_details?: string;
+    code_snippets?: Array<{
+      language: string;
+      code: string;
+      description: string;
+    }>;
+    dependencies?: string[];
+  };
+  user_docs?: {
+    overview?: string;
+    steps?: string[];
+    use_cases?: string[];
+    visuals?: Array<{
+      type: 'screenshot' | 'video';
+      url: string;
+      caption: string;
+    }>;
+    faq?: Array<{ question: string; answer: string }>;
+  };
+  suggestions?: DocumentationSuggestion[];
 }
 
 interface Product {
