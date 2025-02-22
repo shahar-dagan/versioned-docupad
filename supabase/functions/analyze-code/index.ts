@@ -11,12 +11,23 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { codeContent } = await req.json();
+    const { repository } = await req.json();
+
+    if (!repository) {
+      throw new Error('Repository name is required');
+    }
+
+    if (!DEEPSOURCE_API_KEY) {
+      throw new Error('DeepSource API key is not configured');
+    }
+
+    console.log('Analyzing repository:', repository);
 
     // Call DeepSource API for analysis
     const response = await fetch(`${DEEPSOURCE_API_URL}/analyze`, {
@@ -26,7 +37,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        content: codeContent,
+        repository: repository,
         analyzer: 'javascript',
         options: {
           include_features: true,
@@ -36,72 +47,27 @@ serve(async (req) => {
     });
 
     if (!response.ok) {
+      console.error('DeepSource API error:', response.statusText);
       throw new Error(`DeepSource API error: ${response.statusText}`);
     }
 
     const analysisResult = await response.json();
+    console.log('Analysis result:', analysisResult);
     
-    // Process and structure the analysis results
-    const features = processAnalysisResults(analysisResult);
-
-    return new Response(JSON.stringify({ features }), {
+    return new Response(JSON.stringify({ 
+      success: true,
+      data: analysisResult 
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
     console.error('Error in analyze-code function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
+    return new Response(JSON.stringify({ 
+      success: false,
+      error: error.message 
+    }), {
+      status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });
-
-function processAnalysisResults(results: any) {
-  // Transform DeepSource analysis results into our feature format
-  const features = {
-    components: [],
-    functionality: [],
-    dataOperations: [],
-    security: [],
-  };
-
-  if (results.analysis) {
-    // Process components and UI elements
-    if (results.analysis.components) {
-      features.components = results.analysis.components.map((component: any) => ({
-        name: component.name,
-        type: component.type,
-        complexity: component.complexity,
-      }));
-    }
-
-    // Process functionality and features
-    if (results.analysis.features) {
-      features.functionality = results.analysis.features.map((feature: any) => ({
-        name: feature.name,
-        description: feature.description,
-        category: feature.category,
-      }));
-    }
-
-    // Process data operations
-    if (results.analysis.dataOperations) {
-      features.dataOperations = results.analysis.dataOperations.map((op: any) => ({
-        type: op.type,
-        target: op.target,
-        complexity: op.complexity,
-      }));
-    }
-
-    // Process security considerations
-    if (results.analysis.security) {
-      features.security = results.analysis.security.map((item: any) => ({
-        type: item.type,
-        severity: item.severity,
-        description: item.description,
-      }));
-    }
-  }
-
-  return features;
-}
