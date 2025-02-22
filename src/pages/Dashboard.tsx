@@ -1,7 +1,8 @@
+
 import { useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { Plus, Github, Check } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
@@ -15,6 +16,7 @@ interface Product {
   name: string;
   description: string;
   created_at: string;
+  github_repositories: { repository_name: string } | null;
 }
 
 interface Repository {
@@ -56,7 +58,12 @@ export default function Dashboard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('products')
-        .select('*')
+        .select(`
+          *,
+          github_repositories (
+            repository_name
+          )
+        `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -131,6 +138,7 @@ export default function Dashboard() {
     },
     onSuccess: () => {
       toast.success('Repository linked successfully!');
+      refetchProducts();
     },
     onError: (error) => {
       toast.error('Failed to link repository: ' + error.message);

@@ -82,6 +82,14 @@ export default function Features() {
   const { data: features, refetch } = useQuery({
     queryKey: ['features', productId],
     queryFn: async () => {
+      const response = await supabase.functions.invoke('analyze-repository', {
+        body: { productId },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
       const { data, error } = await supabase
         .from('features')
         .select('*')
