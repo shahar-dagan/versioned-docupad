@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+
+import { useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
@@ -44,12 +45,34 @@ interface DashboardStats {
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!user) {
       navigate('/auth');
     }
   }, [user, navigate]);
+
+  // Add cleanup for resize observers
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      // Batch DOM reads and writes
+      requestAnimationFrame(() => {
+        entries.forEach(() => {
+          // Handle resize if needed
+        });
+      });
+    });
+
+    resizeObserver.observe(container);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
 
   const { data: products, refetch: refetchProducts } = useQuery({
     queryKey: ['products'],
@@ -138,7 +161,7 @@ export default function Dashboard() {
   });
 
   return (
-    <div className="container mx-auto py-10">
+    <div ref={containerRef} className="container mx-auto py-10">
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-4xl font-bold">Dashboard</h1>
