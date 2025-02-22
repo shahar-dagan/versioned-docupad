@@ -1,7 +1,8 @@
+
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { Plus, ArrowLeft, ChevronRight } from 'lucide-react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { Plus, ArrowLeft, ChevronRight, Wand2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import {
@@ -29,12 +30,19 @@ interface Feature {
   description: string | null;
   status: string | null;
   created_at: string;
+  suggestions?: string[];
 }
 
 interface Product {
   id: string;
   name: string;
   description: string;
+}
+
+interface Repository {
+  id: string;
+  full_name: string;
+  product_id: string;
 }
 
 export default function Features() {
@@ -58,6 +66,20 @@ export default function Features() {
     },
   });
 
+  const { data: repository } = useQuery({
+    queryKey: ['repository', productId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('github_repositories')
+        .select('*')
+        .eq('product_id', productId)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data as Repository;
+    },
+  });
+
   const { data: features, refetch } = useQuery({
     queryKey: ['features', productId],
     queryFn: async () => {
@@ -69,6 +91,41 @@ export default function Features() {
 
       if (error) throw error;
       return data as Feature[];
+    },
+  });
+
+  const analyzeRepositoryMutation = useMutation({
+    mutationFn: async () => {
+      if (!repository?.full_name) {
+        throw new Error('No repository linked to this product');
+      }
+
+      const response = await supabase.functions.invoke('analyze-repository', {
+        body: {
+          repoFullName: repository.full_name,
+          productId,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      return response.data;
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Success',
+        description: 'Repository analysis complete',
+      });
+      refetch();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
     },
   });
 
@@ -144,43 +201,54 @@ export default function Features() {
               Manage features and track their development progress
             </p>
           </div>
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Feature
+          <div className="flex gap-2">
+            {repository && (
+              <Button 
+                onClick={() => analyzeRepositoryMutation.mutate()}
+                disabled={analyzeRepositoryMutation.isPending}
+              >
+                <Wand2 className="mr-2 h-4 w-4" />
+                {analyzeRepositoryMutation.isPending ? 'Analyzing...' : 'Analyze Repository'}
               </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Feature</DialogTitle>
-                <DialogDescription>
-                  Add a new feature to track its development and documentation
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleCreateFeature} className="space-y-4">
-                <div>
-                  <Input
-                    placeholder="Feature Name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                  />
-                </div>
-                <div>
-                  <Textarea
-                    placeholder="Feature Description"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    required
-                  />
-                </div>
-                <Button type="submit" className="w-full">
-                  Create Feature
+            )}
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Feature
                 </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Create New Feature</DialogTitle>
+                  <DialogDescription>
+                    Add a new feature to track its development and documentation
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleCreateFeature} className="space-y-4">
+                  <div>
+                    <Input
+                      placeholder="Feature Name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Textarea
+                      placeholder="Feature Description"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <Button type="submit" className="w-full">
+                    Create Feature
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
       </div>
 
@@ -194,7 +262,17 @@ export default function Features() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">{feature.description}</p>
+              <p className="text-muted-foreground mb-4">{feature.description}</p>
+              {feature.suggestions && (
+                <div className="mt-4">
+                  <h4 className="font-semibold mb-2">Suggestions:</h4>
+                  <ul className="list-disc list-inside text-sm text-muted-foreground">
+                    {feature.suggestions.map((suggestion, index) => (
+                      <li key={index}>{suggestion}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div className="flex items-center justify-between mt-4">
                 <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-green-100 text-green-800">
                   {feature.status || 'Active'}
