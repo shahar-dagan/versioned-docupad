@@ -1,8 +1,7 @@
-
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Plus, ArrowLeft, ChevronRight, Wand2 } from 'lucide-react';
+import { Plus, ArrowLeft, ChevronRight, Wand2, Book } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import {
@@ -205,6 +204,12 @@ export default function Features() {
                 {analyzeRepositoryMutation.isPending ? 'Analyzing...' : 'Analyze Repository'}
               </Button>
             )}
+            <Link to={`/products/${productId}/docs`}>
+              <Button variant="outline">
+                <Book className="mr-2 h-4 w-4" />
+                View Documentation
+              </Button>
+            </Link>
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
                 <Button>
