@@ -1,3 +1,4 @@
+
 import { ExtendedFeature, FeatureContext, DocumentationPatterns } from '../types';
 
 const examineCodebase = (feature: ExtendedFeature) => {
@@ -226,7 +227,7 @@ export const identifyFeatureContext = (feature: ExtendedFeature): FeatureContext
   return identifyUserFeatures(summary, feature);
 };
 
-const analyzeCodeChanges = (changes: ExtendedFeature['code_changes']): DocumentationPatterns => {
+export const analyzeCodeChanges = (changes: ExtendedFeature['code_changes']): DocumentationPatterns => {
   const patterns: DocumentationPatterns = {
     userInputs: new Set<string>(),
     userActions: new Set<string>(),
@@ -238,18 +239,22 @@ const analyzeCodeChanges = (changes: ExtendedFeature['code_changes']): Documenta
     const description = change.change_description?.toLowerCase() || '';
     const path = change.file_path?.toLowerCase() || '';
 
+    // Detect user inputs from file paths and descriptions
     if (path.includes('form') || path.includes('input')) {
       patterns.userInputs.add(extractInputType(path));
     }
 
+    // Detect user actions from change descriptions
     if (description) {
       patterns.userActions.add(change.change_description);
     }
 
+    // Detect data operations
     if (description.includes('save') || description.includes('update') || description.includes('delete')) {
       patterns.dataOperations.add(change.change_description);
     }
 
+    // Detect UI components from file paths
     if (path.includes('component')) {
       patterns.uiComponents.add(extractComponentName(path));
     }
