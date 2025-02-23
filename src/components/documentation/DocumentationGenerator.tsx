@@ -4,15 +4,18 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Book, Code, FileText, GitBranch } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { ExtendedFeature } from './types';
 import { identifyFeatureContext, analyzeCodeChanges } from './utils/featureAnalysis';
 import { generateDocumentation } from './utils/documentationGenerator';
+import { Progress } from '@/components/ui/progress';
 
 export function DocumentationGenerator({ featureId }: { featureId: string }) {
   const [isGenerating, setIsGenerating] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [currentStep, setCurrentStep] = useState<string>('');
 
   const { data: feature, refetch } = useQuery({
     queryKey: ['feature', featureId],
@@ -36,15 +39,24 @@ export function DocumentationGenerator({ featureId }: { featureId: string }) {
     },
   });
 
-  const handleGenerateDocumentation = async () => {
-    setIsGenerating(true);
-    try {
+  const generateDocsMutation = useMutation({
+    mutationFn: async () => {
       if (!feature) throw new Error('Feature not found');
       
+      setProgress(10);
+      setCurrentStep('Analyzing feature context...');
       const featureContext = identifyFeatureContext(feature);
+      
+      setProgress(30);
+      setCurrentStep('Analyzing code changes...');
       const patterns = analyzeCodeChanges(feature.code_changes);
+      
+      setProgress(60);
+      setCurrentStep('Generating documentation...');
       const userDocs = generateDocumentation(feature, featureContext, patterns);
-
+      
+      setProgress(80);
+      setCurrentStep('Saving documentation...');
       const { error } = await supabase
         .from('features')
         .update({
@@ -55,14 +67,29 @@ export function DocumentationGenerator({ featureId }: { featureId: string }) {
 
       if (error) throw error;
 
+      setProgress(100);
+      setCurrentStep('Documentation generated successfully');
+      return userDocs;
+    },
+    onSuccess: () => {
       toast.success('Documentation generated successfully');
       refetch();
-    } catch (error) {
-      console.error('Error generating documentation:', error);
-      toast.error('Failed to generate documentation');
-    } finally {
-      setIsGenerating(false);
+    },
+    onError: (error: Error) => {
+      toast.error('Failed to generate documentation: ' + error.message);
+    },
+    onSettled: () => {
+      setTimeout(() => {
+        setIsGenerating(false);
+        setProgress(0);
+        setCurrentStep('');
+      }, 1500); // Keep progress visible briefly after completion
     }
+  });
+
+  const handleGenerateDocumentation = () => {
+    setIsGenerating(true);
+    generateDocsMutation.mutate();
   };
 
   if (!feature) {
@@ -102,6 +129,16 @@ export function DocumentationGenerator({ featureId }: { featureId: string }) {
             {isGenerating ? 'Generating...' : 'Generate Documentation'}
           </Button>
         </div>
+
+        {isGenerating && (
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>{currentStep}</span>
+              <span>{progress}%</span>
+            </div>
+            <Progress value={progress} className="h-2" />
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
           <div className="space-y-2">
