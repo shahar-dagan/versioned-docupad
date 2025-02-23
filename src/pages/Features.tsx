@@ -1,4 +1,3 @@
-
 import { useParams } from 'react-router-dom';
 import { FeaturesList } from '@/components/features/FeaturesList';
 import { FeaturesHeader } from '@/components/features/FeaturesHeader';
@@ -6,6 +5,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { useProduct } from '@/hooks/useProduct';
 import { useRepository } from '@/hooks/useRepository';
 import { useFeatures } from '@/hooks/useFeatures';
+import { Button } from '@/components/ui/button';
+import { useState } from 'react';
+import { FeatureMap } from '@/components/features/FeatureMap';
+import { ListBullet, Network } from 'lucide-react';
 
 export default function Features() {
   const { productId } = useParams<{ productId: string }>();
