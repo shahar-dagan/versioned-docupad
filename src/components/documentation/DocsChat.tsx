@@ -3,9 +3,10 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MessageCircle, Loader2 } from 'lucide-react';
+import { MessageCircle, Loader2, Mic, MicOff } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/components/ui/use-toast';
+import { VoiceInterface } from './VoiceInterface';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -21,6 +22,103 @@ export function DocsChat({ documentationText }: DocsChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [inputValue, setInputValue] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = async (e) => {
+        chunks.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+        const base64Audio = await blobToBase64(audioBlob);
+        
+        handleVoiceInput(base64Audio);
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Error accessing microphone:', error);
+      toast({
+        variant: "destructive",
+        title: "Microphone Error",
+        description: "Unable to access microphone. Please check your permissions.",
+      });
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && isRecording) {
+      mediaRecorder.stop();
+      mediaRecorder.stream.getTracks().forEach(track => track.stop());
+      setIsRecording(false);
+      setMediaRecorder(null);
+    }
+  };
+
+  const blobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result.split(',')[1]);
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  const handleVoiceInput = async (base64Audio: string) => {
+    setIsLoading(true);
+    try {
+      const { data: transcriptionData, error: transcriptionError } = await supabase.functions.invoke('voice-to-text', {
+        body: { audio: base64Audio }
+      });
+
+      if (transcriptionError) throw transcriptionError;
+
+      const userMessage = transcriptionData.text;
+      setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+      
+      const response = await fetch('https://api.elevenlabs.io/v1/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'xi-api-key': process.env.ELEVEN_LABS_API_KEY || '',
+        },
+        body: JSON.stringify({
+          messages: [...messages, { role: 'user', content: userMessage }],
+          context: {
+            documentationText
+          }
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to get response');
+
+      const data = await response.json();
+      const assistantMessage = { role: 'assistant' as const, content: data.response };
+      setMessages(prev => [...prev, assistantMessage]);
+    } catch (error) {
+      console.error('Voice chat error:', error);
+      toast({
+        variant: "destructive",
+        title: "Chat Error",
+        description: "Failed to process voice input. Please try again.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,9 +144,7 @@ export function DocsChat({ documentationText }: DocsChatProps) {
         })
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to get response');
-      }
+      if (!response.ok) throw new Error('Failed to get response');
 
       const data = await response.json();
       setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
@@ -88,6 +184,11 @@ export function DocsChat({ documentationText }: DocsChatProps) {
                 }`}
               >
                 <p className="text-sm">{message.content}</p>
+                {message.role === 'assistant' && (
+                  <div className="mt-2">
+                    <VoiceInterface text={message.content} />
+                  </div>
+                )}
               </div>
             ))}
             {isLoading && (
@@ -96,19 +197,33 @@ export function DocsChat({ documentationText }: DocsChatProps) {
               </div>
             )}
           </ScrollArea>
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <input
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Ask about the documentation..."
-              className="flex-1 px-3 py-2 border rounded-md"
-              disabled={isLoading}
-            />
-            <Button type="submit" disabled={isLoading}>
-              Send
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant={isRecording ? "destructive" : "secondary"}
+              size="icon"
+              onClick={isRecording ? stopRecording : startRecording}
+            >
+              {isRecording ? (
+                <MicOff className="h-4 w-4" />
+              ) : (
+                <Mic className="h-4 w-4" />
+              )}
             </Button>
-          </form>
+            <form onSubmit={handleSubmit} className="flex gap-2 flex-1">
+              <input
+                type="text"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                placeholder="Type or use voice input..."
+                className="flex-1 px-3 py-2 border rounded-md"
+                disabled={isLoading || isRecording}
+              />
+              <Button type="submit" disabled={isLoading || isRecording}>
+                Send
+              </Button>
+            </form>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
