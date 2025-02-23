@@ -1,4 +1,5 @@
 
+import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -26,26 +27,28 @@ const queryClient = new QueryClient({
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <AuthProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/products" element={<Products />} />
-              <Route path="/products/:productId/features" element={<Features />} />
-              <Route path="/products/:productId/features/whiteboard" element={<Whiteboard />} />
-              <Route path="/products/:productId/docs" element={<Documentation />} />
-              <Route path="/products/:productId/features/:featureId/changes" element={<Changes />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </TooltipProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </QueryClientProvider>
+    <React.StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <AuthProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/products" element={<Products />} />
+                <Route path="/products/:productId/features" element={<Features />} />
+                <Route path="/products/:productId/features/whiteboard" element={<Whiteboard />} />
+                <Route path="/products/:productId/docs" element={<Documentation />} />
+                <Route path="/products/:productId/features/:featureId/changes" element={<Changes />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </TooltipProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </React.StrictMode>
   );
 }
