@@ -7,7 +7,7 @@ import { Feature, Repository } from '@/types';
 interface AnalysisProgress {
   id: string;
   progress: number;
-  status: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
   steps: { step: string; timestamp: string }[];
   analysis_results: {
     steps: { step: string; timestamp: string }[];
@@ -82,11 +82,32 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         throw new Error('You must be logged in to analyze repositories');
       }
 
+      // First create an analysis record
+      const { data: analysis, error: analysisError } = await supabase
+        .from('codeql_analyses')
+        .insert({
+          product_id: productId,
+          repository_name: repository.repository_name,
+          status: 'pending',
+          triggered_by: user.id,
+          progress: 0,
+          steps: []
+        })
+        .select()
+        .single();
+
+      if (analysisError) {
+        console.error('Error creating analysis:', analysisError);
+        throw analysisError;
+      }
+
+      // Then trigger the analysis
       const response = await supabase.functions.invoke('analyze-repository', {
         body: {
           repoFullName: repository.repository_name,
           productId,
-          userId: user.id
+          userId: user.id,
+          analysisId: analysis.id
         },
       });
 

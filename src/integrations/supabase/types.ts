@@ -70,7 +70,7 @@ export type Database = {
           product_id?: string | null
           progress?: number | null
           repository_id?: string | null
-          status: string
+          status?: string
           steps?: Json[] | null
           triggered_by?: string | null
           updated_at?: string | null
