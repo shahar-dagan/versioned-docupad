@@ -55,6 +55,8 @@ serve(async (req) => {
       (item.path.endsWith('.ts') || item.path.endsWith('.tsx') || item.path.endsWith('.js') || item.path.endsWith('.jsx'))
     );
 
+    console.log(`Found ${files.length} code files to analyze`);
+
     // 2. Fetch and analyze key files
     const fileContents = [];
     for (const file of files.slice(0, 5)) { // Limit to 5 files for initial analysis
@@ -70,6 +72,8 @@ serve(async (req) => {
       }
     }
 
+    console.log(`Successfully fetched ${fileContents.length} files for analysis`);
+
     // 3. Analyze with OpenAI
     const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -82,7 +86,15 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: 'You are a code analyst that identifies distinct features from React/TypeScript code. Return a JSON array of features, where each feature has: name, description, and suggested improvements.'
+            content: `You are a code analyst that identifies distinct features from React/TypeScript code.
+            Analyze the code and return ONLY a JSON array of features without any markdown formatting or backticks.
+            Each feature should have these fields:
+            - name: string (required)
+            - description: string (required)
+            - suggestions: string[] (optional)
+            
+            Example response format:
+            [{"name": "Authentication", "description": "Handles user login and registration", "suggestions": ["Add 2FA support"]}]`
           },
           {
             role: 'user',
@@ -92,10 +104,31 @@ serve(async (req) => {
       }),
     });
 
+    if (!analysisResponse.ok) {
+      throw new Error('Failed to analyze code with OpenAI');
+    }
+
     const analysisData = await analysisResponse.json();
-    const features = JSON.parse(analysisData.choices[0].message.content);
+    console.log('OpenAI response:', analysisData);
+
+    let features;
+    try {
+      const content = analysisData.choices[0].message.content.trim();
+      features = JSON.parse(content);
+      
+      if (!Array.isArray(features)) {
+        throw new Error('OpenAI response is not an array');
+      }
+      
+      console.log('Parsed features:', features);
+    } catch (error) {
+      console.error('Failed to parse OpenAI response:', error);
+      console.error('Raw content:', analysisData.choices[0].message.content);
+      throw new Error('Failed to parse features from OpenAI response');
+    }
 
     // 4. Store features in database
+    let createdFeatures = 0;
     for (const feature of features) {
       const { error: featureError } = await supabase
         .from('features')
@@ -113,10 +146,14 @@ serve(async (req) => {
 
       if (featureError) {
         console.error('Error creating feature:', featureError);
+      } else {
+        createdFeatures++;
       }
     }
 
-    // 5. Also get CodeQL alerts
+    console.log(`Successfully created ${createdFeatures} features`);
+
+    // 5. Get CodeQL alerts
     const alertsResponse = await fetch(
       `https://api.github.com/repos/${repoFullName}/code-scanning/alerts`,
       { headers }
@@ -152,6 +189,7 @@ serve(async (req) => {
       JSON.stringify({
         message: 'Repository analysis completed',
         featuresFound: features.length,
+        featuresCreated: createdFeatures,
         alertsFound: alerts.length,
         status: 'completed'
       }),
