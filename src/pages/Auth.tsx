@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -9,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
 import { Github } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { supabase } from '@/lib/supabase';
 
 export default function Auth() {
   const [email, setEmail] = useState('');
@@ -16,7 +16,6 @@ export default function Auth() {
   const { signIn, signUp, user } = useAuth();
   const { toast } = useToast();
 
-  // Redirect if user is already logged in
   if (user) {
     console.log('User is already logged in:', user);
     return <Navigate to="/" replace />;
@@ -28,7 +27,7 @@ export default function Auth() {
         provider: 'github',
         options: {
           redirectTo: `${window.location.origin}/dashboard`,
-          scopes: 'repo' // Request repo access scope
+          scopes: 'repo'
         }
       });
 
@@ -69,7 +68,6 @@ export default function Auth() {
     } catch (error) {
       console.error(`${action} error:`, error);
       
-      // More specific error messages
       let errorMessage = error instanceof Error ? error.message : "An error occurred";
       if (errorMessage.includes('Invalid login credentials')) {
         errorMessage = 'Invalid email or password. Please try again.';
