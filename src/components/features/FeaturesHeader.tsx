@@ -21,7 +21,7 @@ interface FeaturesHeaderProps {
   isAnalyzing: boolean;
   onFeatureCreated: () => void;
   analysisProgress?: {
-    progress: number;
+    progress: number | null;
     status: string;
     steps: { step: string; timestamp: string }[];
   } | null;
@@ -42,8 +42,9 @@ export function FeaturesHeader({
     return new Date(timestamp).toLocaleTimeString();
   };
 
-  const isInProgress = analysisProgress?.status === 'in_progress';
+  const isInProgress = analysisProgress?.status === 'pending' || analysisProgress?.status === 'in_progress';
   const showProgress = isAnalyzing || isInProgress;
+  const progressValue = analysisProgress?.progress || 0;
 
   return (
     <div className="mb-8">
@@ -115,11 +116,11 @@ export function FeaturesHeader({
                   Analysis Progress
                 </span>
                 <span className="text-sm text-muted-foreground">
-                  {analysisProgress?.progress || 0}%
+                  {progressValue}%
                 </span>
               </div>
-              <Progress value={analysisProgress?.progress || 0} className="w-full" />
-              {analysisProgress?.steps && (
+              <Progress value={progressValue} className="w-full" />
+              {analysisProgress?.steps && analysisProgress.steps.length > 0 && (
                 <div className="mt-4 space-y-1 max-h-32 overflow-y-auto">
                   {analysisProgress.steps.map((step, index) => (
                     <div key={index} className="flex justify-between text-xs">
