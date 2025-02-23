@@ -99,20 +99,21 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
 
       if (analysisData) {
         console.log('Analysis data:', analysisData);
-        const isCompleted = analysisData.status === 'completed' || 
-                          analysisData.status === 'failed' ||
-                          analysisData.status === 'error';
-
-        if (isCompleted && analysisData.status === 'completed') {
-          console.log('Analysis completed, triggering features refetch');
-          refetch();
-        }
-
-        if (!isCompleted) {
-          console.log('Analysis still in progress, status:', analysisData.status);
-        }
-
+        
+        const isCompleted = analysisData.status === 'completed';
+        const isFailed = analysisData.status === 'failed' || analysisData.status === 'error';
+        
         if (isCompleted) {
+          console.log('Analysis completed, triggering features refetch');
+          await refetch();
+        }
+
+        if (isFailed) {
+          toast.error('Analysis failed. Please try again.');
+        }
+
+        if (!isCompleted && !isFailed) {
+          console.log('Analysis still in progress, status:', analysisData.status);
           const { data: fileAnalyses, error: fileAnalysesError } = await supabase
             .from('file_analyses')
             .select('*')
@@ -123,37 +124,42 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
             console.error('Error fetching file analyses:', fileAnalysesError);
           }
 
-          console.log('Analysis completed, file analyses:', fileAnalyses);
           return {
             ...analysisData,
             fileAnalyses,
-            lastAnalysis: lastAnalysis
+            lastAnalysis
           };
         }
 
         return {
           ...analysisData,
-          lastAnalysis: lastAnalysis
+          lastAnalysis
         };
       }
 
-      return {
-        ...analysisData,
-        lastAnalysis: lastAnalysis
-      };
+      return null;
     },
     enabled: enabled && !!productId,
     refetchInterval: (query) => {
       const data = query.state.data as AnalysisProgress;
-      if (!data || !data.status) return 1000;
+      
+      if (!data) return 1000;
       
       if (data.status === 'completed' || data.status === 'failed' || data.status === 'error') {
         return false;
       }
       
-      return 5000;
+      return 2000;
     },
-    staleTime: 0,
+    keepPreviousData: true,
+    retry: 3,
+    retryDelay: 1000,
+    meta: {
+      onError: (error: Error) => {
+        console.error('Error fetching analysis progress:', error);
+        toast.error('Failed to fetch analysis progress');
+      }
+    }
   });
 
   const analyzeRepositoryMutation = useMutation({
@@ -188,15 +194,7 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         throw analysisError;
       }
 
-      const { error: updateError } = await supabase
-        .from('codeql_analyses')
-        .update({ status: 'running' })
-        .eq('id', analysis.id);
-
-      if (updateError) {
-        console.error('Error updating analysis status:', updateError);
-        throw updateError;
-      }
+      queryClient.invalidateQueries({ queryKey: ['analysis-progress', productId] });
 
       const response = await supabase.functions.invoke('analyze-repository', {
         body: {
@@ -208,11 +206,6 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
       });
 
       if (response.error) {
-        await supabase
-          .from('codeql_analyses')
-          .update({ status: 'error' })
-          .eq('id', analysis.id);
-        
         console.error('Analysis error:', response.error);
         throw new Error(response.error.message || 'Failed to analyze repository');
       }
@@ -232,7 +225,8 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         title: "Analysis Started",
         description: "The repository analysis has begun. You can monitor its progress here.",
       });
-      refetch();
+      queryClient.invalidateQueries({ queryKey: ['analysis-progress', productId] });
+      queryClient.invalidateQueries({ queryKey: ['features', productId] });
     },
   });
 
@@ -275,11 +269,9 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
     onSuccess: async (data) => {
       console.log('Processing succeeded:', data);
       
-      // Invalidate all relevant queries
       await queryClient.invalidateQueries({ queryKey: ['features', productId] });
       await queryClient.invalidateQueries({ queryKey: ['analysis-progress', productId] });
       
-      // Force immediate refetch
       await refetch();
       
       toast({
