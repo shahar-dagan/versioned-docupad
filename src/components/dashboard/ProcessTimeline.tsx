@@ -56,6 +56,8 @@ export function ProcessTimeline() {
       }
     },
     refetchInterval: 1000, // Refetch every second
+    retry: false, // Don't retry on error since we're polling anyway
+    refetchOnWindowFocus: true,
   });
 
   if (!analyses || analyses.length === 0) return null;
