@@ -1,3 +1,4 @@
+
 export interface Feature {
   id: string;
   name: string;
@@ -6,10 +7,7 @@ export interface Feature {
   created_at: string;
   last_analyzed_at: string | null;
   suggestions?: string[];
-  code_changes?: {
-    change_description: string;
-    created_at: string;
-  }[];
+  code_changes?: CodeChange[];
   technical_docs?: {
     architecture?: string;
     setup?: string;
