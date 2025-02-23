@@ -62,11 +62,13 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
     },
     enabled: !!user,
     retry: false,
-    onError: (error) => {
-      console.error('Error fetching repos:', error);
-      toast.error('Failed to fetch GitHub repositories. Please make sure your GitHub account is connected.');
-    }
   });
+
+  // Show error toast when query fails
+  if (error) {
+    console.error('Error fetching repos:', error);
+    toast.error('Failed to fetch GitHub repositories. Please make sure your GitHub account is connected.');
+  }
 
   const handleConnectGitHub = async () => {
     try {
