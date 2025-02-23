@@ -1,3 +1,4 @@
+
 import { useParams } from "react-router-dom";
 import { FeaturesList } from "@/components/features/FeaturesList";
 import { FeaturesHeader } from "@/components/features/FeaturesHeader";
@@ -16,13 +17,8 @@ export default function Features() {
     isLoadingFeatures,
     featuresError,
     refetch,
-    analyzeRepositoryMutation,
-    processAnalysisMutation,
-    analysisProgress,
-    isLoadingAnalysis,
-    analysisStatus,
-    progress,
-    isAnalyzing,
+    analyzeRepository,
+    isAnalyzing
   } = useFeatures(productId, !!authData && !!productId, repository);
 
   console.log("Features component render:", {
@@ -73,35 +69,22 @@ export default function Features() {
         userId={authData.user.id}
         featuresCount={features?.length || 0}
         repository={repository}
-        onAnalyze={() => analyzeRepositoryMutation.mutate()}
-        isAnalyzing={analyzeRepositoryMutation.isPending}
+        onAnalyze={analyzeRepository}
+        isAnalyzing={isAnalyzing}
         onFeatureCreated={refetch}
         features={features || []}
-        analysisProgress={analysisProgress}
-        processAnalysisMutation={{
-          mutate: () => {
-            console.log("Processing analysis...");
-            processAnalysisMutation.mutate(undefined, {
-              onSuccess: () => {
-                console.log("Processing succeeded, refetching...");
-                refetch();
-              },
-            });
-          },
-          isLoading: processAnalysisMutation.isPending,
-        }}
       />
 
       {isAnalyzing && (
         <div className="mt-4 space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">{analysisStatus}</span>
-            <span className="text-sm font-medium">{progress}%</span>
+            <span className="text-sm text-gray-600">Analyzing repository...</span>
+            <span className="text-sm font-medium">In progress</span>
           </div>
           <div className="h-2 bg-gray-200 rounded-full">
             <div
-              className="h-2 bg-blue-600 rounded-full transition-all duration-300"
-              style={{ width: `${progress}%` }}
+              className="h-2 bg-blue-600 rounded-full transition-all duration-300 animate-pulse"
+              style={{ width: '100%' }}
             />
           </div>
         </div>
