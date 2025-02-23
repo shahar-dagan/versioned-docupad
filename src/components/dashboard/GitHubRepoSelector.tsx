@@ -58,7 +58,7 @@ export function GitHubRepoSelector({ onSelect, disabled }: GitHubRepoSelectorPro
         <SelectTrigger>
           <SelectValue placeholder="Select a repository" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="bg-white">
           {filteredRepositories?.map((repo) => (
             <SelectItem key={repo.id} value={repo.id}>
               <div className="flex items-center gap-2">
