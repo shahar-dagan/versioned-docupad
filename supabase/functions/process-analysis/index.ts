@@ -9,7 +9,7 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -37,7 +37,7 @@ serve(async (req) => {
 
     if (analysisError) throw analysisError;
 
-    // Update progress
+    // Update progress function
     const updateProgress = async (step: string, progress: number) => {
       const { error } = await supabase
         .from('codeql_analyses')
@@ -60,7 +60,7 @@ serve(async (req) => {
 
     if (fetchError) throw fetchError;
 
-    await updateProgress(`Found ${fileAnalyses?.length} file analyses to process`, 30);
+    await updateProgress(`Found ${fileAnalyses?.length || 0} file analyses to process`, 30);
 
     // Prepare the prompt for OpenAI
     const analysisContent = fileAnalyses?.map(analysis => {
@@ -73,8 +73,12 @@ serve(async (req) => {
 
     await updateProgress('Analyzing features with AI', 50);
 
-    // Call OpenAI to process the analysis
+    // Call OpenAI with proper error handling
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+    if (!openAIApiKey) {
+      throw new Error('OpenAI API key not configured');
+    }
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -82,7 +86,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4', // Fixed model name
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
@@ -105,38 +109,42 @@ serve(async (req) => {
             Respond ONLY with the JSON array and no other text.`
           }
         ],
-        temperature: 0.3, // Lower temperature for more consistent output
+        temperature: 0.3,
       }),
     });
 
-    await updateProgress('Processing AI response', 70);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      console.error('OpenAI API error:', errorData);
+      throw new Error(`OpenAI API returned status ${response.status}`);
+    }
 
     const aiResponse = await response.json();
     if (!aiResponse.choices?.[0]?.message?.content) {
+      console.error('Invalid OpenAI response:', aiResponse);
       throw new Error('Invalid response from OpenAI API');
     }
 
-    console.log('Raw OpenAI response:', aiResponse.choices[0].message.content);
-    
+    await updateProgress('Processing AI response', 70);
+
     let features;
     try {
-      features = JSON.parse(aiResponse.choices[0].message.content.trim());
+      const content = aiResponse.choices[0].message.content.trim();
+      features = JSON.parse(content);
       console.log('Parsed features:', features);
+      
+      if (!Array.isArray(features)) {
+        throw new Error('OpenAI response is not an array');
+      }
     } catch (e) {
       console.error('Failed to parse OpenAI response:', e);
       throw new Error('Failed to parse feature list from OpenAI response');
-    }
-
-    if (!Array.isArray(features)) {
-      throw new Error('OpenAI response is not an array of features');
     }
 
     await updateProgress('Creating features in database', 90);
 
     // Insert the generated features into the database
     for (const feature of features) {
-      console.log('Inserting feature:', feature);
-      
       const { error: insertError } = await supabase
         .from('features')
         .insert({
