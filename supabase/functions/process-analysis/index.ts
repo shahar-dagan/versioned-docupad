@@ -86,28 +86,26 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
-            content: 'You are a technical analyst that helps identify and categorize features from code analysis results.'
+            content: 'You are a technical analyst. You must respond ONLY with a valid JSON array containing features. Do not include any explanations, markdown formatting, or additional text.'
           },
           {
             role: 'user',
-            content: `Analyze these file analyses and create unique, distinct features.
-            File analyses: ${JSON.stringify(analysisContent, null, 2)}
-            
-            Return a JSON array of features where each feature has these properties:
-            {
-              "name": "string (short, clear name)",
-              "description": "string (concise description)",
-              "status": "active"
-            }
-            
-            Do not include any markdown formatting or backticks in your response, just the raw JSON array.`
+            content: `Extract unique features from this analysis data:
+${JSON.stringify(analysisContent, null, 2)}
+
+Your response must be ONLY a valid JSON array where each object has exactly these fields:
+{
+  "name": "string describing the feature name",
+  "description": "string describing what the feature does",
+  "status": "active"
+}`
           }
         ],
-        temperature: 0.3,
+        temperature: 0.1, // Lower temperature for more consistent output
       }),
     });
 
@@ -118,7 +116,10 @@ serve(async (req) => {
     }
 
     const aiResponse = await response.json();
+    console.log('Raw OpenAI response:', aiResponse); // Debug log
+
     if (!aiResponse.choices?.[0]?.message?.content) {
+      console.error('Invalid OpenAI response structure:', aiResponse);
       throw new Error('Invalid response from OpenAI API');
     }
 
@@ -127,16 +128,35 @@ serve(async (req) => {
     let features;
     try {
       const content = aiResponse.choices[0].message.content.trim();
-      // Remove any potential markdown formatting
-      const cleanContent = content.replace(/^```json\n?|\n?```$/g, '');
+      console.log('Raw content:', content); // Debug log
+      
+      // Remove any potential markdown or code block formatting
+      const cleanContent = content
+        .replace(/^```(?:json)?\n?/, '') // Remove opening code block
+        .replace(/\n?```$/, '')          // Remove closing code block
+        .trim();
+      
+      console.log('Cleaned content:', cleanContent); // Debug log
+      
       features = JSON.parse(cleanContent);
+      console.log('Parsed features:', features); // Debug log
       
       if (!Array.isArray(features)) {
+        console.error('Parsed result is not an array:', features);
         throw new Error('OpenAI response is not an array');
       }
+
+      // Validate feature structure
+      features.forEach((feature, index) => {
+        if (!feature.name || !feature.description || !feature.status) {
+          console.error(`Invalid feature at index ${index}:`, feature);
+          throw new Error(`Feature at index ${index} is missing required fields`);
+        }
+      });
     } catch (e) {
       console.error('Failed to parse OpenAI response:', e);
-      throw new Error('Failed to parse feature list from OpenAI response');
+      console.error('Response content:', aiResponse.choices?.[0]?.message?.content);
+      throw new Error(`Failed to parse feature list: ${e.message}`);
     }
 
     await updateProgress('Creating features in database', 90);
@@ -174,6 +194,20 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error('Error processing analysis:', error);
+    
+    // Update analysis status to error
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    await supabase
+      .from('codeql_analyses')
+      .update({ 
+        status: 'error',
+        error_message: error.message
+      })
+      .eq('product_id', (await req.json()).productId);
+    
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
