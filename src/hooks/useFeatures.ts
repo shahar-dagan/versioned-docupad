@@ -6,12 +6,12 @@ import { Feature, Repository } from '@/types';
 
 interface AnalysisProgress {
   id: string;
-  progress: number;
-  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  progress: number | null;
+  status: string;
   steps: { step: string; timestamp: string }[];
   analysis_results: {
     steps: { step: string; timestamp: string }[];
-  };
+  } | null;
 }
 
 export function useFeatures(productId: string | undefined, enabled: boolean, repository?: Repository) {

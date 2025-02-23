@@ -58,6 +58,7 @@ export type Database = {
           product_id: string | null
           progress: number | null
           repository_id: string | null
+          repository_name: string | null
           status: string
           steps: Json[] | null
           triggered_by: string | null
@@ -70,6 +71,7 @@ export type Database = {
           product_id?: string | null
           progress?: number | null
           repository_id?: string | null
+          repository_name?: string | null
           status?: string
           steps?: Json[] | null
           triggered_by?: string | null
@@ -82,6 +84,7 @@ export type Database = {
           product_id?: string | null
           progress?: number | null
           repository_id?: string | null
+          repository_name?: string | null
           status?: string
           steps?: Json[] | null
           triggered_by?: string | null
