@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
@@ -18,6 +17,7 @@ import { toast } from 'sonner';
 import { ProductCard } from '@/components/dashboard/ProductCard';
 import { useRepositoryLink } from '@/components/dashboard/useRepositoryLink';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { ImportDocumentation } from '@/components/dashboard/ImportDocumentation';
 
 interface Product {
   id: string;
@@ -129,43 +129,49 @@ export default function Products() {
             Manage your products and their features
           </p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Product
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create New Product</DialogTitle>
-              <DialogDescription>
-                Add a new product to track its features and documentation
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleCreateProduct} className="space-y-4">
-              <div>
-                <Input
-                  placeholder="Product Name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-              </div>
-              <div>
-                <Textarea
-                  placeholder="Product Description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  required
-                />
-              </div>
-              <Button type="submit" className="w-full">
-                Create Product
+        <div className="flex gap-2">
+          <ImportDocumentation
+            productId={products?.[0]?.id}
+            onImportComplete={refetch}
+          />
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Product
               </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create New Product</DialogTitle>
+                <DialogDescription>
+                  Add a new product to track its features and documentation
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleCreateProduct} className="space-y-4">
+                <div>
+                  <Input
+                    placeholder="Product Name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <Textarea
+                    placeholder="Product Description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    required
+                  />
+                </div>
+                <Button type="submit" className="w-full">
+                  Create Product
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {isLoading ? (
