@@ -28,11 +28,20 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
     queryFn: async () => {
       console.log('Fetching GitHub repos...');
       
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+        throw sessionError;
+      }
+
       const githubToken = session?.provider_token;
+      console.log('Session state:', {
+        hasSession: !!session,
+        hasProviderToken: !!githubToken,
+        provider: session?.user?.app_metadata?.provider
+      });
 
       if (!githubToken) {
-        console.error('No GitHub token found in session:', session);
         throw new Error('GitHub not connected');
       }
       
@@ -69,18 +78,20 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
     retry: false,
   });
 
-  // Show error toast when query fails
-  if (error) {
-    console.error('Error fetching repos:', error);
-    toast.error('Failed to fetch GitHub repositories. Please make sure your GitHub account is connected.');
-  }
-
   const handleConnectGitHub = async () => {
     try {
+      // Get the current URL but ensure we're using the correct preview URL format
+      const currentUrl = window.location.href;
+      const redirectUrl = currentUrl.includes('lovable.app') 
+        ? currentUrl.replace('id-preview--', '')
+        : currentUrl;
+
+      console.log('Starting GitHub OAuth with redirect to:', redirectUrl);
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: {
-          redirectTo: `${window.location.origin}/dashboard`,
+          redirectTo: redirectUrl,
           scopes: 'repo',
           queryParams: {
             access_type: 'offline',
@@ -105,18 +116,12 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
     }
   };
 
-  const handleRepoSelect = (value: string) => {
-    setSelectedRepo(value);
-    const selectedRepository = repos?.find(repo => repo.repository_name === value);
-    if (selectedRepository) {
-      onSelect(selectedRepository);
-    }
-  };
-
+  // Show error toast when query fails
   if (error) {
+    console.error('Error in repo query:', error);
     return (
       <div className="flex items-center gap-4">
-        <Button onClick={handleConnectGitHub}>
+        <Button onClick={handleConnectGitHub} variant="default">
           Connect GitHub Account
         </Button>
       </div>
@@ -125,7 +130,13 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
 
   return (
     <div className="flex items-center gap-4">
-      <Select onValueChange={handleRepoSelect} value={selectedRepo}>
+      <Select onValueChange={(value) => {
+        setSelectedRepo(value);
+        const selectedRepository = repos?.find(repo => repo.repository_name === value);
+        if (selectedRepository) {
+          onSelect(selectedRepository);
+        }
+      }} value={selectedRepo}>
         <SelectTrigger className="w-[280px]">
           <SelectValue placeholder="Select a repository" />
         </SelectTrigger>
