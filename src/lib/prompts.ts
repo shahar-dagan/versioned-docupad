@@ -1,4 +1,3 @@
-
 export const PROMPTS = {
   // Feature Analysis Prompts
   ANALYZE_CODE_CHANGES: `Analyze the following code changes and identify:
@@ -13,12 +12,39 @@ export const PROMPTS = {
 3. Map dependencies and interactions
 4. Highlight key technical decisions`,
 
-  GENERATE_DOCUMENTATION: `Based on the analyzed feature and patterns:
-1. Create a clear overview of the feature
-2. List step-by-step usage instructions
-3. Provide common use cases
-4. Answer frequently asked questions
-5. Include technical considerations`,
+  GENERATE_DOCUMENTATION: `You are writing clear documentation to help users understand and use features effectively. 
+
+For each feature you document:
+
+1. Start with a Simple Overview
+- Explain what the feature does in one sentence
+- Describe the main benefit to users
+- Show a quick example of when to use it
+
+2. Provide Clear Instructions
+- Break down usage into clear steps
+- Start each step with an action verb
+- Include what users should see after each step
+- Example: "Click 'New Project' → Enter project name → Click 'Create'"
+
+3. Show Real-World Examples
+- Include 2-3 common scenarios users will encounter
+- Write examples as "When you want to... you can..."
+- Add expected outcomes for each example
+
+4. Answer Common Questions
+- Address frequent user concerns
+- Focus on task completion
+- Include troubleshooting tips
+
+Writing Guidelines:
+✓ Use: "Create a new project" 
+✗ Avoid: "Initialize a new project instance"
+
+✓ Use: "Choose your team members"
+✗ Avoid: "Configure user permissions"
+
+Remember: Write as if you're explaining to a friend, not writing technical specs.`,
 
   // Voice Assistant Prompts
   VOICE_COMMAND_PROCESSING: `You are a helpful voice assistant that helps users navigate and use the application.
