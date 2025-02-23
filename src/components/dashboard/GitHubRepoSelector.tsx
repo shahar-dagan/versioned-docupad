@@ -9,13 +9,7 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useQuery } from '@tanstack/react-query';
-
-interface Repository {
-  id: string;
-  name: string;
-  full_name: string;
-  url: string;
-}
+import { Repository } from '@/types';
 
 interface GitHubRepoSelectorProps {
   onSelect: (repo: Repository) => void;
@@ -39,9 +33,10 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
       const data = await response.json();
       return data.map((repo: any) => ({
         id: repo.id.toString(),
-        name: repo.name,
-        full_name: repo.full_name,
-        url: repo.html_url,
+        repository_name: repo.name,
+        product_id: '',
+        repository_url: repo.html_url,
+        repository_id: repo.id.toString()
       }));
     },
     enabled: false,
@@ -49,7 +44,7 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
 
   const handleRepoSelect = (value: string) => {
     setSelectedRepo(value);
-    const selectedRepository = repos?.find(repo => repo.full_name === value);
+    const selectedRepository = repos?.find(repo => repo.repository_name === value);
     if (selectedRepository) {
       onSelect(selectedRepository);
     }
@@ -65,10 +60,10 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
           {repos?.map((repo) => (
             <SelectItem 
               key={repo.id} 
-              value={repo.full_name}
+              value={repo.repository_name}
               className="hover:bg-gray-100 dark:hover:bg-gray-700"
             >
-              {repo.name}
+              {repo.repository_name}
             </SelectItem>
           ))}
         </SelectContent>
