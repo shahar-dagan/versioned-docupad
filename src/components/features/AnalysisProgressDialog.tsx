@@ -60,9 +60,17 @@ export function AnalysisProgressDialog({
     totalProgress
   });
 
+  // Prevent dialog from closing if analysis is in progress
+  const handleOpenChange = (newOpen: boolean) => {
+    // Only allow closing if progress is 100% or 0% (not started)
+    if (totalProgress === 100 || totalProgress === 0) {
+      onOpenChange(newOpen);
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-[500px]" onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>Repository Analysis Progress</DialogTitle>
         </DialogHeader>
