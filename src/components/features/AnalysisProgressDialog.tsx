@@ -26,14 +26,14 @@ export function AnalysisProgressDialog({
   };
 
   // Find if we're resuming from a previous analysis
-  const resumeStep = steps?.find(step => 
-    step.step.includes("Resuming analysis") || 
-    step.step.includes("files already analyzed")
-  );
+  const resumeStep = steps?.find(step => {
+    const stepText = step.step.toLowerCase();
+    return stepText.includes("resuming analysis") && stepText.includes("files already analyzed");
+  });
 
-  // Get the initial progress if resuming
-  const initialProgress = resumeStep ? 
-    parseInt(resumeStep.step.match(/(\d+)\s+files already analyzed/)?.[1] || "0") : 0;
+  // Extract the numbers from the resume message
+  const matches = resumeStep?.step.match(/(\d+)\s+files already analyzed.*?(\d+)\s+files/i);
+  const initialProgress = matches ? Math.round((parseInt(matches[1]) / parseInt(matches[2])) * 100) : 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -51,10 +51,13 @@ export function AnalysisProgressDialog({
               <div className="relative">
                 <Progress value={progress} className="h-2" />
                 <div 
-                  className="absolute top-3 left-0 text-xs text-muted-foreground"
-                  style={{ left: `${initialProgress}%` }}
+                  className="absolute top-3 text-xs text-muted-foreground"
+                  style={{ 
+                    left: `${initialProgress}%`,
+                    transform: 'translateX(-50%)'
+                  }}
                 >
-                  ↑ Resumed from here
+                  ↑ Resumed from here ({initialProgress}%)
                 </div>
               </div>
             ) : (
