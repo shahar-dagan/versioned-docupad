@@ -109,7 +109,11 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         }
 
         if (isFailed) {
-          toast.error('Analysis failed. Please try again.');
+          toast({
+            variant: "destructive",
+            title: "Analysis Failed",
+            description: "Please try again.",
+          });
         }
 
         if (!isCompleted && !isFailed) {
@@ -151,13 +155,17 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
       
       return 2000;
     },
-    keepPreviousData: true,
+    placeholderData: 'keepPrevious',
     retry: 3,
     retryDelay: 1000,
     meta: {
       onError: (error: Error) => {
         console.error('Error fetching analysis progress:', error);
-        toast.error('Failed to fetch analysis progress');
+        toast({
+          variant: "destructive",
+          title: "Analysis Progress Error",
+          description: "Failed to fetch analysis progress",
+        });
       }
     }
   });
