@@ -12,6 +12,7 @@ import Products from "./pages/Products";
 import Features from "./pages/Features";
 import Documentation from "./pages/Documentation";
 import Changes from "./pages/Changes";
+import Whiteboard from "./pages/Whiteboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -37,6 +38,7 @@ export default function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/products" element={<Products />} />
               <Route path="/products/:productId/features" element={<Features />} />
+              <Route path="/products/:productId/features/whiteboard" element={<Whiteboard />} />
               <Route path="/products/:productId/docs" element={<Documentation />} />
               <Route path="/products/:productId/features/:featureId/changes" element={<Changes />} />
               <Route path="*" element={<NotFound />} />

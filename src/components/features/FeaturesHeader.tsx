@@ -160,46 +160,6 @@ export function FeaturesHeader({
     }
   };
 
-  const openWhiteboard = () => {
-    const whiteboardWindow = window.open('', '_blank');
-    if (whiteboardWindow) {
-      whiteboardWindow.document.write(`
-        <html>
-          <head>
-            <title>Feature Whiteboard - ${productName}</title>
-            <style>
-              body { margin: 0; padding: 20px; background: #f7f9fb; }
-              .whiteboard { 
-                background: white;
-                border-radius: 8px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                height: calc(100vh - 40px);
-              }
-            </style>
-          </head>
-          <body>
-            <div id="whiteboard" class="whiteboard"></div>
-            <script type="module">
-              import ReactDOM from 'https://esm.sh/react-dom@18';
-              import React from 'https://esm.sh/react@18';
-              import { FeatureMap } from '${window.location.origin}/src/components/features/FeatureMap';
-              
-              const features = ${JSON.stringify(features)};
-              
-              ReactDOM.render(
-                React.createElement(FeatureMap, { 
-                  features: features,
-                  onUpdate: () => window.opener.location.reload()
-                }),
-                document.getElementById('whiteboard')
-              );
-            </script>
-          </body>
-        </html>
-      `);
-    }
-  };
-
   return (
     <div className="flex flex-col gap-6 mb-8">
       <div className="flex items-center justify-between">
@@ -216,7 +176,7 @@ export function FeaturesHeader({
             <>
               <Button 
                 variant="outline"
-                onClick={openWhiteboard}
+                onClick={() => navigate(`/products/${productId}/features/whiteboard`)}
               >
                 <Layout className="h-4 w-4 mr-2" />
                 Whiteboard
