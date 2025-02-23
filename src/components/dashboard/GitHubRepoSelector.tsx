@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useQuery } from '@tanstack/react-query';
 import { Repository } from '@/types';
+import { supabase } from '@/lib/supabase';
 
 interface GitHubRepoSelectorProps {
   onSelect: (repo: Repository) => void;
@@ -23,16 +24,35 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
     queryKey: ['github-repos'],
     queryFn: async () => {
       console.log('Fetching GitHub repos...');
+      
+      // Get the GitHub token from Supabase
+      const { data: { secret_value: githubToken }, error: secretError } = await supabase
+        .from('secrets')
+        .select('secret_value')
+        .eq('name', 'GITHUB_ACCESS_TOKEN')
+        .single();
+
+      if (secretError || !githubToken) {
+        console.error('Failed to get GitHub token:', secretError);
+        throw new Error('GitHub token not configured');
+      }
+
       const response = await fetch('https://api.github.com/user/repos', {
         headers: {
-          Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+          Authorization: `Bearer ${githubToken}`,
+          Accept: 'application/vnd.github.v3+json',
         },
       });
+
       if (!response.ok) {
-        throw new Error('Failed to fetch repositories');
+        const errorData = await response.json();
+        console.error('GitHub API error:', errorData);
+        throw new Error(`Failed to fetch repositories: ${response.statusText}`);
       }
+
       const data = await response.json();
       console.log('Fetched repos:', data);
+      
       return data.map((repo: any) => ({
         id: repo.id.toString(),
         repository_name: repo.name,
@@ -41,7 +61,7 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
         repository_id: repo.id.toString(),
       }));
     },
-    enabled: true, // Enable the query by default
+    enabled: true,
   });
 
   const handleRepoSelect = (value: string) => {
