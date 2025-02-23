@@ -32,8 +32,6 @@ export default function App() {
         <BrowserRouter>
           <AuthProvider>
             <TooltipProvider>
-              <Toaster />
-              <Sonner />
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />
@@ -45,6 +43,8 @@ export default function App() {
                 <Route path="/products/:productId/features/:featureId/changes" element={<Changes />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
+              <Toaster />
+              <Sonner />
             </TooltipProvider>
           </AuthProvider>
         </BrowserRouter>
