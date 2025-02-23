@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -34,8 +33,10 @@ export default function Auth() {
 
     // Check for successful OAuth redirects
     const accessToken = searchParams.get('access_token');
-    if (accessToken) {
-      console.log('Received access token from OAuth redirect');
+    const refreshToken = searchParams.get('refresh_token');
+    
+    if (accessToken || refreshToken) {
+      console.log('Received tokens from OAuth redirect');
       navigate('/dashboard');
     }
   }, [searchParams, toast, navigate]);
@@ -52,7 +53,7 @@ export default function Auth() {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: {
-          redirectTo: `${window.location.origin}/dashboard`,
+          redirectTo: 'http://localhost:5173/auth', // Local development redirect URL
           scopes: 'repo'
         }
       });
