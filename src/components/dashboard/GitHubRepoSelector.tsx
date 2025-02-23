@@ -1,85 +1,72 @@
 
-import { Github } from 'lucide-react';
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
-import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
+} from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
 
 interface Repository {
-  id: string;
+  id: number;
   name: string;
-  url: string;
+  full_name: string;
 }
 
 interface GitHubRepoSelectorProps {
-  onSelect: (repo: Repository) => void;
-  disabled?: boolean;
+  onSelect: (repo: string) => void;
+  isLoading?: boolean;
 }
 
-export function GitHubRepoSelector({ onSelect, disabled }: GitHubRepoSelectorProps) {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedRepoId, setSelectedRepoId] = useState<string>('');
+export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorProps) {
+  const [selectedRepo, setSelectedRepo] = useState<string>('');
 
-  const { data: repositories } = useQuery({
+  const { data: repos, isLoading: isLoadingRepos } = useQuery({
     queryKey: ['github-repos'],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('github', {
-        method: 'GET',
+      const response = await fetch('https://api.github.com/user/repos', {
+        headers: {
+          Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+        },
       });
-      
-      if (error) throw error;
-      return data.repos as Repository[];
+      if (!response.ok) {
+        throw new Error('Failed to fetch repositories');
+      }
+      const data: Repository[] = await response.json();
+      return data;
     },
+    enabled: false,
   });
 
-  const filteredRepositories = repositories?.filter(repo =>
-    repo.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleRepoSelect = (value: string) => {
+    setSelectedRepo(value);
+    onSelect(value);
+  };
 
   return (
-    <div className="space-y-4">
-      <Input
-        placeholder="Search repositories..."
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-      />
-      <Select
-        value={selectedRepoId}
-        onValueChange={(value) => setSelectedRepoId(value)}
-      >
-        <SelectTrigger>
+    <div className="flex items-center gap-4">
+      <Select onValueChange={handleRepoSelect} value={selectedRepo}>
+        <SelectTrigger className="w-[280px]">
           <SelectValue placeholder="Select a repository" />
         </SelectTrigger>
-        <SelectContent>
-          {filteredRepositories?.map((repo) => (
-            <SelectItem key={repo.id} value={repo.id}>
-              <div className="flex items-center gap-2">
-                <Github className="h-4 w-4" />
-                {repo.name}
-              </div>
+        <SelectContent className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg">
+          {repos?.map((repo) => (
+            <SelectItem 
+              key={repo.id} 
+              value={repo.full_name}
+              className="hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              {repo.name}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
-      <Button
-        className="w-full"
-        disabled={!selectedRepoId || disabled}
-        onClick={() => {
-          const repo = repositories?.find(r => r.id === selectedRepoId);
-          if (repo) {
-            onSelect(repo);
-          }
-        }}
-      >
-        Link Repository
+      <Button disabled={!selectedRepo || isLoading}>
+        {isLoading ? 'Loading...' : 'Import'}
       </Button>
     </div>
   );
