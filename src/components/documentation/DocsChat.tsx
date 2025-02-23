@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -7,6 +6,7 @@ import { MessageCircle, Loader2, Mic, MicOff } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/components/ui/use-toast';
 import { VoiceInterface } from './VoiceInterface';
+import { PROMPTS } from '@/lib/prompts';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -98,7 +98,8 @@ export function DocsChat({ documentationText }: DocsChatProps) {
         body: JSON.stringify({
           messages: [...messages, { role: 'user', content: userMessage }],
           context: {
-            documentationText
+            documentationText,
+            systemPrompt: PROMPTS.DOCS_CHAT_CONTEXT
           }
         })
       });
@@ -139,7 +140,8 @@ export function DocsChat({ documentationText }: DocsChatProps) {
         body: JSON.stringify({
           messages: [...messages, { role: 'user', content: userMessage }],
           context: {
-            documentationText
+            documentationText,
+            systemPrompt: PROMPTS.DOCS_CHAT_CONTEXT
           }
         })
       });

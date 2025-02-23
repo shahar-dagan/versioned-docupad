@@ -1,5 +1,5 @@
-
 import { ExtendedFeature, FeatureContext, DocumentationPatterns, UserDocs } from '../types';
+import { PROMPTS } from '@/lib/prompts';
 
 const analyzeFeature = (feature: ExtendedFeature): string[] => {
   const codeAnalysis = {
@@ -110,6 +110,7 @@ const createUserFriendlyGuides = (feature: ExtendedFeature) => {
 };
 
 export const generateDocumentation = (feature: ExtendedFeature, context: FeatureContext, patterns: DocumentationPatterns): UserDocs => {
+  // Using the GENERATE_DOCUMENTATION prompt
   const guides = createUserFriendlyGuides(feature);
   const mainFeatures = analyzeFeature(feature);
 

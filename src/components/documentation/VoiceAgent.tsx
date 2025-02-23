@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -6,6 +5,7 @@ import { Mic, MicOff, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/supabase';
+import { PROMPTS } from '@/lib/prompts';
 
 interface ClientAction {
   type: 'navigate' | 'click' | 'input' | 'explain';
@@ -109,11 +109,12 @@ export function VoiceAgent() {
 
       if (transcriptionError) throw transcriptionError;
 
-      // Then, process the command with our voice agent
+      // Then, process the command with our voice agent using the VOICE_COMMAND_PROCESSING prompt
       const { data: agentResponse, error: agentError } = await supabase.functions.invoke('voice-agent', {
         body: {
           userMessage: transcriptionData.text,
           currentRoute: window.location.pathname,
+          systemPrompt: PROMPTS.VOICE_COMMAND_PROCESSING,
           availableActions: {
             routes: ['/dashboard', '/products', '/docs'],
             buttons: ['create-product', 'add-feature', 'view-docs'],

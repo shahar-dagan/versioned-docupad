@@ -1,5 +1,5 @@
-
 import { ExtendedFeature, FeatureContext, DocumentationPatterns } from '../types';
+import { PROMPTS } from '@/lib/prompts';
 
 interface CodeAnalysis {
   components: Map<string, ComponentMetadata>;
@@ -37,7 +37,6 @@ interface InteractionMetadata {
   component: string;
 }
 
-// Simple pattern-based code analysis
 const analyzeCodeStructure = (code: string): CodeAnalysis => {
   const analysis: CodeAnalysis = {
     components: new Map<string, ComponentMetadata>(),
@@ -48,7 +47,6 @@ const analyzeCodeStructure = (code: string): CodeAnalysis => {
   };
 
   try {
-    // Find component definitions
     const componentMatches = code.match(/(?:export\s+)?(?:const|function)\s+([A-Z]\w+)/g) || [];
     componentMatches.forEach(match => {
       const name = match.split(/\s+/).pop() || '';
@@ -61,7 +59,6 @@ const analyzeCodeStructure = (code: string): CodeAnalysis => {
       });
     });
 
-    // Find routes
     const routeMatches = code.match(/<Route[^>]*>/g) || [];
     routeMatches.forEach(match => {
       const path = match.match(/path=["']([^"']+)["']/) || [];
@@ -76,7 +73,6 @@ const analyzeCodeStructure = (code: string): CodeAnalysis => {
       }
     });
 
-    // Find data flow patterns
     const hookMatches = code.match(/use(?:Query|Mutation|Context|State|Reducer)\(/g) || [];
     hookMatches.forEach(match => {
       const hookName = match.slice(0, -1);
@@ -88,7 +84,6 @@ const analyzeCodeStructure = (code: string): CodeAnalysis => {
       });
     });
 
-    // Find user interactions
     const handlerMatches = code.match(/on[A-Z]\w+={[^}]+}/g) || [];
     handlerMatches.forEach(match => {
       const type = match.match(/on([A-Z]\w+)/) || [];
@@ -97,7 +92,7 @@ const analyzeCodeStructure = (code: string): CodeAnalysis => {
         analysis.interactions.set(handler[1], {
           type: type[1].toLowerCase() as 'click' | 'submit' | 'change' | 'input',
           handler: handler[1],
-          component: 'Unknown', // We can't reliably determine this without proper parsing
+          component: 'Unknown',
         });
       }
     });
