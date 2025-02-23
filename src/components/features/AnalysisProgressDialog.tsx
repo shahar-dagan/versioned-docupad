@@ -9,7 +9,11 @@ import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useEffect, useState } from "react";
 import { Clock, X } from "lucide-react";
-import { Tooltip } from "@/components/ui/tooltip";
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger
+} from "@/components/ui/tooltip";
 
 interface AnalysisProgressDialogProps {
   open: boolean;
@@ -112,21 +116,24 @@ export function AnalysisProgressDialog({
         <DialogHeader className="relative">
           <DialogTitle>Repository Analysis Progress</DialogTitle>
           <div className="absolute right-2 top-2">
-            <Tooltip 
-              content={isAnalysisInProgress ? "Analysis in progress - please wait" : "Close"}
-            >
-              <button
-                className={`rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none ${
-                  isAnalysisInProgress ? 'cursor-not-allowed' : 'cursor-pointer'
-                }`}
-                onClick={() => !isAnalysisInProgress && onOpenChange(false)}
-                disabled={isAnalysisInProgress}
-              >
-                <X className={`h-4 w-4 ${isAnalysisInProgress ? 'text-gray-400' : 'text-gray-600'}`} />
-                <span className="sr-only">
-                  {isAnalysisInProgress ? "Cannot close while analysis is in progress" : "Close"}
-                </span>
-              </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  className={`rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none ${
+                    isAnalysisInProgress ? 'cursor-not-allowed' : 'cursor-pointer'
+                  }`}
+                  onClick={() => !isAnalysisInProgress && onOpenChange(false)}
+                  disabled={isAnalysisInProgress}
+                >
+                  <X className={`h-4 w-4 ${isAnalysisInProgress ? 'text-gray-400' : 'text-gray-600'}`} />
+                  <span className="sr-only">
+                    {isAnalysisInProgress ? "Cannot close while analysis is in progress" : "Close"}
+                  </span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {isAnalysisInProgress ? "Analysis in progress - please wait" : "Close"}
+              </TooltipContent>
             </Tooltip>
           </div>
         </DialogHeader>
