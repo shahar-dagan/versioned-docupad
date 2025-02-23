@@ -14,12 +14,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface AnalysisStep {
-  step: string;
-  timestamp: string;
-}
-
 async function analyzeFileContent(content: string, filePath: string) {
+  console.log('Analyzing file:', filePath);
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -27,7 +23,7 @@ async function analyzeFileContent(content: string, filePath: string) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4',
       messages: [
         {
           role: 'system',
@@ -37,7 +33,19 @@ async function analyzeFileContent(content: string, filePath: string) {
           3. UI state management
           4. Visual elements and their styling
           5. Navigation features
-          Provide a structured analysis that preserves the hierarchical relationship between components.`
+          Provide a structured analysis focusing on feature identification. Format your response as JSON with the following structure:
+          {
+            "features": [
+              {
+                "name": "string",
+                "description": "string",
+                "confidence": number between 0 and 1,
+                "location": "string (file path)",
+                "type": "component|hook|utility|context|etc",
+                "dependencies": ["array of imports"]
+              }
+            ]
+          }`
         },
         {
           role: 'user',
@@ -48,10 +56,11 @@ async function analyzeFileContent(content: string, filePath: string) {
   });
 
   const data = await response.json();
-  return data.choices[0].message.content;
+  return JSON.parse(data.choices[0].message.content);
 }
 
-async function updateAnalysisProgress(analysisId: string, progress: number, step: AnalysisStep) {
+async function updateAnalysisProgress(analysisId: string, progress: number, step: { step: string; timestamp: string }) {
+  console.log('Updating analysis progress:', { analysisId, progress, step });
   await supabase
     .from('codeql_analyses')
     .update({
@@ -62,90 +71,153 @@ async function updateAnalysisProgress(analysisId: string, progress: number, step
     .eq('id', analysisId);
 }
 
+async function storeFileAnalysis(
+  productId: string,
+  repositoryName: string,
+  filePath: string,
+  contentHash: string,
+  hierarchyLevel: number,
+  parentDirectory: string,
+  featureSummaries: any
+) {
+  console.log('Storing file analysis:', { filePath, contentHash });
+  await supabase
+    .from('file_analyses')
+    .upsert({
+      product_id: productId,
+      repository_name: repositoryName,
+      file_path: filePath,
+      file_content_hash: contentHash,
+      hierarchy_level: hierarchyLevel,
+      parent_directory: parentDirectory,
+      feature_summaries: featureSummaries,
+      last_analyzed_at: new Date().toISOString(),
+    }, {
+      onConflict: 'product_id,repository_name,file_path'
+    });
+}
+
+async function consolidateFeatures(productId: string, analysisId: string, fileAnalyses: any[]) {
+  console.log('Consolidating features for analysis:', analysisId);
+  const features = new Map();
+
+  // Aggregate features from all files
+  fileAnalyses.forEach(analysis => {
+    if (analysis.feature_summaries?.features) {
+      analysis.feature_summaries.features.forEach((feature: any) => {
+        const key = feature.name.toLowerCase();
+        if (!features.has(key)) {
+          features.set(key, {
+            name: feature.name,
+            confidence: feature.confidence,
+            related_files: [feature.location],
+            summary: feature.description,
+            implementation_details: {
+              type: feature.type,
+              dependencies: feature.dependencies
+            }
+          });
+        } else {
+          const existing = features.get(key);
+          existing.related_files.push(feature.location);
+          existing.confidence = Math.max(existing.confidence, feature.confidence);
+        }
+      });
+    }
+  });
+
+  // Store consolidated features
+  for (const [, feature] of features) {
+    await supabase
+      .from('feature_analysis_results')
+      .upsert({
+        product_id: productId,
+        analysis_id: analysisId,
+        feature_name: feature.name,
+        confidence_score: feature.confidence,
+        related_files: feature.related_files,
+        feature_summary: feature.summary,
+        implementation_details: feature.implementation_details,
+      }, {
+        onConflict: 'product_id,analysis_id,feature_name'
+      });
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { repoFullName, productId, userId } = await req.json();
+    const { repoFullName, productId, userId, analysisId } = await req.json();
 
-    // Create initial analysis record
-    const { data: analysis, error: createError } = await supabase
-      .from('codeql_analyses')
-      .insert({
-        product_id: productId,
-        status: 'in_progress',
-        progress: 0,
-        steps: [],
-        analysis_results: { steps: [] }
-      })
-      .select()
-      .single();
-
-    if (createError) throw createError;
-
-    // Start the background analysis
     EdgeRuntime.waitUntil((async () => {
       try {
-        const repoFiles = await fetchRepositoryFiles(repoFullName);
-        const totalFiles = repoFiles.length;
-        let processedFiles = 0;
-        let allAnalyses = [];
+        console.log('Starting analysis for repository:', repoFullName);
+        const response = await fetch(`https://api.github.com/repos/${repoFullName}/git/trees/main?recursive=1`, {
+          headers: { 'Authorization': `Bearer ${Deno.env.get('GITHUB_ACCESS_TOKEN')}` }
+        });
+        
+        const data = await response.json();
+        const files = data.tree.filter((file: any) => 
+          file.type === 'blob' && 
+          (file.path.endsWith('.tsx') || file.path.endsWith('.jsx'))
+        );
 
-        for (const file of repoFiles) {
-          if (file.name.endsWith('.tsx') || file.name.endsWith('.jsx')) {
-            const fileContent = await fetchFileContent(file.url);
-            const analysis = await analyzeFileContent(fileContent, file.name);
-            allAnalyses.push({ file: file.name, analysis });
-            
+        const totalFiles = files.length;
+        let processedFiles = 0;
+        const fileAnalyses = [];
+
+        for (const file of files) {
+          try {
+            const fileContent = await fetch(file.url, {
+              headers: { 'Authorization': `Bearer ${Deno.env.get('GITHUB_ACCESS_TOKEN')}` }
+            }).then(res => res.text());
+
+            const analysis = await analyzeFileContent(fileContent, file.path);
+            const hierarchyLevel = file.path.split('/').length - 1;
+            const parentDirectory = file.path.split('/').slice(0, -1).join('/');
+
+            await storeFileAnalysis(
+              productId,
+              repoFullName,
+              file.path,
+              file.sha,
+              hierarchyLevel,
+              parentDirectory,
+              analysis
+            );
+
+            fileAnalyses.push({
+              file_path: file.path,
+              feature_summaries: analysis
+            });
+
             processedFiles++;
             const progress = Math.round((processedFiles / totalFiles) * 100);
             
-            await updateAnalysisProgress(analysis.id, progress, {
-              step: `Analyzed ${file.name}`,
+            await updateAnalysisProgress(analysisId, progress, {
+              step: `Analyzed ${file.path}`,
               timestamp: new Date().toISOString()
             });
+
+          } catch (error) {
+            console.error(`Error analyzing file ${file.path}:`, error);
           }
         }
 
-        // Generate final summary
-        const summaryResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openAIApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o',
-            messages: [
-              {
-                role: 'system',
-                content: 'Create a comprehensive summary of UI features from the individual file analyses. Organize features hierarchically and eliminate redundancies.'
-              },
-              {
-                role: 'user',
-                content: JSON.stringify(allAnalyses)
-              }
-            ],
-          }),
-        });
+        // Consolidate and store features
+        await consolidateFeatures(productId, analysisId, fileAnalyses);
 
-        const summaryData = await summaryResponse.json();
-        const finalSummary = summaryData.choices[0].message.content;
-
-        // Update analysis with final results
+        // Update analysis as completed
         await supabase
           .from('codeql_analyses')
           .update({
             status: 'completed',
             progress: 100,
-            analysis_results: {
-              summary: finalSummary,
-              fileAnalyses: allAnalyses
-            }
           })
-          .eq('id', analysis.id);
+          .eq('id', analysisId);
 
       } catch (error) {
         console.error('Background analysis error:', error);
@@ -155,11 +227,11 @@ serve(async (req) => {
             status: 'failed',
             progress: 0
           })
-          .eq('id', analysis.id);
+          .eq('id', analysisId);
       }
     })());
 
-    return new Response(JSON.stringify({ id: analysis.id }), {
+    return new Response(JSON.stringify({ id: analysisId }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
@@ -171,21 +243,3 @@ serve(async (req) => {
     });
   }
 });
-
-async function fetchRepositoryFiles(repoFullName: string) {
-  const response = await fetch(`https://api.github.com/repos/${repoFullName}/git/trees/main?recursive=1`, {
-    headers: { 'Authorization': `Bearer ${Deno.env.get('GITHUB_ACCESS_TOKEN')}` }
-  });
-  const data = await response.json();
-  return data.tree.filter((file: any) => 
-    file.type === 'blob' && 
-    (file.path.endsWith('.tsx') || file.path.endsWith('.jsx'))
-  );
-}
-
-async function fetchFileContent(url: string) {
-  const response = await fetch(url, {
-    headers: { 'Authorization': `Bearer ${Deno.env.get('GITHUB_ACCESS_TOKEN')}` }
-  });
-  return await response.text();
-}

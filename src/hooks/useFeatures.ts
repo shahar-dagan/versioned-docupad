@@ -14,6 +14,20 @@ interface AnalysisProgress {
   } | null;
 }
 
+interface FileAnalysis {
+  file_path: string;
+  feature_summaries: {
+    features: {
+      name: string;
+      description: string;
+      confidence: number;
+      location: string;
+      type: string;
+      dependencies: string[];
+    }[];
+  };
+}
+
 export function useFeatures(productId: string | undefined, enabled: boolean, repository?: Repository) {
   const { data: features, isLoading: isLoadingFeatures, error: featuresError, refetch } = useQuery({
     queryKey: ['features', productId],
@@ -45,7 +59,7 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
     queryKey: ['analysis-progress', productId],
     queryFn: async () => {
       console.log('Fetching analysis progress for product:', productId);
-      const { data, error } = await supabase
+      const { data: analysisData, error: analysisError } = await supabase
         .from('codeql_analyses')
         .select('*')
         .eq('product_id', productId)
@@ -53,12 +67,33 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         .limit(1)
         .maybeSingle();
 
-      if (error) {
-        console.error('Error fetching analysis progress:', error);
-        throw error;
+      if (analysisError) {
+        console.error('Error fetching analysis progress:', analysisError);
+        throw analysisError;
       }
-      console.log('Analysis progress:', data);
-      return data as AnalysisProgress | null;
+
+      if (analysisData) {
+        // Fetch file analyses if analysis is completed
+        const { data: fileAnalyses, error: fileAnalysesError } = await supabase
+          .from('file_analyses')
+          .select('*')
+          .eq('product_id', productId)
+          .eq('repository_name', repository?.repository_name);
+
+        if (fileAnalysesError) {
+          console.error('Error fetching file analyses:', fileAnalysesError);
+        }
+
+        console.log('Analysis progress:', analysisData);
+        console.log('File analyses:', fileAnalyses);
+
+        return {
+          ...analysisData,
+          fileAnalyses
+        };
+      }
+
+      return analysisData;
     },
     enabled: enabled && !!productId,
     refetchInterval: (query) => {

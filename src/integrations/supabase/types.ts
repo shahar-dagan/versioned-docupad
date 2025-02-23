@@ -244,6 +244,60 @@ export type Database = {
           },
         ]
       }
+      feature_analysis_results: {
+        Row: {
+          analysis_id: string
+          confidence_score: number | null
+          created_at: string | null
+          feature_name: string
+          feature_summary: string | null
+          id: string
+          implementation_details: Json | null
+          product_id: string
+          related_files: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          analysis_id: string
+          confidence_score?: number | null
+          created_at?: string | null
+          feature_name: string
+          feature_summary?: string | null
+          id?: string
+          implementation_details?: Json | null
+          product_id: string
+          related_files?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          analysis_id?: string
+          confidence_score?: number | null
+          created_at?: string | null
+          feature_name?: string
+          feature_summary?: string | null
+          id?: string
+          implementation_details?: Json | null
+          product_id?: string
+          related_files?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feature_analysis_results_analysis_id_fkey"
+            columns: ["analysis_id"]
+            isOneToOne: false
+            referencedRelation: "codeql_analyses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feature_analysis_results_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       feature_file_changes: {
         Row: {
           analyzed: boolean | null
@@ -331,6 +385,59 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "features_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      file_analyses: {
+        Row: {
+          created_at: string | null
+          dependencies: Json | null
+          feature_summaries: Json | null
+          file_content_hash: string
+          file_path: string
+          hierarchy_level: number
+          id: string
+          last_analyzed_at: string | null
+          parent_directory: string | null
+          product_id: string
+          repository_name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          dependencies?: Json | null
+          feature_summaries?: Json | null
+          file_content_hash: string
+          file_path: string
+          hierarchy_level: number
+          id?: string
+          last_analyzed_at?: string | null
+          parent_directory?: string | null
+          product_id: string
+          repository_name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          dependencies?: Json | null
+          feature_summaries?: Json | null
+          file_content_hash?: string
+          file_path?: string
+          hierarchy_level?: number
+          id?: string
+          last_analyzed_at?: string | null
+          parent_directory?: string | null
+          product_id?: string
+          repository_name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_analyses_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
