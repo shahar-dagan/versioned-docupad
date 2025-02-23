@@ -1,7 +1,8 @@
+
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DocumentationHeader } from '@/components/documentation/DocumentationHeader';
 import { DocumentationSearch } from '@/components/documentation/DocumentationSearch';
 import { DocumentationNav } from '@/components/documentation/DocumentationNav';
@@ -89,32 +90,32 @@ export default function Documentation() {
       if (error) throw error;
       return data as Feature[];
     },
-    onSuccess: (data) => {
-      if (!selectedFeature && data && data.length > 0) {
-        // Find priority features
-        const priorityFeatures = [
-          "Create New Products",
-          "Delete Products",
-          "View Products",
-          "Link GitHub"
-        ];
-        
-        const priorityFeature = data.find(feature => 
-          priorityFeatures.some(pf => 
-            feature.name.toLowerCase().includes(pf.toLowerCase())
-          )
-        );
-
-        if (priorityFeature) {
-          setSelectedFeature(priorityFeature.id);
-        } else {
-          setSelectedFeature(data[0].id);
-        }
-      }
-    },
     staleTime: 30000,
     gcTime: 5 * 60 * 1000,
   });
+
+  useEffect(() => {
+    if (features && features.length > 0 && !selectedFeature) {
+      const priorityFeatures = [
+        "Create New Products",
+        "Delete Products",
+        "View Products",
+        "Link GitHub"
+      ];
+      
+      const priorityFeature = features.find(feature => 
+        priorityFeatures.some(pf => 
+          feature.name.toLowerCase().includes(pf.toLowerCase())
+        )
+      );
+
+      if (priorityFeature) {
+        setSelectedFeature(priorityFeature.id);
+      } else {
+        setSelectedFeature(features[0].id);
+      }
+    }
+  }, [features, selectedFeature]);
 
   const prioritizeFeatures = (features: Feature[] | undefined) => {
     if (!features) return [];
