@@ -1,5 +1,6 @@
 
 import { ExtendedFeature, FeatureContext, DocumentationPatterns, UserDocs } from '../types';
+import { AI_PROMPTS } from '@/config/ai-prompts';
 
 const analyzeFeature = (feature: ExtendedFeature): string[] => {
   const codeAnalysis = {
@@ -128,3 +129,4 @@ export const generateDocumentation = (feature: ExtendedFeature, context: Feature
     faq
   };
 };
+
