@@ -56,8 +56,10 @@ export type Database = {
           created_at: string | null
           id: string
           product_id: string | null
+          progress: number | null
           repository_id: string | null
           status: string
+          steps: Json[] | null
           triggered_by: string | null
           updated_at: string | null
         }
@@ -66,8 +68,10 @@ export type Database = {
           created_at?: string | null
           id?: string
           product_id?: string | null
+          progress?: number | null
           repository_id?: string | null
           status: string
+          steps?: Json[] | null
           triggered_by?: string | null
           updated_at?: string | null
         }
@@ -76,8 +80,10 @@ export type Database = {
           created_at?: string | null
           id?: string
           product_id?: string | null
+          progress?: number | null
           repository_id?: string | null
           status?: string
+          steps?: Json[] | null
           triggered_by?: string | null
           updated_at?: string | null
         }
