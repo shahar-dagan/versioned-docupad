@@ -80,18 +80,25 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
 
   const handleConnectGitHub = async () => {
     try {
-      // Get the current URL for development or production
-      const redirectUrl = window.location.hostname.includes('lovable.dev')
-        ? `${window.location.origin}/auth/callback`
-        : 'https://versioned-docupad.lovable.app/auth/callback';
+      // Store the current route to redirect back after auth
+      const currentPath = window.location.pathname;
+      localStorage.setItem('githubRedirectPath', currentPath);
 
-      console.log('Using redirect URL:', redirectUrl);
-      
+      // Determine the callback URL based on environment
+      const baseUrl = window.location.hostname.includes('lovable.dev')
+        ? window.location.origin
+        : 'https://versioned-docupad.lovable.app';
+
       await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: {
-          redirectTo: redirectUrl,
+          redirectTo: `${baseUrl}/auth/callback`,
           scopes: 'repo',
+          queryParams: {
+            // Add access to private repositories
+            access_type: 'offline',
+            prompt: 'consent'
+          }
         },
       });
     } catch (error) {
