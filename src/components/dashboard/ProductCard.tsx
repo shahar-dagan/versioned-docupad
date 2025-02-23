@@ -1,3 +1,4 @@
+
 import { Link } from 'react-router-dom';
 import { Github, Trash2, CheckCircle, Book } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -23,18 +24,13 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
+import { Repository } from '@/types';
 
 interface Product {
   id: string;
   name: string;
   description: string;
   created_at: string;
-}
-
-interface Repository {
-  id: string;
-  name: string;
-  url: string;
 }
 
 interface ProductCardProps {
@@ -144,7 +140,8 @@ export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps)
               </DialogHeader>
               <div className="py-4">
                 <GitHubRepoSelector 
-                  onSelect={(repo) => handleLinkRepo(repo)}
+                  onSelect={handleLinkRepo}
+                  isLoading={false}
                 />
               </div>
             </DialogContent>

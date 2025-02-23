@@ -36,6 +36,6 @@ export interface Repository {
   id: string;
   repository_name: string;
   product_id: string;
-  repository_url?: string;
-  repository_id?: string;
+  repository_url: string;
+  repository_id: string;
 }
