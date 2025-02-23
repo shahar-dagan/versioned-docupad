@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -6,15 +7,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Repository } from "@/types";
+import { Repository, Feature } from "@/types";
 import { AnalysisProgressDialog } from "./AnalysisProgressDialog";
 import { CreateFeatureDialog } from "./CreateFeatureDialog";
-import { Plus, RefreshCw, FileText, Book } from "lucide-react";
+import { Plus, RefreshCw, FileText, Book, Layout } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { Link, useNavigate } from "react-router-dom";
+import { FeatureMap } from './FeatureMap';
 
 interface FeaturesHeaderProps {
   productName: string;
@@ -22,6 +24,7 @@ interface FeaturesHeaderProps {
   userId: string;
   featuresCount: number;
   repository: Repository | null;
+  features: Feature[];
   onAnalyze: () => void;
   isAnalyzing: boolean;
   onFeatureCreated: () => void;
@@ -38,6 +41,7 @@ export function FeaturesHeader({
   userId,
   featuresCount,
   repository,
+  features,
   onAnalyze,
   isAnalyzing,
   onFeatureCreated,
@@ -50,6 +54,11 @@ export function FeaturesHeader({
   const [currentStep, setCurrentStep] = useState<string>('');
   const [hasDocumentation, setHasDocumentation] = useState(false);
   const navigate = useNavigate();
+
+  // Check if we're in the DocuPad admin environment
+  const isDocuPadAdmin = window.location.hostname === 'app.docupad.com' || 
+                        window.location.hostname === 'localhost' ||
+                        window.location.hostname === '127.0.0.1';
 
   useEffect(() => {
     const checkDocumentation = async () => {
@@ -157,6 +166,46 @@ export function FeaturesHeader({
     }
   };
 
+  const openWhiteboard = () => {
+    const whiteboardWindow = window.open('', '_blank');
+    if (whiteboardWindow) {
+      whiteboardWindow.document.write(`
+        <html>
+          <head>
+            <title>Feature Whiteboard - ${productName}</title>
+            <style>
+              body { margin: 0; padding: 20px; background: #f7f9fb; }
+              .whiteboard { 
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                height: calc(100vh - 40px);
+              }
+            </style>
+          </head>
+          <body>
+            <div id="whiteboard" class="whiteboard"></div>
+            <script type="module">
+              import ReactDOM from 'https://esm.sh/react-dom@18';
+              import React from 'https://esm.sh/react@18';
+              import { FeatureMap } from '${window.location.origin}/src/components/features/FeatureMap';
+              
+              const features = ${JSON.stringify(features)};
+              
+              ReactDOM.render(
+                React.createElement(FeatureMap, { 
+                  features: features,
+                  onUpdate: () => window.opener.location.reload()
+                }),
+                document.getElementById('whiteboard')
+              );
+            </script>
+          </body>
+        </html>
+      `);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6 mb-8">
       <div className="flex items-center justify-between">
@@ -171,6 +220,15 @@ export function FeaturesHeader({
         <div className="flex gap-2">
           {repository && (
             <>
+              {isDocuPadAdmin && (
+                <Button 
+                  variant="outline"
+                  onClick={openWhiteboard}
+                >
+                  <Layout className="h-4 w-4 mr-2" />
+                  Whiteboard
+                </Button>
+              )}
               {hasDocumentation ? (
                 <Button 
                   variant="outline"
