@@ -13,15 +13,23 @@ interface VoiceInterfaceProps {
 export function VoiceInterface({ text, voiceId = "EXAVITQu4vr4xnSDxMaL" }: VoiceInterfaceProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleTextToSpeech = async () => {
     try {
+      setIsLoading(true);
       const { data, error } = await supabase.functions.invoke('text-to-speech', {
         body: { text, voiceId }
       });
 
-      if (error) {
-        throw error;
+      if (error || !data?.audio) {
+        throw new Error(error?.message || 'Failed to convert text to speech');
+      }
+
+      // Clean up previous audio if it exists
+      if (audio) {
+        audio.pause();
+        URL.revokeObjectURL(audio.src);
       }
 
       // Convert the base64 audio data to a Blob
@@ -34,16 +42,28 @@ export function VoiceInterface({ text, voiceId = "EXAVITQu4vr4xnSDxMaL" }: Voice
         setIsPlaying(false);
       };
 
+      newAudio.onerror = (e) => {
+        console.error('Audio playback error:', e);
+        toast({
+          variant: "destructive",
+          title: "Playback Failed",
+          description: "Failed to play the audio. Please try again.",
+        });
+        setIsPlaying(false);
+      };
+
       setAudio(newAudio);
-      newAudio.play();
+      await newAudio.play();
       setIsPlaying(true);
     } catch (error) {
       console.error('Text to speech error:', error);
       toast({
         variant: "destructive",
         title: "Text to Speech Failed",
-        description: "Failed to convert text to speech. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to convert text to speech. Please try again.",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -74,6 +94,7 @@ export function VoiceInterface({ text, voiceId = "EXAVITQu4vr4xnSDxMaL" }: Voice
         size="icon"
         onClick={handlePlayPause}
         className="h-8 w-8"
+        disabled={isLoading}
       >
         {isPlaying ? (
           <Square className="h-4 w-4" />
@@ -85,7 +106,7 @@ export function VoiceInterface({ text, voiceId = "EXAVITQu4vr4xnSDxMaL" }: Voice
         variant="outline"
         size="icon"
         onClick={handleStop}
-        disabled={!audio}
+        disabled={!audio || isLoading}
         className="h-8 w-8"
       >
         <Square className="h-4 w-4" />

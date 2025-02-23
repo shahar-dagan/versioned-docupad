@@ -40,19 +40,31 @@ serve(async (req) => {
       throw new Error(error.message || 'Failed to generate speech')
     }
 
+    // Get the audio data as an ArrayBuffer
     const audioBuffer = await response.arrayBuffer()
-    const audioBase64 = btoa(String.fromCharCode(...new Uint8Array(audioBuffer)))
+    
+    // Process the audio data in chunks to prevent stack overflow
+    const chunkSize = 32768 // 32KB chunks
+    const chunks = []
+    const view = new Uint8Array(audioBuffer)
+    
+    for (let i = 0; i < view.length; i += chunkSize) {
+      const chunk = view.slice(i, i + chunkSize)
+      const binary = String.fromCharCode(...chunk)
+      chunks.push(binary)
+    }
+    
+    // Join all chunks and convert to base64
+    const base64Audio = btoa(chunks.join(''))
 
     return new Response(
-      JSON.stringify({ audio: audioBase64 }),
+      JSON.stringify({ audio: base64Audio }),
       {
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json',
-        },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       },
     )
   } catch (error) {
+    console.error('Text to speech error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       {
