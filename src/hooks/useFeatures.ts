@@ -16,16 +16,11 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         .select(`
           *,
           code_changes (
+            id,
             change_description,
             file_path,
             change_type,
-            content,
-            created_at,
-            user_workflows,
-            visual_elements,
-            navigation_patterns,
-            error_handling,
-            user_preferences
+            created_at
           )
         `)
         .eq('product_id', productId)
@@ -136,3 +131,4 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
     isAnalyzing: analyzeRepositoryMutation.isPending,
   };
 }
+
