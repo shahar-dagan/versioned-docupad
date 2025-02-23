@@ -80,11 +80,17 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
 
   const handleConnectGitHub = async () => {
     try {
-      // Force a full page redirect to GitHub OAuth
+      // Get the current URL for development or production
+      const redirectUrl = window.location.hostname.includes('lovable.dev')
+        ? `${window.location.origin}/auth/callback`
+        : 'https://versioned-docupad.lovable.app/auth/callback';
+
+      console.log('Using redirect URL:', redirectUrl);
+      
       await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: {
-          redirectTo: window.location.origin + '/dashboard',
+          redirectTo: redirectUrl,
           scopes: 'repo',
         },
       });
