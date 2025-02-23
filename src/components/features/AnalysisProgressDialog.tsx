@@ -25,7 +25,6 @@ export function AnalysisProgressDialog({
 }: AnalysisProgressDialogProps) {
   const [elapsedTime, setElapsedTime] = useState(0);
 
-  // Move this function definition before its usage
   const formatTimestamp = (timestamp: string) => {
     return new Date(timestamp).toLocaleTimeString();
   };
@@ -36,16 +35,16 @@ export function AnalysisProgressDialog({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Move isAnalysisInProgress definition before its usage in useEffect
-  const isAnalysisInProgress = steps && steps.length > 0 && 
+  // Simplified progress check - use progress prop if no steps available
+  const isAnalysisInProgress = progress < 100 || (steps && steps.length > 0 && 
     !steps[steps.length - 1].step.toLowerCase().includes('completed') &&
     !steps[steps.length - 1].step.toLowerCase().includes('finished') &&
-    !steps[steps.length - 1].step.toLowerCase().includes('error');
+    !steps[steps.length - 1].step.toLowerCase().includes('error'));
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (open && isAnalysisInProgress) {
-      // Start the timer when dialog opens and analysis is in progress
+      console.log('Starting timer...');
       timer = setInterval(() => {
         setElapsedTime(prev => prev + 1);
       }, 1000);
@@ -54,28 +53,23 @@ export function AnalysisProgressDialog({
       if (timer) {
         clearInterval(timer);
       }
-      // Reset timer when dialog closes
       if (!open) {
         setElapsedTime(0);
       }
     };
   }, [open, isAnalysisInProgress]);
 
-  // Handle dialog state changes
   const handleOpenChange = (newOpen: boolean) => {
     if (!isAnalysisInProgress) {
       onOpenChange(newOpen);
     }
   };
 
-  // Calculate the actual progress percentage
   const getProgressPercentage = () => {
-    if (!steps || steps.length === 0) return 0;
+    if (!steps || steps.length === 0) return progress || 0;
     
-    // If analysis is complete, return 100%
     if (!isAnalysisInProgress) return 100;
 
-    // Calculate progress based on steps completed
     const totalSteps = steps.length;
     const currentStep = steps.findIndex(s => 
       s.step.toLowerCase().includes('analyzing') ||
@@ -86,9 +80,8 @@ export function AnalysisProgressDialog({
     return Math.min(Math.round((currentStep / totalSteps) * 100), 100);
   };
 
-  // Get the current status message
   const getCurrentStatus = () => {
-    if (!steps || steps.length === 0) return 'Starting analysis...';
+    if (!steps || steps.length === 0) return 'Analyzing repository...';
     const lastStep = steps[steps.length - 1];
     return lastStep.step;
   };
@@ -109,13 +102,7 @@ export function AnalysisProgressDialog({
         }}
       >
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            <span>Repository Analysis Progress</span>
-            <div className="flex items-center gap-2 text-sm font-normal text-muted-foreground">
-              <Clock className="h-4 w-4" />
-              <span>{formatElapsedTime(elapsedTime)}</span>
-            </div>
-          </DialogTitle>
+          <DialogTitle>Repository Analysis Progress</DialogTitle>
         </DialogHeader>
         <div className="space-y-6 py-4">
           <div className="space-y-2">
@@ -126,12 +113,12 @@ export function AnalysisProgressDialog({
             <Progress value={getProgressPercentage()} className="h-2" />
           </div>
 
-          {steps && steps.length > 0 && (
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium">Analysis Logs</h4>
-              <ScrollArea className="h-[200px] rounded-md border p-4">
-                <div className="space-y-2">
-                  {steps.map((step, index) => (
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium">Analysis Logs</h4>
+            <ScrollArea className="h-[200px] rounded-md border p-4">
+              <div className="space-y-2">
+                {steps && steps.length > 0 ? (
+                  steps.map((step, index) => (
                     <div
                       key={index}
                       className={`flex justify-between text-sm ${
@@ -145,11 +132,20 @@ export function AnalysisProgressDialog({
                       <span>{step.step}</span>
                       <span>{formatTimestamp(step.timestamp)}</span>
                     </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
-          )}
+                  ))
+                ) : (
+                  <div className="text-sm text-muted-foreground">
+                    Waiting for analysis logs...
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+
+          <div className="flex items-center gap-2 text-sm text-muted-foreground absolute bottom-6 left-6">
+            <Clock className="h-4 w-4" />
+            <span>{formatElapsedTime(elapsedTime)}</span>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
