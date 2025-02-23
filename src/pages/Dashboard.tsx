@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { DashboardStats } from '@/components/dashboard/DashboardStats';
 import { ProfileMenu } from '@/components/dashboard/ProfileMenu';
 import { RecentProducts } from '@/components/dashboard/RecentProducts';
+import { ProcessTimeline } from '@/components/dashboard/ProcessTimeline';
 import { useDashboardData } from '@/hooks/useDashboardData';
 
 export default function Dashboard() {
@@ -67,11 +68,14 @@ export default function Dashboard() {
         featureCount={stats?.totalFeatures || 0}
         teamMemberCount={stats?.totalTeamMembers || 0}
       />
-
-      <RecentProducts 
-        products={products || []} 
-        onProductDeleted={refetchProducts} 
-      />
+      
+      <div className="grid gap-8 mt-8">
+        <ProcessTimeline />
+        <RecentProducts 
+          products={products || []} 
+          onProductDeleted={refetchProducts} 
+        />
+      </div>
     </div>
   );
 }
