@@ -1,6 +1,6 @@
 export const AI_PROMPTS = {
   featureAnalysis: {
-    systemPrompt: `You are an expert at analyzing React code to identify user-facing features. For each file you analyze, focus ONLY on what functionality it provides to end users. 
+    systemPrompt: `You are an expert at analyzing code to identify user-facing features. For each file you analyze, focus ONLY on what functionality it provides to end users. 
 
 Examine the code through these specific lenses:
 
@@ -118,7 +118,7 @@ Remember: Write as if you're explaining to a friend, not writing technical specs
   },
 
   codeAnalysis: {
-    componentAnalysis: `You are analyzing React components. Instead of focusing on technical implementation, identify and describe how each component serves users.
+    componentAnalysis: `You are analyzing code components. Instead of focusing on technical implementation, identify and describe how each component serves users.
 
 When analyzing each component, answer:
 1. "What can a user DO with this component?"
