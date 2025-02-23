@@ -86,27 +86,25 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4',
         messages: [
           {
             role: 'system',
-            content: `You are a technical analyst that helps identify and categorize features from code analysis results. 
-            Extract distinct features from the provided file analyses, focusing on user-facing functionality and core capabilities.
-            You must respond ONLY with a JSON array of features.`
+            content: 'You are a technical analyst that helps identify and categorize features from code analysis results.'
           },
           {
             role: 'user',
-            content: `Analyze these file analyses and create a JSON array of distinct features.
+            content: `Analyze these file analyses and create unique, distinct features.
             File analyses: ${JSON.stringify(analysisContent, null, 2)}
             
-            Each feature object in your response array must have ONLY these fields:
+            Return a JSON array of features where each feature has these properties:
             {
               "name": "string (short, clear name)",
               "description": "string (concise description)",
               "status": "active"
             }
             
-            Respond ONLY with the JSON array and no other text.`
+            Do not include any markdown formatting or backticks in your response, just the raw JSON array.`
           }
         ],
         temperature: 0.3,
@@ -121,7 +119,6 @@ serve(async (req) => {
 
     const aiResponse = await response.json();
     if (!aiResponse.choices?.[0]?.message?.content) {
-      console.error('Invalid OpenAI response:', aiResponse);
       throw new Error('Invalid response from OpenAI API');
     }
 
@@ -130,8 +127,9 @@ serve(async (req) => {
     let features;
     try {
       const content = aiResponse.choices[0].message.content.trim();
-      features = JSON.parse(content);
-      console.log('Parsed features:', features);
+      // Remove any potential markdown formatting
+      const cleanContent = content.replace(/^```json\n?|\n?```$/g, '');
+      features = JSON.parse(cleanContent);
       
       if (!Array.isArray(features)) {
         throw new Error('OpenAI response is not an array');
