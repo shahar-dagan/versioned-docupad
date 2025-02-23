@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -152,7 +153,7 @@ async function updateAnalysisProgress(
       .update({
         progress,
         status: progress === 100 ? 'completed' : 'in_progress',
-        steps: supabase.sql`array_append(steps, ${step})::jsonb[]`,
+        steps: step ? [step] : [], // Initialize with single step instead of appending
         analysis_results: {
           last_processed_file: lastProcessedFile,
           current_step: step
@@ -385,14 +386,6 @@ serve(async (req) => {
           timestamp: new Date().toISOString()
         });
 
-        await supabase
-          .from('codeql_analyses')
-          .update({
-            status: 'completed',
-            progress: 100,
-          })
-          .eq('id', analysisId);
-
       } catch (error) {
         console.error('Background analysis error:', error);
         await supabase
@@ -423,3 +416,19 @@ serve(async (req) => {
     });
   }
 });
+
+async function getAnalysisState(productId: string, repositoryName: string) {
+  const { data: fileAnalyses, error } = await supabase
+    .from('file_analyses')
+    .select('file_path, file_content_hash')
+    .eq('product_id', productId)
+    .eq('repository_name', repositoryName);
+
+  if (error) {
+    console.error('Error fetching analysis state:', error);
+    return new Map();
+  }
+
+  return new Map(fileAnalyses.map(analysis => [analysis.file_path, analysis.file_content_hash]));
+}
+
