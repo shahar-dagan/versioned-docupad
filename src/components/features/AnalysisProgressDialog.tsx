@@ -7,6 +7,8 @@ import {
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useEffect, useState } from "react";
+import { Clock } from "lucide-react";
 
 interface AnalysisProgressDialogProps {
   open: boolean;
@@ -21,8 +23,35 @@ export function AnalysisProgressDialog({
   progress,
   steps,
 }: AnalysisProgressDialogProps) {
+  const [elapsedTime, setElapsedTime] = useState(0);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (open && isAnalysisInProgress) {
+      // Start the timer when dialog opens and analysis is in progress
+      timer = setInterval(() => {
+        setElapsedTime(prev => prev + 1);
+      }, 1000);
+    }
+    return () => {
+      if (timer) {
+        clearInterval(timer);
+      }
+      // Reset timer when dialog closes
+      if (!open) {
+        setElapsedTime(0);
+      }
+    };
+  }, [open, isAnalysisInProgress]);
+
   const formatTimestamp = (timestamp: string) => {
     return new Date(timestamp).toLocaleTimeString();
+  };
+
+  const formatElapsedTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   // Check if analysis is still in progress
@@ -79,7 +108,13 @@ export function AnalysisProgressDialog({
         }}
       >
         <DialogHeader>
-          <DialogTitle>Repository Analysis Progress</DialogTitle>
+          <DialogTitle className="flex items-center justify-between">
+            <span>Repository Analysis Progress</span>
+            <div className="flex items-center gap-2 text-sm font-normal text-muted-foreground">
+              <Clock className="h-4 w-4" />
+              <span>{formatElapsedTime(elapsedTime)}</span>
+            </div>
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-6 py-4">
           <div className="space-y-2">
