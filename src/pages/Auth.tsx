@@ -1,14 +1,13 @@
 
-import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
 import { Github } from 'lucide-react';
-import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/lib/supabase';
 
 export default function Auth() {
@@ -16,14 +15,40 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const { signIn, signUp, user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
+  useEffect(() => {
+    // Check for error in URL params
+    const error = searchParams.get('error');
+    const errorDescription = searchParams.get('error_description');
+    
+    if (error) {
+      console.error('Auth error:', error, errorDescription);
+      toast({
+        title: "Authentication Error",
+        description: errorDescription || "An error occurred during authentication",
+        variant: "destructive",
+      });
+    }
+
+    // Check for successful OAuth redirects
+    const accessToken = searchParams.get('access_token');
+    if (accessToken) {
+      console.log('Received access token from OAuth redirect');
+      navigate('/dashboard');
+    }
+  }, [searchParams, toast, navigate]);
+
+  // If user is already logged in, redirect to dashboard
   if (user) {
-    console.log('User is already logged in:', user);
+    console.log('User already logged in, redirecting to dashboard');
     return <Navigate to="/dashboard" replace />;
   }
 
   const handleGitHubSignIn = async () => {
     try {
+      console.log('Starting GitHub OAuth flow...');
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: {
