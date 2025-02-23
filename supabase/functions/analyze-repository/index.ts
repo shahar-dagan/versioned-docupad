@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -101,40 +100,63 @@ async function analyzeFileContent(content: string, filePath: string) {
   }
 }
 
+async function checkFileAnalysisCache(
+  productId: string,
+  repositoryName: string,
+  filePath: string,
+  contentHash: string
+): Promise<any> {
+  const { data, error } = await supabase
+    .from('file_analyses')
+    .select('*')
+    .eq('product_id', productId)
+    .eq('repository_name', repositoryName)
+    .eq('file_path', filePath)
+    .eq('file_content_hash', contentHash)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error checking file analysis cache:', error);
+    return null;
+  }
+
+  return data;
+}
+
 async function updateAnalysisProgress(analysisId: string, progress: number | null, step: { step: string; timestamp: string }) {
   console.log('Updating analysis progress:', { analysisId, progress, step });
   
-  const { data: currentAnalysis, error: fetchError } = await supabase
-    .from('codeql_analyses')
-    .select('steps')
-    .eq('id', analysisId)
-    .maybeSingle();
+  try {
+    const { data: currentAnalysis, error: fetchError } = await supabase
+      .from('codeql_analyses')
+      .select('steps')
+      .eq('id', analysisId)
+      .maybeSingle();
 
-  if (fetchError) {
-    console.error('Error fetching current analysis:', fetchError);
-    return;
-  }
+    if (fetchError) {
+      console.error('Error fetching current analysis:', fetchError);
+      return;
+    }
 
-  // Convert step to JSONB format
-  const stepJson = step;
+    const currentSteps = Array.isArray(currentAnalysis?.steps) ? currentAnalysis.steps : [];
+    const updatedSteps = [...currentSteps, step];
 
-  // Ensure we're working with an array and add the new step
-  const currentSteps = Array.isArray(currentAnalysis?.steps) ? currentAnalysis.steps : [];
-  const updatedSteps = [...currentSteps, stepJson];
+    console.log('Updating steps:', { currentSteps, updatedSteps });
 
-  console.log('Updating steps:', { currentSteps, updatedSteps });
+    const { error: updateError } = await supabase
+      .from('codeql_analyses')
+      .update({
+        progress,
+        status: progress === 100 ? 'completed' : 'in_progress',
+        steps: updatedSteps
+      })
+      .eq('id', analysisId);
 
-  const { error: updateError } = await supabase
-    .from('codeql_analyses')
-    .update({
-      progress,
-      status: progress === 100 ? 'completed' : 'in_progress',
-      steps: updatedSteps
-    })
-    .eq('id', analysisId);
-
-  if (updateError) {
-    console.error('Error updating analysis progress:', updateError);
+    if (updateError) {
+      console.error('Error updating analysis progress:', updateError);
+    }
+  } catch (error) {
+    console.error('Error in updateAnalysisProgress:', error);
   }
 }
 
@@ -219,9 +241,13 @@ serve(async (req) => {
 
     console.log('Starting analysis with params:', { repoFullName, productId, userId, analysisId });
 
-    EdgeRuntime.waitUntil((async () => {
+    const backgroundTask = async () => {
       try {
-        console.log('Starting analysis for repository:', repoFullName);
+        await updateAnalysisProgress(analysisId, 0, {
+          step: 'Fetching repository structure',
+          timestamp: new Date().toISOString()
+        });
+
         const response = await fetch(`https://api.github.com/repos/${repoFullName}/git/trees/main?recursive=1`, {
           headers: { 'Authorization': `Bearer ${Deno.env.get('GITHUB_ACCESS_TOKEN')}` }
         });
@@ -236,12 +262,31 @@ serve(async (req) => {
           (file.path.endsWith('.tsx') || file.path.endsWith('.jsx'))
         );
 
+        await updateAnalysisProgress(analysisId, 5, {
+          step: `Found ${files.length} files to analyze`,
+          timestamp: new Date().toISOString()
+        });
+
         const totalFiles = files.length;
         let processedFiles = 0;
         const fileAnalyses = [];
+        const processedPaths = new Set();
 
         for (const file of files) {
           try {
+            const cachedAnalysis = await checkFileAnalysisCache(productId, repoFullName, file.path, file.sha);
+            
+            if (cachedAnalysis) {
+              await updateAnalysisProgress(analysisId, Math.round((++processedFiles / totalFiles) * 95) + 5, {
+                step: `Using cached analysis for ${file.path}`,
+                timestamp: new Date().toISOString()
+              });
+              
+              fileAnalyses.push(cachedAnalysis);
+              processedPaths.add(file.path);
+              continue;
+            }
+
             const fileResponse = await fetch(file.url, {
               headers: { 'Authorization': `Bearer ${Deno.env.get('GITHUB_ACCESS_TOKEN')}` }
             });
@@ -252,6 +297,12 @@ serve(async (req) => {
 
             const fileData = await fileResponse.json();
             const fileContent = atob(fileData.content);
+            
+            await updateAnalysisProgress(analysisId, null, {
+              step: `Analyzing ${file.path}`,
+              timestamp: new Date().toISOString()
+            });
+
             const analysis = await analyzeFileContent(fileContent, file.path);
             const hierarchyLevel = file.path.split('/').length - 1;
             const parentDirectory = file.path.split('/').slice(0, -1).join('/');
@@ -271,11 +322,13 @@ serve(async (req) => {
               feature_summaries: analysis
             });
 
+            processedPaths.add(file.path);
             processedFiles++;
-            const progress = Math.round((processedFiles / totalFiles) * 100);
+            
+            const progress = Math.round((processedFiles / totalFiles) * 95) + 5;
             
             await updateAnalysisProgress(analysisId, progress, {
-              step: `Analyzed ${file.path}`,
+              step: `Completed analysis of ${file.path}`,
               timestamp: new Date().toISOString()
             });
 
@@ -288,7 +341,17 @@ serve(async (req) => {
           }
         }
 
+        await updateAnalysisProgress(analysisId, 98, {
+          step: 'Consolidating feature analysis results',
+          timestamp: new Date().toISOString()
+        });
+
         await consolidateFeatures(productId, analysisId, fileAnalyses);
+
+        await updateAnalysisProgress(analysisId, 100, {
+          step: 'Analysis completed',
+          timestamp: new Date().toISOString()
+        });
 
         await supabase
           .from('codeql_analyses')
@@ -309,9 +372,14 @@ serve(async (req) => {
           })
           .eq('id', analysisId);
       }
-    })());
+    };
 
-    return new Response(JSON.stringify({ id: analysisId }), {
+    EdgeRuntime.waitUntil(backgroundTask());
+
+    return new Response(JSON.stringify({ 
+      message: 'Analysis started',
+      id: analysisId 
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
