@@ -38,17 +38,27 @@ export function AnalysisProgressDialog({
   const matches = resumeStep?.step.match(/(\d+)\s+files already analyzed.*?(\d+)\s+files/i);
   console.log('Regex matches:', matches);
 
-  const initialProgress = matches ? Math.round((parseInt(matches[1]) / parseInt(matches[2])) * 100) : 0;
-  console.log('Calculated initial progress:', {
-    analyzedFiles: matches?.[1],
-    totalFiles: matches?.[2],
-    initialProgress
+  const analyzedFiles = matches ? parseInt(matches[1]) : 0;
+  const totalFiles = matches ? parseInt(matches[2]) : 0;
+  const initialProgress = totalFiles > 0 ? Math.round((analyzedFiles / totalFiles) * 100) : 0;
+
+  console.log('Progress calculation:', {
+    analyzedFiles,
+    totalFiles,
+    initialProgress,
+    currentProgress: progress,
   });
 
-  // Calculate the total progress by adding the initial progress to the current progress scaled to the remaining percentage
+  // Calculate remaining progress as a percentage of the remaining work
+  const remainingWork = progress * ((totalFiles - analyzedFiles) / totalFiles);
   const totalProgress = resumeStep 
-    ? initialProgress + (progress * (100 - initialProgress) / 100)
+    ? Math.min(100, initialProgress + remainingWork)
     : progress;
+
+  console.log('Final progress:', {
+    remainingWork,
+    totalProgress
+  });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
