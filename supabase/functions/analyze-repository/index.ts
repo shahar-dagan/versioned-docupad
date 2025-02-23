@@ -123,13 +123,33 @@ async function checkFileAnalysisCache(
   return data;
 }
 
-async function updateAnalysisProgress(analysisId: string, progress: number | null, step: { step: string; timestamp: string }) {
-  console.log('Updating analysis progress:', { analysisId, progress, step });
+async function getLastProcessedFile(analysisId: string) {
+  const { data, error } = await supabase
+    .from('codeql_analyses')
+    .select('analysis_results')
+    .eq('id', analysisId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching last processed file:', error);
+    return null;
+  }
+
+  return data?.analysis_results?.last_processed_file || null;
+}
+
+async function updateAnalysisProgress(
+  analysisId: string, 
+  progress: number | null, 
+  step: { step: string; timestamp: string },
+  lastProcessedFile?: string
+) {
+  console.log('Updating analysis progress:', { analysisId, progress, step, lastProcessedFile });
   
   try {
     const { data: currentAnalysis, error: fetchError } = await supabase
       .from('codeql_analyses')
-      .select('steps')
+      .select('steps, analysis_results')
       .eq('id', analysisId)
       .maybeSingle();
 
@@ -141,14 +161,18 @@ async function updateAnalysisProgress(analysisId: string, progress: number | nul
     const currentSteps = Array.isArray(currentAnalysis?.steps) ? currentAnalysis.steps : [];
     const updatedSteps = [...currentSteps, step];
 
-    console.log('Updating steps:', { currentSteps, updatedSteps });
+    const analysisResults = {
+      ...(currentAnalysis?.analysis_results || {}),
+      ...(lastProcessedFile ? { last_processed_file: lastProcessedFile } : {})
+    };
 
     const { error: updateError } = await supabase
       .from('codeql_analyses')
       .update({
         progress,
         status: progress === 100 ? 'completed' : 'in_progress',
-        steps: updatedSteps
+        steps: updatedSteps,
+        analysis_results: analysisResults
       })
       .eq('id', analysisId);
 
@@ -243,8 +267,11 @@ serve(async (req) => {
 
     const backgroundTask = async () => {
       try {
-        await updateAnalysisProgress(analysisId, 0, {
-          step: 'Fetching repository structure',
+        const lastProcessedFile = await getLastProcessedFile(analysisId);
+        let resuming = !!lastProcessedFile;
+
+        await updateAnalysisProgress(analysisId, resuming ? null : 0, {
+          step: resuming ? `Resuming analysis from ${lastProcessedFile}` : 'Fetching repository structure',
           timestamp: new Date().toISOString()
         });
 
@@ -262,25 +289,43 @@ serve(async (req) => {
           (file.path.endsWith('.tsx') || file.path.endsWith('.jsx'))
         );
 
+        let filesToProcess = files;
+        if (resuming && lastProcessedFile) {
+          const lastProcessedIndex = files.findIndex((f: any) => f.path === lastProcessedFile);
+          if (lastProcessedIndex !== -1) {
+            filesToProcess = files.slice(lastProcessedIndex + 1);
+          }
+        }
+
         await updateAnalysisProgress(analysisId, 5, {
-          step: `Found ${files.length} files to analyze`,
+          step: resuming 
+            ? `Resuming with ${filesToProcess.length} remaining files to analyze` 
+            : `Found ${files.length} files to analyze`,
           timestamp: new Date().toISOString()
         });
 
         const totalFiles = files.length;
-        let processedFiles = 0;
+        let processedFiles = resuming 
+          ? files.length - filesToProcess.length 
+          : 0;
         const fileAnalyses = [];
         const processedPaths = new Set();
 
-        for (const file of files) {
+        for (const file of filesToProcess) {
           try {
             const cachedAnalysis = await checkFileAnalysisCache(productId, repoFullName, file.path, file.sha);
             
             if (cachedAnalysis) {
-              await updateAnalysisProgress(analysisId, Math.round((++processedFiles / totalFiles) * 95) + 5, {
-                step: `Using cached analysis for ${file.path}`,
-                timestamp: new Date().toISOString()
-              });
+              processedFiles++;
+              await updateAnalysisProgress(
+                analysisId, 
+                Math.round((processedFiles / totalFiles) * 95) + 5, 
+                {
+                  step: `Using cached analysis for ${file.path}`,
+                  timestamp: new Date().toISOString()
+                },
+                file.path
+              );
               
               fileAnalyses.push(cachedAnalysis);
               processedPaths.add(file.path);
@@ -298,10 +343,15 @@ serve(async (req) => {
             const fileData = await fileResponse.json();
             const fileContent = atob(fileData.content);
             
-            await updateAnalysisProgress(analysisId, null, {
-              step: `Analyzing ${file.path}`,
-              timestamp: new Date().toISOString()
-            });
+            await updateAnalysisProgress(
+              analysisId, 
+              null, 
+              {
+                step: `Analyzing ${file.path}`,
+                timestamp: new Date().toISOString()
+              },
+              file.path
+            );
 
             const analysis = await analyzeFileContent(fileContent, file.path);
             const hierarchyLevel = file.path.split('/').length - 1;
@@ -327,17 +377,27 @@ serve(async (req) => {
             
             const progress = Math.round((processedFiles / totalFiles) * 95) + 5;
             
-            await updateAnalysisProgress(analysisId, progress, {
-              step: `Completed analysis of ${file.path}`,
-              timestamp: new Date().toISOString()
-            });
+            await updateAnalysisProgress(
+              analysisId, 
+              progress, 
+              {
+                step: `Completed analysis of ${file.path}`,
+                timestamp: new Date().toISOString()
+              },
+              file.path
+            );
 
           } catch (error) {
             console.error(`Error analyzing file ${file.path}:`, error);
-            await updateAnalysisProgress(analysisId, null, {
-              step: `Error analyzing ${file.path}: ${error.message}`,
-              timestamp: new Date().toISOString()
-            });
+            await updateAnalysisProgress(
+              analysisId, 
+              null, 
+              {
+                step: `Error analyzing ${file.path}: ${error.message}`,
+                timestamp: new Date().toISOString()
+              },
+              file.path
+            );
           }
         }
 
