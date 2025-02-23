@@ -245,4 +245,3 @@ export const getPrompt = (category: keyof typeof AI_PROMPTS, subcategory: string
 
   return prompt;
 };
-
