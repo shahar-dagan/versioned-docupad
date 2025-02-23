@@ -5,9 +5,13 @@ import { toast } from '@/components/ui/use-toast';
 import { Feature, Repository } from '@/types';
 
 interface AnalysisProgress {
+  id: string;
   progress: number;
   status: string;
   steps: { step: string; timestamp: string }[];
+  analysis_results: {
+    steps: { step: string; timestamp: string }[];
+  };
 }
 
 export function useFeatures(productId: string | undefined, enabled: boolean, repository?: Repository) {
@@ -57,9 +61,9 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
       return data as AnalysisProgress | null;
     },
     enabled: enabled && !!productId,
-    refetchInterval: (data) => {
-      // Actively poll while analysis is in progress
-      return data?.status === 'in_progress' ? 2000 : false;
+    refetchInterval: (currentData) => {
+      if (!currentData) return false;
+      return (currentData as AnalysisProgress)?.status === 'in_progress' ? 2000 : false;
     },
   });
 
