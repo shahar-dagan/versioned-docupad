@@ -1,4 +1,3 @@
-
 import { useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -254,31 +253,306 @@ export const PREDEFINED_FEATURES = [
 ];
 
 const initialNodes = [
-  { id: '1', position: { x: 0, y: 0 }, data: { label: 'Product Management' } },
-  { id: '2', position: { x: -200, y: 100 }, data: { label: 'Create Products' } },
-  { id: '3', position: { x: -200, y: 200 }, data: { label: 'Delete Products' } },
-  { id: '4', position: { x: -200, y: 300 }, data: { label: 'View Product List' } },
-  { id: '5', position: { x: -200, y: 400 }, data: { label: 'Add Product Descriptions' } },
-  { id: '6', position: { x: 200, y: 0 }, data: { label: 'Feature Tracking' } },
-  { id: '7', position: { x: 200, y: 100 }, data: { label: 'Add Features' } },
-  { id: '8', position: { x: 200, y: 200 }, data: { label: 'View Features' } },
-  { id: '9', position: { x: 200, y: 300 }, data: { label: 'Track Feature Status' } },
-  { id: '10', position: { x: 200, y: 400 }, data: { label: 'Document Feature Changes' } },
-  { id: '11', position: { x: 450, y: 0 }, data: { label: 'Documentation' } },
-  { id: '12', position: { x: 450, y: 100 }, data: { label: 'View Documentation' } },
-  { id: '13', position: { x: 450, y: 200 }, data: { label: 'Navigate by Feature' } },
-  { id: '14', position: { x: 450, y: 300 }, data: { label: 'Search Documentation' } },
-  { id: '15', position: { x: 0, y: -200 }, data: { label: 'Authentication & User Management' } },
-  { id: '16', position: { x: -200, y: -300 }, data: { label: 'Sign Up' } },
-  { id: '17', position: { x: -200, y: -200 }, data: { label: 'Sign In' } },
-  { id: '18', position: { x: -200, y: -100 }, data: { label: 'Manage Profile' } },
-  { id: '19', position: { x: 0, y: 200 }, data: { label: 'Repository Integration' } },
-  { id: '20', position: { x: 0, y: 300 }, data: { label: 'Link GitHub Repositories' } },
-  { id: '21', position: { x: 0, y: 400 }, data: { label: 'Analyze Repository Code' } },
-  { id: '22', position: { x: 700, y: 0 }, data: { label: 'Team Collaboration' } },
-  { id: '23', position: { x: 700, y: 100 }, data: { label: 'View Team Members' } },
-  { id: '24', position: { x: 700, y: 200 }, data: { label: 'Project Statistics' } },
-  { id: '25', position: { x: 700, y: 300 }, data: { label: 'Track Team Activity' } },
+  { 
+    id: '1', 
+    position: { x: 0, y: 0 }, 
+    data: { label: 'Product Management' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
+  { 
+    id: '2', 
+    position: { x: -200, y: 100 }, 
+    data: { label: 'Create Products' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
+  { 
+    id: '3', 
+    position: { x: -200, y: 200 }, 
+    data: { label: 'Delete Products' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
+  { 
+    id: '4', 
+    position: { x: -200, y: 300 }, 
+    data: { label: 'View Product List' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
+  { 
+    id: '5', 
+    position: { x: -200, y: 400 }, 
+    data: { label: 'Add Product Descriptions' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
+  { 
+    id: '6', 
+    position: { x: 200, y: 0 }, 
+    data: { label: 'Feature Tracking' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
+  { 
+    id: '7', 
+    position: { x: 200, y: 100 }, 
+    data: { label: 'Add Features' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
+  { 
+    id: '8', 
+    position: { x: 200, y: 200 }, 
+    data: { label: 'View Features' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
+  { 
+    id: '9', 
+    position: { x: 200, y: 300 }, 
+    data: { label: 'Track Feature Status' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
+  { 
+    id: '10', 
+    position: { x: 200, y: 400 }, 
+    data: { label: 'Document Feature Changes' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
+  { 
+    id: '11', 
+    position: { x: 450, y: 0 }, 
+    data: { label: 'Documentation' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
+  { 
+    id: '12', 
+    position: { x: 450, y: 100 }, 
+    data: { label: 'View Documentation' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
+  { 
+    id: '13', 
+    position: { x: 450, y: 200 }, 
+    data: { label: 'Navigate by Feature' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
+  { 
+    id: '14', 
+    position: { x: 450, y: 300 }, 
+    data: { label: 'Search Documentation' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
+  { 
+    id: '15', 
+    position: { x: 0, y: -200 }, 
+    data: { label: 'Authentication & User Management' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
+  { 
+    id: '16', 
+    position: { x: -200, y: -300 }, 
+    data: { label: 'Sign Up' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
+  { 
+    id: '17', 
+    position: { x: -200, y: -200 }, 
+    data: { label: 'Sign In' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
+  { 
+    id: '18', 
+    position: { x: -200, y: -100 }, 
+    data: { label: 'Manage Profile' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
+  { 
+    id: '19', 
+    position: { x: 0, y: 200 }, 
+    data: { label: 'Repository Integration' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
+  { 
+    id: '20', 
+    position: { x: 0, y: 300 }, 
+    data: { label: 'Link GitHub Repositories' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
+  { 
+    id: '21', 
+    position: { x: 0, y: 400 }, 
+    data: { label: 'Analyze Repository Code' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
+  { 
+    id: '22', 
+    position: { x: 700, y: 0 }, 
+    data: { label: 'Team Collaboration' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
+  { 
+    id: '23', 
+    position: { x: 700, y: 100 }, 
+    data: { label: 'View Team Members' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
+  { 
+    id: '24', 
+    position: { x: 700, y: 200 }, 
+    data: { label: 'Project Statistics' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
+  { 
+    id: '25', 
+    position: { x: 700, y: 300 }, 
+    data: { label: 'Track Team Activity' },
+    style: { 
+      background: '#ffffff', 
+      padding: '10px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+    }
+  },
 ];
 
 const initialEdges = [
@@ -327,7 +601,7 @@ export default function Whiteboard() {
   }
 
   return (
-    <div className="h-screen w-screen">
+    <div className="h-screen w-screen bg-white">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -338,7 +612,13 @@ export default function Whiteboard() {
       >
         <MiniMap />
         <Controls />
-        <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
+        <Background 
+          variant={BackgroundVariant.Dots} 
+          gap={12} 
+          size={1}
+          color="#94a3b8"
+          style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)' }} 
+        />
       </ReactFlow>
     </div>
   );
