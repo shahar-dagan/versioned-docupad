@@ -1,3 +1,4 @@
+
 import { Book, Code, User, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DocumentationSuggestions } from './DocumentationSuggestions';
@@ -6,7 +7,7 @@ import { UserDocumentation } from './UserDocumentation';
 import { useState, useEffect } from 'react';
 import { analyzeUserActions } from './utils/userActionAnalysis';
 import { VoiceInterface } from './VoiceInterface';
-import { Textarea } from '@/components/ui/textarea';
+import Editor from "@monaco-editor/react";
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -103,10 +104,6 @@ export function DocumentationContent({ feature, isAdmin }: DocumentationContentP
     }
   };
 
-  if (!feature) {
-    return null;
-  }
-
   const getDocumentationText = () => {
     const sections = [];
     if (viewMode === 'technical' && feature?.technical_docs) {
@@ -118,8 +115,18 @@ export function DocumentationContent({ feature, isAdmin }: DocumentationContentP
       if (feature.user_docs.steps) sections.push(feature.user_docs.steps.join('. '));
       if (feature.user_docs.use_cases) sections.push(`Use cases: ${feature.user_docs.use_cases.join('. ')}`);
     }
-    return sections.join('. ');
+    return sections.join('\n\n');
   };
+
+  const handleEditorChange = (value: string | undefined) => {
+    if (value !== undefined) {
+      setEditedContent(value);
+    }
+  };
+
+  if (!feature) {
+    return null;
+  }
 
   return (
     <div className="prose prose-slate max-w-none">
@@ -198,12 +205,23 @@ export function DocumentationContent({ feature, isAdmin }: DocumentationContentP
       </div>
 
       {isEditing ? (
-        <div className="space-y-4">
-          <Textarea
+        <div className="space-y-4 border rounded-lg overflow-hidden">
+          <Editor
+            height="400px"
+            defaultLanguage="markdown"
             value={editedContent}
-            onChange={(e) => setEditedContent(e.target.value)}
-            className="min-h-[400px] font-mono"
-            placeholder="Enter documentation content..."
+            onChange={handleEditorChange}
+            theme="vs-dark"
+            options={{
+              minimap: { enabled: true },
+              lineNumbers: "on",
+              fontSize: 14,
+              scrollBeyondLastLine: false,
+              wordWrap: "on",
+              automaticLayout: true,
+              formatOnType: true,
+              formatOnPaste: true,
+            }}
           />
         </div>
       ) : (
