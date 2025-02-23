@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
@@ -50,7 +49,7 @@ export default function Products() {
 
       if (error) {
         console.error('Error fetching products:', error);
-        throw error;
+        throw new Error(`Failed to fetch products: ${error.message}`);
       }
       
       console.log('Products fetched successfully:', data);
@@ -58,6 +57,10 @@ export default function Products() {
     },
     enabled: !!user, // Only fetch if user is logged in
     retry: 1, // Only retry once
+    onError: (error) => {
+      console.error('Query error:', error);
+      toast.error('Failed to load products. Please try again.');
+    }
   });
 
   const handleCreateProduct = async (e: React.FormEvent) => {
