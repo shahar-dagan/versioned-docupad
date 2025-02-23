@@ -60,11 +60,23 @@ export function AnalysisProgressDialog({
     totalProgress
   });
 
+  // Check if analysis is still in progress
+  const isAnalysisInProgress = steps && steps.length > 0 && 
+    !steps[steps.length - 1].step.toLowerCase().includes('completed') &&
+    !steps[steps.length - 1].step.toLowerCase().includes('finished');
+
   // Prevent dialog from closing if analysis is in progress
   const handleOpenChange = (newOpen: boolean) => {
-    console.log('Dialog open change attempted:', { newOpen, totalProgress, progress });
-    // Only allow closing if progress is 100% or 0% (not started)
-    if (progress === 100 || progress === 0) {
+    console.log('Dialog open change attempted:', { 
+      newOpen, 
+      totalProgress, 
+      progress,
+      isAnalysisInProgress,
+      lastStep: steps?.[steps.length - 1]?.step
+    });
+    
+    // Only allow closing if analysis is complete
+    if (!isAnalysisInProgress) {
       onOpenChange(newOpen);
     } else {
       // Prevent closing by maintaining the open state
@@ -85,7 +97,7 @@ export function AnalysisProgressDialog({
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => {
           // Prevent closing with Escape key if analysis is in progress
-          if (progress !== 100 && progress !== 0) {
+          if (isAnalysisInProgress) {
             e.preventDefault();
           }
         }}
