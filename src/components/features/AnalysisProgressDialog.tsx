@@ -63,7 +63,8 @@ export function AnalysisProgressDialog({
   // Check if analysis is still in progress
   const isAnalysisInProgress = steps && steps.length > 0 && 
     !steps[steps.length - 1].step.toLowerCase().includes('completed') &&
-    !steps[steps.length - 1].step.toLowerCase().includes('finished');
+    !steps[steps.length - 1].step.toLowerCase().includes('finished') &&
+    !steps[steps.length - 1].step.toLowerCase().includes('error');
 
   // Prevent dialog from closing if analysis is in progress
   const handleOpenChange = (newOpen: boolean) => {
@@ -75,8 +76,8 @@ export function AnalysisProgressDialog({
       lastStep: steps?.[steps.length - 1]?.step
     });
     
-    // Only allow closing if analysis is complete
-    if (!isAnalysisInProgress) {
+    // Only allow closing if analysis is complete or there's an error
+    if (!isAnalysisInProgress || (steps && steps[steps.length - 1].step.toLowerCase().includes('error'))) {
       onOpenChange(newOpen);
     } else {
       // Prevent closing by maintaining the open state
@@ -94,7 +95,12 @@ export function AnalysisProgressDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent 
         className="sm:max-w-[500px]" 
-        onPointerDownOutside={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => {
+          // Always prevent closing by clicking outside during analysis
+          if (isAnalysisInProgress) {
+            e.preventDefault();
+          }
+        }}
         onEscapeKeyDown={(e) => {
           // Prevent closing with Escape key if analysis is in progress
           if (isAnalysisInProgress) {
@@ -140,6 +146,8 @@ export function AnalysisProgressDialog({
                       className={`flex justify-between text-sm ${
                         step.step.includes("Resuming") 
                           ? "text-blue-600 dark:text-blue-400 font-medium"
+                          : step.step.toLowerCase().includes('error')
+                          ? "text-red-600 dark:text-red-400 font-medium"
                           : "text-muted-foreground"
                       }`}
                     >
