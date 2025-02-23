@@ -28,7 +28,7 @@
   }
  
   * {
-    @apply border-[hsl(var(--border))];
+    @apply border-[#e5e7eb];
   }
 
   body {
