@@ -31,7 +31,7 @@ export function ProcessTimeline() {
             repository_name,
             created_at,
             steps,
-            products!inner (
+            products (
               name
             )
           `)
