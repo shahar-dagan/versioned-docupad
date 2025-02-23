@@ -18,99 +18,111 @@ import { supabase } from '@/lib/supabase';
 
 interface FeatureMapProps {
   features: Feature[];
+  featureGroups: Map<string, Feature[]>;
   onUpdate: () => void;
 }
 
+// Color mapping for different feature types
+const typeColors = {
+  user_action: '#22c55e',  // green
+  display: '#3b82f6',      // blue
+  navigation: '#8b5cf6',   // purple
+  feedback: '#f59e0b',     // amber
+  form: '#ec4899',         // pink
+  default: '#6b7280'       // gray
+};
+
 const nodeTypes = {
-  feature: ({ data }: { data: { label: string; description?: string } }) => (
-    <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+  feature: ({ data }: { data: { label: string; description?: string; type?: string } }) => (
+    <div className={`bg-white p-4 rounded-lg border-2 shadow-sm`} 
+         style={{ borderColor: typeColors[data.type as keyof typeof typeColors] || typeColors.default }}>
       <div className="font-medium text-sm">{data.label}</div>
       {data.description && (
         <div className="text-xs text-muted-foreground mt-1 max-w-[200px] truncate">
           {data.description}
         </div>
       )}
+      {data.type && (
+        <div className="text-xs mt-1 px-2 py-0.5 rounded-full inline-block"
+             style={{ backgroundColor: typeColors[data.type as keyof typeof typeColors] || typeColors.default, color: 'white' }}>
+          {data.type}
+        </div>
+      )}
     </div>
   ),
 };
 
-export function FeatureMap({ features, onUpdate }: FeatureMapProps) {
+export function FeatureMap({ features, featureGroups, onUpdate }: FeatureMapProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
   useEffect(() => {
-    // Create a map for quick lookup of node positions
-    const nodePositions = new Map();
-    
-    // First pass: Create nodes with hierarchical layout
-    const featureNodes: Node[] = features.map((feature, index) => {
-      // Find the number of dependencies this feature has
-      const dependencyCount = feature.technical_docs?.dependencies?.length || 0;
-      
-      // Position nodes based on their dependencies
-      const position = {
-        x: dependencyCount * 300 + 100, // More dependencies = more to the right
-        y: index * 150 + 50, // Spread vertically
-      };
-      
-      nodePositions.set(feature.id, position);
-      
-      return {
-        id: feature.id,
-        type: 'feature',
-        data: { 
-          label: feature.name,
-          description: feature.description 
-        },
-        position,
-        style: {
-          width: 220,
-        },
-      };
-    });
+    const initialNodes: Node[] = [];
+    const initialEdges: Edge[] = [];
+    let yOffset = 0;
 
-    // Second pass: Create edges with proper connections
-    const featureEdges: Edge[] = [];
-    features.forEach(feature => {
-      if (feature.technical_docs?.dependencies) {
-        feature.technical_docs.dependencies.forEach(dep => {
-          const targetFeature = features.find(f => f.name === dep);
-          if (targetFeature) {
-            featureEdges.push({
-              id: `${feature.id}-${targetFeature.id}`,
-              source: feature.id,
-              target: targetFeature.id,
-              animated: true,
-              style: { stroke: '#9e86ed', strokeWidth: 2 },
-              type: 'smoothstep',
-              markerEnd: {
-                type: MarkerType.ArrowClosed,
-                color: '#9e86ed',
-                width: 20,
-                height: 20,
-              },
-              label: 'depends on',
-              labelStyle: { fill: '#666', fontSize: 12 },
-              labelBgStyle: { fill: '#fff' },
-            });
-          }
+    // Create nodes grouped by directory
+    featureGroups.forEach((groupFeatures, directory) => {
+      const groupWidth = Math.min(groupFeatures.length * 300, 1200);
+      const columns = Math.ceil(groupFeatures.length / 3);
+      
+      groupFeatures.forEach((feature, index) => {
+        const xPos = (index % columns) * 300 + 100;
+        const yPos = yOffset + Math.floor(index / columns) * 150;
+        
+        initialNodes.push({
+          id: feature.id,
+          type: 'feature',
+          data: { 
+            label: feature.name,
+            description: feature.description,
+            type: feature.technical_docs?.type || 'default'
+          },
+          position: { x: xPos, y: yPos },
+          style: { width: 250 },
         });
-      }
+
+        // Create edges based on dependencies
+        if (feature.technical_docs?.dependencies) {
+          feature.technical_docs.dependencies.forEach(dep => {
+            const targetFeature = features.find(f => f.name === dep);
+            if (targetFeature) {
+              initialEdges.push({
+                id: `${feature.id}-${targetFeature.id}`,
+                source: feature.id,
+                target: targetFeature.id,
+                animated: true,
+                style: { stroke: '#9e86ed', strokeWidth: 2 },
+                type: 'smoothstep',
+                markerEnd: {
+                  type: MarkerType.ArrowClosed,
+                  color: '#9e86ed',
+                  width: 20,
+                  height: 20,
+                },
+                label: 'depends on',
+                labelStyle: { fill: '#666', fontSize: 12 },
+                labelBgStyle: { fill: '#fff' },
+              });
+            }
+          });
+        }
+      });
+
+      yOffset += Math.ceil(groupFeatures.length / columns) * 150 + 100;
     });
 
-    setNodes(featureNodes);
-    setEdges(featureEdges);
-  }, [features, setNodes, setEdges]);
+    setNodes(initialNodes);
+    setEdges(initialEdges);
+  }, [features, featureGroups]);
 
   const onConnect = useCallback(async (params: any) => {
-    // Find the source and target features
     const sourceFeature = features.find(f => f.id === params.source);
     const targetFeature = features.find(f => f.id === params.target);
 
     if (!sourceFeature || !targetFeature) return;
 
     try {
-      // Update the source feature's dependencies
       const dependencies = sourceFeature.technical_docs?.dependencies || [];
       if (!dependencies.includes(targetFeature.name)) {
         const { error } = await supabase
@@ -168,7 +180,10 @@ export function FeatureMap({ features, onUpdate }: FeatureMapProps) {
       <Controls />
       <MiniMap 
         nodeStrokeColor="#666"
-        nodeColor="#fff"
+        nodeColor={(node) => {
+          const type = (node.data?.type as keyof typeof typeColors) || 'default';
+          return typeColors[type] || typeColors.default;
+        }}
         nodeBorderRadius={8}
       />
       <Background color="#aaa" gap={16} />

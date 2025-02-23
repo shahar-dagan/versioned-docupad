@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useFeatures } from '@/hooks/useFeatures';
 import { useAuth } from '@/hooks/useAuth';
 import { FeatureMap } from '@/components/features/FeatureMap';
+import { Feature } from '@/types';
 
 export default function Whiteboard() {
   const { productId } = useParams<{ productId: string }>();
@@ -43,10 +44,30 @@ export default function Whiteboard() {
     );
   }
 
+  // Group features by their directory path
+  const groupFeaturesByPath = (features: Feature[]) => {
+    const groups = new Map<string, Feature[]>();
+    
+    features.forEach(feature => {
+      const location = feature.technical_docs?.location || '';
+      const directory = location.split('/').slice(0, -1).join('/') || 'root';
+      
+      if (!groups.has(directory)) {
+        groups.set(directory, []);
+      }
+      groups.get(directory)?.push(feature);
+    });
+    
+    return groups;
+  };
+
+  const featureGroups = groupFeaturesByPath(features || []);
+
   return (
     <div className="h-screen w-screen">
       <FeatureMap 
         features={features || []} 
+        featureGroups={featureGroups}
         onUpdate={() => window.location.reload()}
       />
     </div>

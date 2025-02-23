@@ -144,7 +144,7 @@ export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps)
               </DialogHeader>
               <div className="py-4">
                 <GitHubRepoSelector 
-                  onSelect={handleLinkRepo}
+                  onSelect={(repo) => handleLinkRepo(repo)}
                 />
               </div>
             </DialogContent>
