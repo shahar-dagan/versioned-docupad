@@ -1,4 +1,3 @@
-
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -10,6 +9,7 @@ import { DocumentationContent } from '@/components/documentation/DocumentationCo
 import { MobileNav } from '@/components/documentation/MobileNav';
 import { DocumentationGenerator } from '@/components/documentation/DocumentationGenerator';
 import { DocsChat } from '@/components/documentation/DocsChat';
+import { VoiceAgent } from '@/components/documentation/VoiceAgent';
 
 interface DocumentationSuggestion {
   type: 'technical' | 'user';
@@ -145,7 +145,8 @@ export default function Documentation() {
 
         <main className="overflow-y-auto pb-16">
           <div className="max-w-3xl mx-auto px-6 py-10">
-            <div className="flex justify-end mb-6">
+            <div className="flex justify-end gap-2 mb-6">
+              <VoiceAgent />
               <DocsChat documentationText={getDocumentationText()} />
             </div>
             {selectedFeature && (
