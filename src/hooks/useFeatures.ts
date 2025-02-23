@@ -233,6 +233,11 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
     },
   });
 
+  // Calculate derived states
+  const isAnalyzing = analyzeRepositoryMutation.isPending || processAnalysisMutation.isPending;
+  const progress = analysisProgress?.progress || 0;
+  const analysisStatus = analysisProgress?.status || '';
+
   return {
     features,
     isLoadingFeatures,
@@ -242,5 +247,8 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
     processAnalysisMutation,
     analysisProgress,
     isLoadingAnalysis,
+    analysisStatus,
+    progress,
+    isAnalyzing,
   };
 }
