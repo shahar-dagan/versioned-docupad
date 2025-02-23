@@ -11,9 +11,7 @@ import { Repository } from "@/types";
 import { AnalysisProgressDialog } from "./AnalysisProgressDialog";
 import { CreateFeatureDialog } from "./CreateFeatureDialog";
 import { Plus, RefreshCw } from "lucide-react";
-import { toast } from "../ui/use-toast";
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
 
 interface FeaturesHeaderProps {
   productName: string;
@@ -25,6 +23,10 @@ interface FeaturesHeaderProps {
   isAnalyzing: boolean;
   onFeatureCreated: () => void;
   analysisProgress: any;
+  processAnalysisMutation: {
+    mutate: () => void;
+    isLoading: boolean;
+  };
 }
 
 export function FeaturesHeader({
@@ -37,45 +39,15 @@ export function FeaturesHeader({
   isAnalyzing,
   onFeatureCreated,
   analysisProgress,
+  processAnalysisMutation,
 }: FeaturesHeaderProps) {
   const [showProgress, setShowProgress] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
-    if (isAnalyzing) {
+    if (isAnalyzing || processAnalysisMutation.isLoading) {
       setShowProgress(true);
     }
-  }, [isAnalyzing]);
-
-  const handleProcessAnalysis = async () => {
-    try {
-      setIsProcessing(true);
-      setShowProgress(true);
-
-      const { error } = await supabase.functions.invoke('process-analysis', {
-        body: { productId, userId }
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Analysis Processing Complete",
-        description: "Features have been generated from the analysis results.",
-      });
-
-      // Refresh the features list
-      onFeatureCreated();
-    } catch (error) {
-      console.error('Error processing analysis:', error);
-      toast({
-        variant: "destructive",
-        title: "Processing Failed",
-        description: error instanceof Error ? error.message : "Failed to process analysis results",
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
+  }, [isAnalyzing, processAnalysisMutation.isLoading]);
 
   return (
     <div className="flex flex-col gap-6 mb-8">
@@ -93,10 +65,10 @@ export function FeaturesHeader({
             <>
               <Button 
                 variant="outline"
-                onClick={handleProcessAnalysis}
-                disabled={isProcessing}
+                onClick={() => processAnalysisMutation.mutate()}
+                disabled={processAnalysisMutation.isLoading}
               >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isProcessing ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-4 w-4 mr-2 ${processAnalysisMutation.isLoading ? 'animate-spin' : ''}`} />
                 Process Analysis
               </Button>
               <Button 
@@ -131,7 +103,7 @@ export function FeaturesHeader({
       <AnalysisProgressDialog
         open={showProgress}
         onOpenChange={setShowProgress}
-        progress={isProcessing ? (analysisProgress?.progress || 0) : 0}
+        progress={processAnalysisMutation.isLoading ? (analysisProgress?.progress || 0) : 0}
         steps={analysisProgress?.steps || []}
       />
     </div>

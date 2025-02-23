@@ -1,3 +1,4 @@
+
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/components/ui/use-toast';
@@ -189,12 +190,47 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
     },
   });
 
+  const processAnalysisMutation = useMutation({
+    mutationFn: async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        throw new Error('You must be logged in to process analysis');
+      }
+
+      return supabase.functions.invoke('process-analysis', {
+        body: { 
+          productId,
+          userId: user.id
+        }
+      });
+    },
+    onError: (error: Error) => {
+      console.error('Process analysis error:', error);
+      toast({
+        variant: "destructive",
+        title: "Processing Failed",
+        description: error.message,
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Analysis Processing Complete",
+        description: "Features have been generated from the analysis results.",
+      });
+      refetch();
+    },
+  });
+
   return {
     features,
     isLoadingFeatures,
     featuresError,
     refetch,
     analyzeRepositoryMutation,
+    processAnalysisMutation,
     analysisProgress,
     isLoadingAnalysis,
   };
