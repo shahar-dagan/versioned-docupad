@@ -4,7 +4,7 @@ import { useFeatures } from '@/hooks/useFeatures';
 import { useAuth } from '@/hooks/useAuth';
 import { FeatureMap } from '@/components/features/FeatureMap';
 
-const PREDEFINED_FEATURES = [
+export const PREDEFINED_FEATURES = [
   // Product Management Group
   {
     id: 'pm-1',

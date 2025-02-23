@@ -8,7 +8,7 @@ import { DashboardStats } from '@/components/dashboard/DashboardStats';
 import { ProfileMenu } from '@/components/dashboard/ProfileMenu';
 import { RecentProducts } from '@/components/dashboard/RecentProducts';
 import { useDashboardData } from '@/hooks/useDashboardData';
-import { PREDEFINED_FEATURES } from '@/pages/Whiteboard'; // Import the predefined features
+import { PREDEFINED_FEATURES } from '@/pages/Whiteboard';
 
 export default function Dashboard() {
   const { user } = useAuth();
