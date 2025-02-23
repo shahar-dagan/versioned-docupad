@@ -72,6 +72,12 @@ export function AnalysisProgressDialog({
     }
   };
 
+  // Calculate the step percentage based on total steps
+  const getStepPercentage = (index: number) => {
+    if (!steps) return 0;
+    return Math.round((index + 1) / steps.length * 100);
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent 
@@ -125,7 +131,10 @@ export function AnalysisProgressDialog({
                           : "text-muted-foreground"
                       }`}
                     >
-                      <span>{step.step}</span>
+                      <div className="flex items-center gap-2">
+                        <span>{step.step}</span>
+                        <span className="text-xs text-muted-foreground">({getStepPercentage(index)}%)</span>
+                      </div>
                       <span>{formatTimestamp(step.timestamp)}</span>
                     </div>
                   ))}
