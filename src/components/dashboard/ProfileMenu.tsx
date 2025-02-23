@@ -1,4 +1,3 @@
-
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Button } from '@/components/ui/button';
 import {
@@ -9,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LogOut, User, Settings, Github, Trash2 } from 'lucide-react';
+import { LogOut, User, Settings, Github, Trash2, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -25,11 +24,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useState } from 'react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export function ProfileMenu() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isTeamDialogOpen, setIsTeamDialogOpen] = useState(false);
+  const [newMemberName, setNewMemberName] = useState('');
+  const [newMemberEmail, setNewMemberEmail] = useState('');
 
   const { data: profile } = useQuery({
     queryKey: ['profile', user?.id],
@@ -45,6 +49,50 @@ export function ProfileMenu() {
     },
     enabled: !!user,
   });
+
+  const handleAddTeamMember = async () => {
+    try {
+      let { data: team } = await supabase
+        .from('teams')
+        .select('id')
+        .eq('owner_id', user?.id)
+        .maybeSingle();
+
+      if (!team) {
+        const { data: newTeam, error: teamError } = await supabase
+          .from('teams')
+          .insert([{ owner_id: user?.id, name: `${profile?.username || 'User'}'s Team` }])
+          .select()
+          .single();
+
+        if (teamError) throw teamError;
+        team = newTeam;
+      }
+
+      const { error: memberError } = await supabase
+        .from('team_members')
+        .insert([
+          {
+            team_id: team.id,
+            user_id: user?.id,
+            email: newMemberEmail,
+            name: newMemberName,
+            role: 'member',
+            status: 'pending'
+          }
+        ]);
+
+      if (memberError) throw memberError;
+
+      toast.success('Team member invited successfully');
+      setIsTeamDialogOpen(false);
+      setNewMemberName('');
+      setNewMemberEmail('');
+    } catch (error) {
+      console.error('Error adding team member:', error);
+      toast.error('Failed to add team member');
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -122,6 +170,54 @@ export function ProfileMenu() {
           <User className="mr-2 h-4 w-4" />
           <span>Profile</span>
         </DropdownMenuItem>
+        <Dialog open={isTeamDialogOpen} onOpenChange={setIsTeamDialogOpen}>
+          <DialogTrigger asChild>
+            <DropdownMenuItem onSelect={(e) => {
+              e.preventDefault();
+              setIsTeamDialogOpen(true);
+            }}>
+              <Users className="mr-2 h-4 w-4" />
+              <span>Add Team Member</span>
+            </DropdownMenuItem>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add Team Member</DialogTitle>
+              <DialogDescription>
+                Invite a new member to join your team. They will receive an invitation via email.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  value={newMemberName}
+                  onChange={(e) => setNewMemberName(e.target.value)}
+                  placeholder="Enter member's name"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={newMemberEmail}
+                  onChange={(e) => setNewMemberEmail(e.target.value)}
+                  placeholder="Enter member's email"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setIsTeamDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleAddTeamMember}>
+                Add Member
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         <DropdownMenuItem>
           <Settings className="mr-2 h-4 w-4" />
           <span>Settings</span>
