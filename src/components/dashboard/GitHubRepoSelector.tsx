@@ -28,37 +28,42 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
     queryFn: async () => {
       console.log('Fetching GitHub repos...');
       
-      const { data: session } = await supabase.auth.getSession();
-      const githubToken = session.session?.provider_token;
+      const { data: { session } } = await supabase.auth.getSession();
+      const githubToken = session?.provider_token;
 
       if (!githubToken) {
-        console.error('No GitHub token found');
+        console.error('No GitHub token found in session:', session);
         throw new Error('GitHub not connected');
       }
       
-      const response = await fetch('https://api.github.com/user/repos', {
-        headers: {
-          Authorization: `Bearer ${githubToken}`,
-          Accept: 'application/vnd.github.v3+json',
-        },
-      });
+      try {
+        const response = await fetch('https://api.github.com/user/repos', {
+          headers: {
+            Authorization: `Bearer ${githubToken}`,
+            Accept: 'application/vnd.github.v3+json',
+          },
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('GitHub API error:', errorData);
-        throw new Error(`Failed to fetch repositories: ${response.statusText}`);
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('GitHub API error:', errorData);
+          throw new Error(`Failed to fetch repositories: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log('Successfully fetched repos:', data.length);
+        
+        return data.map((repo: any) => ({
+          id: repo.id.toString(),
+          repository_name: repo.name,
+          product_id: '',
+          repository_url: repo.html_url,
+          repository_id: repo.id.toString(),
+        }));
+      } catch (error) {
+        console.error('Error fetching repos:', error);
+        throw error;
       }
-
-      const data = await response.json();
-      console.log('Fetched repos:', data);
-      
-      return data.map((repo: any) => ({
-        id: repo.id.toString(),
-        repository_name: repo.name,
-        product_id: '',
-        repository_url: repo.html_url,
-        repository_id: repo.id.toString(),
-      }));
     },
     enabled: !!user,
     retry: false,
@@ -77,10 +82,14 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
         options: {
           redirectTo: `${window.location.origin}/dashboard`,
           scopes: 'repo',
+          queryParams: {
+            access_type: 'offline',
+          },
         },
       });
 
       if (error) {
+        console.error('GitHub OAuth error:', error);
         throw error;
       }
 
@@ -88,10 +97,11 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
         throw new Error('No URL returned from OAuth provider');
       }
 
+      console.log('Redirecting to GitHub OAuth URL:', data.url);
       window.location.href = data.url;
     } catch (error) {
       console.error('Error connecting to GitHub:', error);
-      toast.error('Failed to connect to GitHub');
+      toast.error('Failed to connect to GitHub. Please try again.');
     }
   };
 

@@ -26,9 +26,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session?.user ?? null);
         setLoading(false);
 
-        // If we have a GitHub token, store it
+        // If we have a GitHub token, log it for debugging
         if (session?.provider_token) {
-          console.log('GitHub provider token available');
+          console.log('GitHub provider token available:', !!session.provider_token);
         }
       } catch (error) {
         console.error('Error checking auth session:', error);
@@ -42,10 +42,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null);
       
-      // If we have a GitHub token, store it
-      if (session?.provider_token) {
-        console.log('GitHub provider token updated');
-      }
+      // Log auth state changes for debugging
+      console.log('Auth state changed:', {
+        event: _event,
+        hasUser: !!session?.user,
+        hasProviderToken: !!session?.provider_token
+      });
     });
 
     return () => subscription.unsubscribe();
