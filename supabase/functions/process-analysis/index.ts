@@ -15,14 +15,42 @@ serve(async (req) => {
   }
 
   try {
-    const { productId } = await req.json();
+    const { productId, userId } = await req.json();
     
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log('Fetching file analyses for product:', productId);
+    // Create a processing record
+    const { data: analysis, error: analysisError } = await supabase
+      .from('codeql_analyses')
+      .insert({
+        product_id: productId,
+        status: 'running',
+        progress: 0,
+        steps: [],
+        triggered_by: userId
+      })
+      .select()
+      .single();
+
+    if (analysisError) throw analysisError;
+
+    // Update progress
+    const updateProgress = async (step: string, progress: number) => {
+      const { error } = await supabase
+        .from('codeql_analyses')
+        .update({ 
+          progress,
+          steps: [...(analysis.steps || []), { step, timestamp: new Date().toISOString() }]
+        })
+        .eq('id', analysis.id);
+
+      if (error) console.error('Error updating progress:', error);
+    };
+
+    await updateProgress('Starting analysis processing', 10);
     
     // Fetch file analyses for the product
     const { data: fileAnalyses, error: fetchError } = await supabase
@@ -32,7 +60,7 @@ serve(async (req) => {
 
     if (fetchError) throw fetchError;
 
-    console.log('Found file analyses:', fileAnalyses?.length);
+    await updateProgress(`Found ${fileAnalyses?.length} file analyses to process`, 30);
 
     // Prepare the prompt for OpenAI
     const analysisContent = fileAnalyses?.map(analysis => {
@@ -43,7 +71,7 @@ serve(async (req) => {
       };
     });
 
-    console.log('Prepared analysis content, calling OpenAI');
+    await updateProgress('Analyzing features with AI', 50);
 
     // Call OpenAI to process the analysis
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
@@ -82,11 +110,9 @@ serve(async (req) => {
       }),
     });
 
-    console.log('Got OpenAI response');
+    await updateProgress('Processing AI response', 70);
 
     const aiResponse = await response.json();
-    console.log('OpenAI response content:', aiResponse.choices[0].message.content);
-
     let features;
     try {
       features = JSON.parse(aiResponse.choices[0].message.content.trim());
@@ -95,16 +121,14 @@ serve(async (req) => {
       throw new Error('Failed to parse feature list from OpenAI response');
     }
 
-    console.log('Parsed features:', features);
-
     if (!Array.isArray(features)) {
       throw new Error('OpenAI response is not an array of features');
     }
 
+    await updateProgress('Creating features in database', 90);
+
     // Insert the generated features into the database
     for (const feature of features) {
-      console.log('Inserting feature:', feature);
-      
       const { error: insertError } = await supabase
         .from('features')
         .insert({
@@ -112,6 +136,7 @@ serve(async (req) => {
           description: feature.description,
           status: feature.status || 'active',
           product_id: productId,
+          author_id: userId, // Now properly setting the author_id
         });
 
       if (insertError) {
@@ -119,6 +144,13 @@ serve(async (req) => {
         throw insertError;
       }
     }
+
+    // Mark processing as complete
+    await updateProgress('Processing completed', 100);
+    await supabase
+      .from('codeql_analyses')
+      .update({ status: 'completed' })
+      .eq('id', analysis.id);
 
     return new Response(JSON.stringify({ success: true, features }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

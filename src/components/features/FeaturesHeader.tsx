@@ -39,6 +39,7 @@ export function FeaturesHeader({
   analysisProgress,
 }: FeaturesHeaderProps) {
   const [showProgress, setShowProgress] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     if (isAnalyzing) {
@@ -48,8 +49,11 @@ export function FeaturesHeader({
 
   const handleProcessAnalysis = async () => {
     try {
+      setIsProcessing(true);
+      setShowProgress(true);
+
       const { error } = await supabase.functions.invoke('process-analysis', {
-        body: { productId }
+        body: { productId, userId }
       });
 
       if (error) throw error;
@@ -66,8 +70,10 @@ export function FeaturesHeader({
       toast({
         variant: "destructive",
         title: "Processing Failed",
-        description: "Failed to process analysis results. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to process analysis results",
       });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -88,8 +94,9 @@ export function FeaturesHeader({
               <Button 
                 variant="outline"
                 onClick={handleProcessAnalysis}
+                disabled={isProcessing}
               >
-                <RefreshCw className="h-4 w-4 mr-2" />
+                <RefreshCw className={`h-4 w-4 mr-2 ${isProcessing ? 'animate-spin' : ''}`} />
                 Process Analysis
               </Button>
               <Button 
@@ -124,7 +131,7 @@ export function FeaturesHeader({
       <AnalysisProgressDialog
         open={showProgress}
         onOpenChange={setShowProgress}
-        progress={analysisProgress?.progress || 0}
+        progress={isProcessing ? (analysisProgress?.progress || 0) : 0}
         steps={analysisProgress?.steps || []}
       />
     </div>
