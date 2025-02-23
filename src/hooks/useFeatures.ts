@@ -54,7 +54,29 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
     },
     enabled,
     staleTime: 0,
-    gcTime: 0, // Changed from cacheTime to gcTime for React Query v5
+    gcTime: 0,
+  });
+
+  const { data: lastAnalysis, error: lastAnalysisError } = useQuery({
+    queryKey: ['last-analysis', productId],
+    queryFn: async () => {
+      console.log('Fetching last analysis for product:', productId);
+      const { data, error } = await supabase
+        .from('feature_analysis_results')
+        .select('*')
+        .eq('product_id', productId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error fetching last analysis:', error);
+        throw error;
+      }
+      console.log('Last analysis data:', data);
+      return data;
+    },
+    enabled: enabled && !!productId,
   });
 
   const { data: analysisProgress, isLoading: isLoadingAnalysis, refetch: refetchAnalysis } = useQuery({
@@ -107,14 +129,21 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
           console.log('Analysis completed, file analyses:', fileAnalyses);
           return {
             ...analysisData,
-            fileAnalyses
+            fileAnalyses,
+            lastAnalysis: lastAnalysis
           };
         }
 
-        return analysisData;
+        return {
+          ...analysisData,
+          lastAnalysis: lastAnalysis
+        };
       }
 
-      return analysisData;
+      return {
+        ...analysisData,
+        lastAnalysis: lastAnalysis
+      };
     },
     enabled: enabled && !!productId,
     refetchInterval: (query) => {
@@ -210,6 +239,12 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         throw new Error('You must be logged in to process analysis');
       }
 
+      // If we have a last analysis and no changes, return it
+      if (lastAnalysis && !analysisProgress?.analysis_results) {
+        console.log('Using last analysis results:', lastAnalysis);
+        return lastAnalysis;
+      }
+
       const response = await supabase.functions.invoke('process-analysis', {
         body: { 
           productId,
@@ -256,5 +291,7 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
     processAnalysisMutation,
     analysisProgress,
     isLoadingAnalysis,
+    lastAnalysis,
+    lastAnalysisError,
   };
 }
