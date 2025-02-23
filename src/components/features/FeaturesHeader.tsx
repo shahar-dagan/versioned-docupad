@@ -83,6 +83,50 @@ export function FeaturesHeader({
     onAnalyze();
   };
 
+  const handleGenerateDocumentation = async () => {
+    setIsGenerating(true);
+    setGenProgress(0);
+    setCurrentStep("Starting documentation generation...");
+    
+    try {
+      // Start documentation generation
+      toast.info("Starting documentation generation...");
+      
+      // Update progress as documentation is being generated
+      setGenProgress(25);
+      setCurrentStep("Analyzing features...");
+      
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate processing
+      setGenProgress(50);
+      setCurrentStep("Generating documentation structure...");
+      
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate processing
+      setGenProgress(75);
+      setCurrentStep("Writing documentation content...");
+      
+      // Call your documentation generation endpoint
+      const { error } = await supabase.functions.invoke('process-documentation', {
+        body: { productId }
+      });
+
+      if (error) throw error;
+
+      setGenProgress(100);
+      setCurrentStep("Documentation generated successfully!");
+      toast.success("Documentation generated successfully!");
+      
+      // Refresh documentation status
+      setHasDocumentation(true);
+    } catch (error) {
+      console.error('Documentation generation error:', error);
+      toast.error("Failed to generate documentation");
+    } finally {
+      setIsGenerating(false);
+      setCurrentStep('');
+      setGenProgress(0);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6 mb-8">
       <div className="flex items-center justify-between">
