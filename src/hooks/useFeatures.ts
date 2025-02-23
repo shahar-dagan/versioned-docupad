@@ -1,4 +1,3 @@
-
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/components/ui/use-toast';
@@ -73,24 +72,36 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
       }
 
       if (analysisData) {
-        // Fetch file analyses if analysis is completed
-        const { data: fileAnalyses, error: fileAnalysesError } = await supabase
-          .from('file_analyses')
-          .select('*')
-          .eq('product_id', productId)
-          .eq('repository_name', repository?.repository_name);
+        // Check if analysis is in a terminal state
+        const isCompleted = analysisData.status === 'completed' || 
+                          analysisData.status === 'failed' ||
+                          analysisData.status === 'error';
 
-        if (fileAnalysesError) {
-          console.error('Error fetching file analyses:', fileAnalysesError);
+        // If analysis is not completed, ensure we keep polling
+        if (!isCompleted) {
+          console.log('Analysis still in progress, status:', analysisData.status);
         }
 
-        console.log('Analysis progress:', analysisData);
-        console.log('File analyses:', fileAnalyses);
+        // Fetch file analyses if analysis is completed
+        if (isCompleted) {
+          const { data: fileAnalyses, error: fileAnalysesError } = await supabase
+            .from('file_analyses')
+            .select('*')
+            .eq('product_id', productId)
+            .eq('repository_name', repository?.repository_name);
 
-        return {
-          ...analysisData,
-          fileAnalyses
-        };
+          if (fileAnalysesError) {
+            console.error('Error fetching file analyses:', fileAnalysesError);
+          }
+
+          console.log('Analysis completed, file analyses:', fileAnalyses);
+          return {
+            ...analysisData,
+            fileAnalyses
+          };
+        }
+
+        return analysisData;
       }
 
       return analysisData;
@@ -98,8 +109,16 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
     enabled: enabled && !!productId,
     refetchInterval: (query) => {
       const data = query.state.data as AnalysisProgress | null;
-      if (!data) return false;
-      return data.status === 'in_progress' ? 2000 : false;
+      // If no data or status is missing, poll quickly to get initial state
+      if (!data || !data.status) return 1000;
+      
+      // If analysis is complete or failed, stop polling
+      if (data.status === 'completed' || data.status === 'failed' || data.status === 'error') {
+        return false;
+      }
+      
+      // For in-progress analyses, poll every 5 seconds
+      return 5000;
     },
   });
 
