@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
@@ -56,12 +57,14 @@ export default function Products() {
       return data as (Product & { github_repositories: { repository_name: string } | null })[];
     },
     enabled: !!user, // Only fetch if user is logged in
-    retry: 1, // Only retry once
-    onError: (error) => {
-      console.error('Query error:', error);
-      toast.error('Failed to load products. Please try again.');
-    }
+    retry: 1 // Only retry once
   });
+
+  // Show error toast when there's an error
+  if (isError && error instanceof Error) {
+    toast.error('Failed to load products. Please try again.');
+    console.error('Query error:', error);
+  }
 
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
