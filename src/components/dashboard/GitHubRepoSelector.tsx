@@ -36,7 +36,7 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
         repository_name: repo.name,
         product_id: '',
         repository_url: repo.html_url,
-        repository_id: repo.id.toString()
+        repository_id: repo.id.toString(),
       }));
     },
     enabled: false,

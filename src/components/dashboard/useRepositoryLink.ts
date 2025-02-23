@@ -2,12 +2,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-
-interface Repository {
-  id: string;
-  name: string;
-  url: string;
-}
+import { Repository } from '@/types';
 
 export function useRepositoryLink() {
   const queryClient = useQueryClient();
@@ -18,28 +13,24 @@ export function useRepositoryLink() {
         .from('github_repositories')
         .insert({
           product_id: productId,
-          repository_name: repo.name,
-          repository_url: repo.url,
-          repository_id: repo.id,
+          repository_name: repo.repository_name,
+          repository_url: repo.repository_url,
+          repository_id: repo.repository_id,
         });
 
       if (error) throw error;
       
-      // Return the productId for use in onSuccess
       return { productId };
     },
     onSuccess: ({ productId }) => {
       toast.success('Repository linked successfully!');
-      // Invalidate the specific product's repository query
       queryClient.invalidateQueries({ 
         queryKey: ['github-repository', productId],
         exact: true
       });
-      // Also invalidate all github-repository queries to ensure lists are updated
       queryClient.invalidateQueries({ 
         queryKey: ['github-repository']
       });
-      // Invalidate products to refresh any product lists
       queryClient.invalidateQueries({ 
         queryKey: ['products']
       });
