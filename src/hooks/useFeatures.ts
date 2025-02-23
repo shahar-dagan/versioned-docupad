@@ -1,4 +1,3 @@
-
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/components/ui/use-toast';
@@ -98,23 +97,19 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
 
       if (analysisData) {
         console.log('Analysis data:', analysisData);
-        // Check if analysis is in a terminal state
         const isCompleted = analysisData.status === 'completed' || 
                           analysisData.status === 'failed' ||
                           analysisData.status === 'error';
 
-        // If analysis is completed, trigger a features refetch
         if (isCompleted && analysisData.status === 'completed') {
           console.log('Analysis completed, triggering features refetch');
           refetch();
         }
 
-        // If analysis is not completed, ensure we keep polling
         if (!isCompleted) {
           console.log('Analysis still in progress, status:', analysisData.status);
         }
 
-        // Fetch file analyses if analysis is completed
         if (isCompleted) {
           const { data: fileAnalyses, error: fileAnalysesError } = await supabase
             .from('file_analyses')
@@ -148,15 +143,12 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
     enabled: enabled && !!productId,
     refetchInterval: (query) => {
       const data = query.state.data as AnalysisProgress;
-      // If no data or status is missing, poll quickly to get initial state
       if (!data || !data.status) return 1000;
       
-      // If analysis is complete or failed, stop polling
       if (data.status === 'completed' || data.status === 'failed' || data.status === 'error') {
         return false;
       }
       
-      // For in-progress analyses, poll every 5 seconds
       return 5000;
     },
     staleTime: 0,
@@ -176,7 +168,6 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         throw new Error('You must be logged in to analyze repositories');
       }
 
-      // First create an analysis record
       const { data: analysis, error: analysisError } = await supabase
         .from('codeql_analyses')
         .insert({
@@ -195,7 +186,16 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         throw analysisError;
       }
 
-      // Then trigger the analysis
+      const { error: updateError } = await supabase
+        .from('codeql_analyses')
+        .update({ status: 'running' })
+        .eq('id', analysis.id);
+
+      if (updateError) {
+        console.error('Error updating analysis status:', updateError);
+        throw updateError;
+      }
+
       const response = await supabase.functions.invoke('analyze-repository', {
         body: {
           repoFullName: repository.repository_name,
@@ -206,6 +206,11 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
       });
 
       if (response.error) {
+        await supabase
+          .from('codeql_analyses')
+          .update({ status: 'error' })
+          .eq('id', analysis.id);
+        
         console.error('Analysis error:', response.error);
         throw new Error(response.error.message || 'Failed to analyze repository');
       }
@@ -239,7 +244,6 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         throw new Error('You must be logged in to process analysis');
       }
 
-      // If we have a last analysis and no changes, return it
       if (lastAnalysis && !analysisProgress?.analysis_results) {
         console.log('Using last analysis results:', lastAnalysis);
         return lastAnalysis;
