@@ -92,74 +92,27 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         .limit(1)
         .maybeSingle();
 
-      if (analysisError) {
-        console.error('Error fetching analysis progress:', analysisError);
-        throw analysisError;
-      }
+      if (analysisError) throw analysisError;
 
-      if (analysisData) {
-        console.log('Analysis data:', analysisData);
-        
-        const isCompleted = analysisData.status === 'completed';
-        const isFailed = analysisData.status === 'failed' || analysisData.status === 'error';
-        
-        if (isCompleted) {
-          console.log('Analysis completed, triggering features refetch');
-          await refetch();
-        }
-
-        if (isFailed) {
-          toast.error('Analysis failed. Please try again.');
-        }
-
-        if (!isCompleted && !isFailed) {
-          console.log('Analysis still in progress, status:', analysisData.status);
-          const { data: fileAnalyses, error: fileAnalysesError } = await supabase
-            .from('file_analyses')
-            .select('*')
-            .eq('product_id', productId)
-            .eq('repository_name', repository?.repository_name);
-
-          if (fileAnalysesError) {
-            console.error('Error fetching file analyses:', fileAnalysesError);
-          }
-
-          return {
-            ...analysisData,
-            fileAnalyses,
-            lastAnalysis
-          };
-        }
-
-        return {
-          ...analysisData,
-          lastAnalysis
-        };
-      }
-
-      return null;
+      return analysisData;
     },
     enabled: enabled && !!productId,
-    refetchInterval: (query) => {
-      const data = query.state.data as AnalysisProgress;
-      
+    refetchInterval: (data) => {
       if (!data) return 1000;
+      const status = data?.status;
       
-      if (data.status === 'completed' || data.status === 'failed' || data.status === 'error') {
+      if (status === 'completed' || status === 'failed' || status === 'error') {
         return false;
       }
       
-      return 2000;
+      return 1000;
     },
-    keepPreviousData: true,
-    retry: 3,
-    retryDelay: 1000,
-    meta: {
-      onError: (error: Error) => {
-        console.error('Error fetching analysis progress:', error);
-        toast.error('Failed to fetch analysis progress');
-      }
-    }
+    staleTime: 0,
+    cacheTime: 0,
+    retry: 1,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    refetchOnReconnect: true,
   });
 
   const analyzeRepositoryMutation = useMutation({

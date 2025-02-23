@@ -147,32 +147,17 @@ async function updateAnalysisProgress(
   console.log('Updating analysis progress:', { analysisId, progress, step, lastProcessedFile });
   
   try {
-    const { data: currentAnalysis, error: fetchError } = await supabase
-      .from('codeql_analyses')
-      .select('steps, analysis_results')
-      .eq('id', analysisId)
-      .maybeSingle();
-
-    if (fetchError) {
-      console.error('Error fetching current analysis:', fetchError);
-      return;
-    }
-
-    const currentSteps = Array.isArray(currentAnalysis?.steps) ? currentAnalysis.steps : [];
-    const updatedSteps = [...currentSteps, step];
-
-    const analysisResults = {
-      ...(currentAnalysis?.analysis_results || {}),
-      ...(lastProcessedFile ? { last_processed_file: lastProcessedFile } : {})
-    };
-
     const { error: updateError } = await supabase
       .from('codeql_analyses')
       .update({
         progress,
         status: progress === 100 ? 'completed' : 'in_progress',
-        steps: updatedSteps,
-        analysis_results: analysisResults
+        steps: supabase.sql`array_append(steps, ${step})::jsonb[]`,
+        analysis_results: {
+          last_processed_file: lastProcessedFile,
+          current_step: step
+        },
+        updated_at: new Date().toISOString()
       })
       .eq('id', analysisId);
 
