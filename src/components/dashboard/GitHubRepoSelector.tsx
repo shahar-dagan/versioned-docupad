@@ -25,18 +25,20 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
     queryFn: async () => {
       console.log('Fetching GitHub repos...');
       
-      // Get the GitHub token from Supabase
-      const { data: { secret_value: githubToken }, error: secretError } = await supabase
+      // Get the GitHub token from Supabase using the correct column name
+      const { data: secretData, error: secretError } = await supabase
         .from('secrets')
-        .select('secret_value')
+        .select('value')
         .eq('name', 'GITHUB_ACCESS_TOKEN')
         .single();
 
-      if (secretError || !githubToken) {
+      if (secretError || !secretData) {
         console.error('Failed to get GitHub token:', secretError);
         throw new Error('GitHub token not configured');
       }
 
+      const githubToken = secretData.value;
+      
       const response = await fetch('https://api.github.com/user/repos', {
         headers: {
           Authorization: `Bearer ${githubToken}`,
