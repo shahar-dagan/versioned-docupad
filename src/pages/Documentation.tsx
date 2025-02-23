@@ -1,3 +1,4 @@
+
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -8,6 +9,7 @@ import { DocumentationNav } from '@/components/documentation/DocumentationNav';
 import { DocumentationContent } from '@/components/documentation/DocumentationContent';
 import { MobileNav } from '@/components/documentation/MobileNav';
 import { DocumentationGenerator } from '@/components/documentation/DocumentationGenerator';
+import { DocsChat } from '@/components/documentation/DocsChat';
 
 interface DocumentationSuggestion {
   type: 'technical' | 'user';
@@ -83,8 +85,8 @@ export default function Documentation() {
       if (error) throw error;
       return data as Feature[];
     },
-    staleTime: 30000, // Consider data fresh for 30 seconds
-    gcTime: 5 * 60 * 1000, // Keep unused data in cache for 5 minutes
+    staleTime: 30000,
+    gcTime: 5 * 60 * 1000,
   });
 
   const filteredFeatures = features?.filter(feature =>
@@ -93,6 +95,25 @@ export default function Documentation() {
   );
 
   const selectedFeatureData = features?.find(f => f.id === selectedFeature) || features?.[0];
+
+  const getDocumentationText = () => {
+    if (!selectedFeatureData) return '';
+    const sections = [];
+    if (selectedFeatureData.technical_docs) {
+      if (selectedFeatureData.technical_docs.architecture) sections.push(selectedFeatureData.technical_docs.architecture);
+      if (selectedFeatureData.technical_docs.setup) sections.push(selectedFeatureData.technical_docs.setup);
+      if (selectedFeatureData.technical_docs.api_details) sections.push(selectedFeatureData.technical_docs.api_details);
+    }
+    if (selectedFeatureData.user_docs) {
+      if (selectedFeatureData.user_docs.overview) sections.push(selectedFeatureData.user_docs.overview);
+      if (selectedFeatureData.user_docs.steps) sections.push(selectedFeatureData.user_docs.steps.join('. '));
+      if (selectedFeatureData.user_docs.use_cases) sections.push(selectedFeatureData.user_docs.use_cases.join('. '));
+      if (selectedFeatureData.user_docs.faq) {
+        sections.push(selectedFeatureData.user_docs.faq.map(item => `Q: ${item.question}\nA: ${item.answer}`).join('\n'));
+      }
+    }
+    return sections.join('\n\n');
+  };
 
   return (
     <div className="min-h-screen bg-[#FCFCFD]">
@@ -106,7 +127,6 @@ export default function Documentation() {
       />
 
       <div className="lg:grid lg:grid-cols-[300px_1fr] h-screen">
-        {/* Desktop Sidebar */}
         <div className="hidden lg:flex flex-col border-r bg-white h-screen">
           <DocumentationHeader 
             productId={productId!}
@@ -123,9 +143,11 @@ export default function Documentation() {
           />
         </div>
 
-        {/* Main Content */}
         <main className="overflow-y-auto pb-16">
           <div className="max-w-3xl mx-auto px-6 py-10">
+            <div className="flex justify-end mb-6">
+              <DocsChat documentationText={getDocumentationText()} />
+            </div>
             {selectedFeature && (
               <div className="mb-8">
                 <DocumentationGenerator featureId={selectedFeature} />
