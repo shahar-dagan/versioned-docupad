@@ -25,6 +25,23 @@ export function AnalysisProgressDialog({
 }: AnalysisProgressDialogProps) {
   const [elapsedTime, setElapsedTime] = useState(0);
 
+  // Move this function definition before its usage
+  const formatTimestamp = (timestamp: string) => {
+    return new Date(timestamp).toLocaleTimeString();
+  };
+
+  const formatElapsedTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Move isAnalysisInProgress definition before its usage in useEffect
+  const isAnalysisInProgress = steps && steps.length > 0 && 
+    !steps[steps.length - 1].step.toLowerCase().includes('completed') &&
+    !steps[steps.length - 1].step.toLowerCase().includes('finished') &&
+    !steps[steps.length - 1].step.toLowerCase().includes('error');
+
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (open && isAnalysisInProgress) {
@@ -43,22 +60,6 @@ export function AnalysisProgressDialog({
       }
     };
   }, [open, isAnalysisInProgress]);
-
-  const formatTimestamp = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString();
-  };
-
-  const formatElapsedTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Check if analysis is still in progress
-  const isAnalysisInProgress = steps && steps.length > 0 && 
-    !steps[steps.length - 1].step.toLowerCase().includes('completed') &&
-    !steps[steps.length - 1].step.toLowerCase().includes('finished') &&
-    !steps[steps.length - 1].step.toLowerCase().includes('error');
 
   // Handle dialog state changes
   const handleOpenChange = (newOpen: boolean) => {
