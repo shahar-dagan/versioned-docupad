@@ -1,5 +1,4 @@
-
-import { Book, Code, User } from 'lucide-react';
+import { Book, Code, User, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DocumentationSuggestions } from './DocumentationSuggestions';
 import { TechnicalDocumentation } from './TechnicalDocumentation';
@@ -12,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { DocumentationExport } from './DocumentationExport';
 
 interface Feature {
   id: string;
@@ -59,7 +59,6 @@ export function DocumentationContent({ feature }: DocumentationContentProps) {
   const [actionableFeatures, setActionableFeatures] = useState<any[]>([]);
   const { authData } = useAuth();
 
-  // Check if we're in the DocuPad admin environment
   const isDocuPadAdmin = window.location.hostname === 'app.docupad.com' || 
                         window.location.hostname === 'localhost' ||
                         window.location.hostname === '127.0.0.1';
@@ -104,29 +103,16 @@ export function DocumentationContent({ feature }: DocumentationContentProps) {
   };
 
   if (!feature) {
-    return (
-      <div className="text-center p-8">
-        <h2 className="text-xl font-semibold mb-2">Welcome to the Documentation</h2>
-        <p className="text-muted-foreground">
-          Select a feature from the sidebar to learn how to use it. Each feature includes:
-        </p>
-        <ul className="mt-4 space-y-2 text-muted-foreground">
-          <li>• Step-by-step guides</li>
-          <li>• Visual examples</li>
-          <li>• Common use cases</li>
-          <li>• Frequently asked questions</li>
-        </ul>
-      </div>
-    );
+    return null;
   }
 
   const getDocumentationText = () => {
     const sections = [];
-    if (viewMode === 'technical' && feature.technical_docs) {
+    if (viewMode === 'technical' && feature?.technical_docs) {
       if (feature.technical_docs.architecture) sections.push(feature.technical_docs.architecture);
       if (feature.technical_docs.setup) sections.push(feature.technical_docs.setup);
       if (feature.technical_docs.api_details) sections.push(feature.technical_docs.api_details);
-    } else if (viewMode === 'user' && feature.user_docs) {
+    } else if (viewMode === 'user' && feature?.user_docs) {
       if (feature.user_docs.overview) sections.push(feature.user_docs.overview);
       if (feature.user_docs.steps) sections.push(feature.user_docs.steps.join('. '));
       if (feature.user_docs.use_cases) sections.push(`Use cases: ${feature.user_docs.use_cases.join('. ')}`);
@@ -155,6 +141,10 @@ export function DocumentationContent({ feature }: DocumentationContentProps) {
           <VoiceInterface text={getDocumentationText()} />
         </div>
         <div className="flex items-center gap-2">
+          <DocumentationExport 
+            documentationText={getDocumentationText()}
+            featureName={feature.name}
+          />
           {isDocuPadAdmin && (
             <>
               {isEditing ? (
