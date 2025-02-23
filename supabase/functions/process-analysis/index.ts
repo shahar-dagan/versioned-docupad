@@ -82,40 +82,46 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4', // Fixed model name
         messages: [
           {
             role: 'system',
             content: `You are a technical analyst that helps identify and categorize features from code analysis results. 
-            You must only respond with a valid JSON array of features.
-            Combine similar functionalities across files into distinct features.
-            Focus on user-facing features and core functionality.`
+            Extract distinct features from the provided file analyses, focusing on user-facing functionality and core capabilities.
+            You must respond ONLY with a JSON array of features.`
           },
           {
             role: 'user',
-            content: `Based on these file analyses, create a JSON array of the main features of the application.
-            Here's the analysis data: ${JSON.stringify(analysisContent, null, 2)}
+            content: `Analyze these file analyses and create a JSON array of distinct features.
+            File analyses: ${JSON.stringify(analysisContent, null, 2)}
             
-            Your response must be a plain JSON array where each feature object has these exact fields:
+            Each feature object in your response array must have ONLY these fields:
             {
               "name": "string (short, clear name)",
               "description": "string (concise description)",
               "status": "active"
             }
             
-            Do not include any other text or markdown formatting in your response, just the JSON array.`
+            Respond ONLY with the JSON array and no other text.`
           }
         ],
-        temperature: 0.5,
+        temperature: 0.3, // Lower temperature for more consistent output
       }),
     });
 
     await updateProgress('Processing AI response', 70);
 
     const aiResponse = await response.json();
+    if (!aiResponse.choices?.[0]?.message?.content) {
+      throw new Error('Invalid response from OpenAI API');
+    }
+
+    console.log('Raw OpenAI response:', aiResponse.choices[0].message.content);
+    
     let features;
     try {
       features = JSON.parse(aiResponse.choices[0].message.content.trim());
+      console.log('Parsed features:', features);
     } catch (e) {
       console.error('Failed to parse OpenAI response:', e);
       throw new Error('Failed to parse feature list from OpenAI response');
@@ -129,6 +135,8 @@ serve(async (req) => {
 
     // Insert the generated features into the database
     for (const feature of features) {
+      console.log('Inserting feature:', feature);
+      
       const { error: insertError } = await supabase
         .from('features')
         .insert({
@@ -136,7 +144,7 @@ serve(async (req) => {
           description: feature.description,
           status: feature.status || 'active',
           product_id: productId,
-          author_id: userId, // Now properly setting the author_id
+          author_id: userId,
         });
 
       if (insertError) {
@@ -149,7 +157,10 @@ serve(async (req) => {
     await updateProgress('Processing completed', 100);
     await supabase
       .from('codeql_analyses')
-      .update({ status: 'completed' })
+      .update({ 
+        status: 'completed',
+        analysis_results: { features }
+      })
       .eq('id', analysis.id);
 
     return new Response(JSON.stringify({ success: true, features }), {
