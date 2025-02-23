@@ -1,11 +1,10 @@
-
-import { useParams } from 'react-router-dom';
-import { FeaturesList } from '@/components/features/FeaturesList';
-import { FeaturesHeader } from '@/components/features/FeaturesHeader';
-import { useAuth } from '@/hooks/useAuth';
-import { useProduct } from '@/hooks/useProduct';
-import { useRepository } from '@/hooks/useRepository';
-import { useFeatures } from '@/hooks/useFeatures';
+import { useParams } from "react-router-dom";
+import { FeaturesList } from "@/components/features/FeaturesList";
+import { FeaturesHeader } from "@/components/features/FeaturesHeader";
+import { useAuth } from "@/hooks/useAuth";
+import { useProduct } from "@/hooks/useProduct";
+import { useRepository } from "@/hooks/useRepository";
+import { useFeatures } from "@/hooks/useFeatures";
 
 export default function Features() {
   const { productId } = useParams<{ productId: string }>();
@@ -21,9 +20,16 @@ export default function Features() {
     processAnalysisMutation,
     analysisProgress,
     isLoadingAnalysis,
+    analysisStatus,
+    progress,
+    isAnalyzing,
   } = useFeatures(productId, !!authData && !!productId, repository);
 
-  console.log('Features component render:', { features, isLoadingFeatures, featuresError });
+  console.log("Features component render:", {
+    features,
+    isLoadingFeatures,
+    featuresError,
+  });
 
   if (!authData) {
     return (
@@ -62,8 +68,8 @@ export default function Features() {
   return (
     <div className="container mx-auto py-10">
       <FeaturesHeader
-        productName={product?.name || 'Loading...'}
-        productId={productId || ''}
+        productName={product?.name || "Loading..."}
+        productId={productId || ""}
         userId={authData.user.id}
         featuresCount={features?.length || 0}
         repository={repository}
@@ -74,22 +80,34 @@ export default function Features() {
         analysisProgress={analysisProgress}
         processAnalysisMutation={{
           mutate: () => {
-            console.log('Processing analysis...');
+            console.log("Processing analysis...");
             processAnalysisMutation.mutate(undefined, {
               onSuccess: () => {
-                console.log('Processing succeeded, refetching...');
+                console.log("Processing succeeded, refetching...");
                 refetch();
-              }
+              },
             });
           },
-          isLoading: processAnalysisMutation.isPending
+          isLoading: processAnalysisMutation.isPending,
         }}
       />
 
-      <FeaturesList
-        features={features || []}
-        productId={productId || ''}
-      />
+      {isAnalyzing && (
+        <div className="mt-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600">{analysisStatus}</span>
+            <span className="text-sm font-medium">{progress}%</span>
+          </div>
+          <div className="h-2 bg-gray-200 rounded-full">
+            <div
+              className="h-2 bg-blue-600 rounded-full transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      <FeaturesList features={features || []} productId={productId || ""} />
     </div>
   );
 }
