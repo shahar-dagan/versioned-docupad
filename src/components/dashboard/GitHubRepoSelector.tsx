@@ -13,6 +13,7 @@ import { Repository } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { toast } from 'sonner';
+import { Github } from 'lucide-react';
 
 interface GitHubRepoSelectorProps {
   onSelect: (repo: Repository) => void;
@@ -34,21 +35,14 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
         throw sessionError;
       }
 
-      const githubToken = session?.provider_token;
-      console.log('Session state:', {
-        hasSession: !!session,
-        hasProviderToken: !!githubToken,
-        provider: session?.user?.app_metadata?.provider
-      });
-
-      if (!githubToken) {
+      if (!session?.provider_token || session?.user?.app_metadata?.provider !== 'github') {
         throw new Error('GitHub not connected');
       }
       
       try {
         const response = await fetch('https://api.github.com/user/repos', {
           headers: {
-            Authorization: `Bearer ${githubToken}`,
+            Authorization: `Bearer ${session.provider_token}`,
             Accept: 'application/vnd.github.v3+json',
           },
         });
@@ -104,13 +98,21 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
   };
 
   if (error) {
+    if (error instanceof Error && error.message === 'GitHub not connected') {
+      return (
+        <div className="flex items-center gap-4">
+          <Button onClick={handleConnectGitHub} variant="default">
+            <Github className="mr-2 h-4 w-4" />
+            Connect GitHub Account
+          </Button>
+        </div>
+      );
+    }
+
     return (
       <div className="flex items-center gap-4">
-        <Button onClick={handleConnectGitHub} variant="default">
-          Connect GitHub Account
-        </Button>
-        <Button onClick={() => refetch()} variant="outline" className="ml-2">
-          Retry
+        <Button onClick={() => refetch()} variant="outline">
+          Retry Loading Repositories
         </Button>
       </div>
     );
