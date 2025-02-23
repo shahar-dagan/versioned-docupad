@@ -115,10 +115,14 @@ async function updateAnalysisProgress(analysisId: string, progress: number | nul
     return;
   }
 
-  // Ensure we're working with an array
+  // Convert step to JSONB format
+  const stepJson = step;
+
+  // Ensure we're working with an array and add the new step
   const currentSteps = Array.isArray(currentAnalysis?.steps) ? currentAnalysis.steps : [];
-  // Add the new step as a JSONB object
-  const updatedSteps = [...currentSteps, JSON.stringify(step)];
+  const updatedSteps = [...currentSteps, stepJson];
+
+  console.log('Updating steps:', { currentSteps, updatedSteps });
 
   const { error: updateError } = await supabase
     .from('codeql_analyses')
