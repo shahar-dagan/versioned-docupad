@@ -21,33 +21,55 @@ interface FeatureMapProps {
   onUpdate: () => void;
 }
 
+const nodeTypes = {
+  feature: ({ data }: { data: { label: string; description?: string } }) => (
+    <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+      <div className="font-medium text-sm">{data.label}</div>
+      {data.description && (
+        <div className="text-xs text-muted-foreground mt-1 max-w-[200px] truncate">
+          {data.description}
+        </div>
+      )}
+    </div>
+  ),
+};
+
 export function FeatureMap({ features, onUpdate }: FeatureMapProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
   useEffect(() => {
-    // Convert features to nodes and edges
-    const featureNodes: Node[] = features.map((feature, index) => ({
-      id: feature.id,
-      type: 'default',
-      data: { 
-        label: feature.name,
-        description: feature.description 
-      },
-      position: { 
-        x: Math.cos(index * (2 * Math.PI / features.length)) * 250 + 400,
-        y: Math.sin(index * (2 * Math.PI / features.length)) * 250 + 300
-      },
-      style: {
-        background: '#fff',
-        border: '1px solid #ddd',
-        borderRadius: '8px',
-        padding: '10px',
-        width: 150,
-      },
-    }));
+    // Create a map for quick lookup of node positions
+    const nodePositions = new Map();
+    
+    // First pass: Create nodes with hierarchical layout
+    const featureNodes: Node[] = features.map((feature, index) => {
+      // Find the number of dependencies this feature has
+      const dependencyCount = feature.technical_docs?.dependencies?.length || 0;
+      
+      // Position nodes based on their dependencies
+      const position = {
+        x: dependencyCount * 300 + 100, // More dependencies = more to the right
+        y: index * 150 + 50, // Spread vertically
+      };
+      
+      nodePositions.set(feature.id, position);
+      
+      return {
+        id: feature.id,
+        type: 'feature',
+        data: { 
+          label: feature.name,
+          description: feature.description 
+        },
+        position,
+        style: {
+          width: 220,
+        },
+      };
+    });
 
-    // Create edges based on technical_docs dependencies
+    // Second pass: Create edges with proper connections
     const featureEdges: Edge[] = [];
     features.forEach(feature => {
       if (feature.technical_docs?.dependencies) {
@@ -59,11 +81,17 @@ export function FeatureMap({ features, onUpdate }: FeatureMapProps) {
               source: feature.id,
               target: targetFeature.id,
               animated: true,
-              style: { stroke: '#9e86ed' },
+              style: { stroke: '#9e86ed', strokeWidth: 2 },
+              type: 'smoothstep',
               markerEnd: {
                 type: MarkerType.ArrowClosed,
                 color: '#9e86ed',
+                width: 20,
+                height: 20,
               },
+              label: 'depends on',
+              labelStyle: { fill: '#666', fontSize: 12 },
+              labelBgStyle: { fill: '#fff' },
             });
           }
         });
@@ -97,7 +125,7 @@ export function FeatureMap({ features, onUpdate }: FeatureMapProps) {
 
         if (error) throw error;
         
-        toast.success('Dependency added successfully');
+        toast.success(`Added dependency: ${sourceFeature.name} → ${targetFeature.name}`);
         onUpdate();
       }
     } catch (error) {
@@ -109,11 +137,17 @@ export function FeatureMap({ features, onUpdate }: FeatureMapProps) {
     setEdges((eds) => addEdge({
       ...params,
       animated: true,
-      style: { stroke: '#9e86ed' },
+      type: 'smoothstep',
+      style: { stroke: '#9e86ed', strokeWidth: 2 },
       markerEnd: {
         type: MarkerType.ArrowClosed,
         color: '#9e86ed',
+        width: 20,
+        height: 20,
       },
+      label: 'depends on',
+      labelStyle: { fill: '#666', fontSize: 12 },
+      labelBgStyle: { fill: '#fff' },
     }, eds));
   }, [features, onUpdate]);
 
@@ -124,12 +158,20 @@ export function FeatureMap({ features, onUpdate }: FeatureMapProps) {
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onConnect={onConnect}
+      nodeTypes={nodeTypes}
       fitView
       attributionPosition="bottom-right"
+      minZoom={0.1}
+      maxZoom={1.5}
+      defaultViewport={{ x: 0, y: 0, zoom: 0.75 }}
     >
       <Controls />
-      <MiniMap />
-      <Background />
+      <MiniMap 
+        nodeStrokeColor="#666"
+        nodeColor="#fff"
+        nodeBorderRadius={8}
+      />
+      <Background color="#aaa" gap={16} />
     </ReactFlow>
   );
 }
