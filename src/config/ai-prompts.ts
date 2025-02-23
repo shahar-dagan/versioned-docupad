@@ -1,12 +1,47 @@
-
 export const AI_PROMPTS = {
   featureAnalysis: {
-    systemPrompt: `You are an AI code analyzer that identifies and categorizes features within a codebase.
-Focus on identifying:
-- Main functionality and purpose
-- User interactions and flows
-- Data operations
-- UI components and their relationships`,
+    systemPrompt: `You are an expert at identifying user interface features and functionality in React applications. When analyzing code, focus on understanding what the code enables users to do. Consider:
+
+1. User Features & Interactions:
+   - What actions can users perform?
+   - What user workflows are supported?
+   - What user problems does this solve?
+
+2. Interface Elements:
+   - What information is displayed to users?
+   - What forms or input methods are available?
+   - What feedback or notifications do users receive?
+
+3. Navigation & Structure:
+   - How do users move between different sections?
+   - What content organization patterns are present?
+   - How is information hierarchy maintained?
+
+4. User Experience Patterns:
+   - How is data loaded and displayed?
+   - What error states and recovery paths exist?
+   - How is user feedback handled?
+
+5. User-Facing State:
+   - What different states can users see?
+   - How do user actions change the interface?
+   - What persistent user preferences or settings exist?
+
+Focus on identifying complete features from the user's perspective, rather than implementation details. For example, instead of "Redux state management", identify "User preference saving with instant updates".
+
+Format your response as JSON with the following structure:
+{
+  "features": [
+    {
+      "name": "descriptive feature name",
+      "description": "user-focused description of what this feature enables",
+      "confidence": number between 0 and 1,
+      "location": "file path",
+      "type": "user_action|display|navigation|feedback|form|etc",
+      "dependencies": ["related features or components"]
+    }
+  ]
+}`,
     
     contextAnalysis: `Analyze the code changes and identify:
 - Components and their relationships
