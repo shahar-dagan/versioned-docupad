@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -103,22 +104,32 @@ async function analyzeFileContent(content: string, filePath: string) {
 async function updateAnalysisProgress(analysisId: string, progress: number | null, step: { step: string; timestamp: string }) {
   console.log('Updating analysis progress:', { analysisId, progress, step });
   
-  const { data: currentAnalysis } = await supabase
+  const { data: currentAnalysis, error: fetchError } = await supabase
     .from('codeql_analyses')
     .select('steps')
     .eq('id', analysisId)
-    .single();
+    .maybeSingle();
 
-  const updatedSteps = [...(currentAnalysis?.steps || []), step];
+  if (fetchError) {
+    console.error('Error fetching current analysis:', fetchError);
+    return;
+  }
 
-  await supabase
+  const currentSteps = currentAnalysis?.steps || [];
+  const updatedSteps = Array.isArray(currentSteps) ? [...currentSteps, step] : [step];
+
+  const { error: updateError } = await supabase
     .from('codeql_analyses')
     .update({
       progress,
-      status: progress < 100 ? 'in_progress' : 'completed',
+      status: progress === 100 ? 'completed' : 'in_progress',
       steps: updatedSteps
     })
     .eq('id', analysisId);
+
+  if (updateError) {
+    console.error('Error updating analysis progress:', updateError);
+  }
 }
 
 async function storeFileAnalysis(
@@ -200,6 +211,8 @@ serve(async (req) => {
   try {
     const { repoFullName, productId, userId, analysisId } = await req.json();
 
+    console.log('Starting analysis with params:', { repoFullName, productId, userId, analysisId });
+
     EdgeRuntime.waitUntil((async () => {
       try {
         console.log('Starting analysis for repository:', repoFullName);
@@ -231,7 +244,8 @@ serve(async (req) => {
               throw new Error(`Failed to fetch file content: ${fileResponse.status}`);
             }
 
-            const fileContent = await fileResponse.text();
+            const fileData = await fileResponse.json();
+            const fileContent = atob(fileData.content);
             const analysis = await analyzeFileContent(fileContent, file.path);
             const hierarchyLevel = file.path.split('/').length - 1;
             const parentDirectory = file.path.split('/').slice(0, -1).join('/');
