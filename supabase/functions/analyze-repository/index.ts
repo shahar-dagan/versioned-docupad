@@ -255,6 +255,21 @@ async function consolidateFeatures(productId: string, analysisId: string, fileAn
   }
 }
 
+async function getAnalysisState(productId: string, repositoryName: string) {
+  const { data: fileAnalyses, error } = await supabase
+    .from('file_analyses')
+    .select('file_path, file_content_hash')
+    .eq('product_id', productId)
+    .eq('repository_name', repositoryName);
+
+  if (error) {
+    console.error('Error fetching analysis state:', error);
+    return new Map();
+  }
+
+  return new Map(fileAnalyses.map(analysis => [analysis.file_path, analysis.file_content_hash]));
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -267,11 +282,13 @@ serve(async (req) => {
 
     const backgroundTask = async () => {
       try {
-        const lastProcessedFile = await getLastProcessedFile(analysisId);
-        let resuming = !!lastProcessedFile;
+        const analyzedFiles = await getAnalysisState(productId, repoFullName);
+        const resuming = analyzedFiles.size > 0;
 
         await updateAnalysisProgress(analysisId, resuming ? null : 0, {
-          step: resuming ? `Resuming analysis from ${lastProcessedFile}` : 'Fetching repository structure',
+          step: resuming 
+            ? `Resuming analysis - ${analyzedFiles.size} files already analyzed` 
+            : 'Fetching repository structure',
           timestamp: new Date().toISOString()
         });
 
@@ -289,49 +306,24 @@ serve(async (req) => {
           (file.path.endsWith('.tsx') || file.path.endsWith('.jsx'))
         );
 
-        let filesToProcess = files;
-        if (resuming && lastProcessedFile) {
-          const lastProcessedIndex = files.findIndex((f: any) => f.path === lastProcessedFile);
-          if (lastProcessedIndex !== -1) {
-            filesToProcess = files.slice(lastProcessedIndex + 1);
-          }
-        }
+        const filesToProcess = files.filter((file: any) => {
+          const lastHash = analyzedFiles.get(file.path);
+          return !lastHash || lastHash !== file.sha;
+        });
 
         await updateAnalysisProgress(analysisId, 5, {
           step: resuming 
-            ? `Resuming with ${filesToProcess.length} remaining files to analyze` 
+            ? `Found ${filesToProcess.length} files that need updating` 
             : `Found ${files.length} files to analyze`,
           timestamp: new Date().toISOString()
         });
 
         const totalFiles = files.length;
-        let processedFiles = resuming 
-          ? files.length - filesToProcess.length 
-          : 0;
+        let processedFiles = totalFiles - filesToProcess.length;
         const fileAnalyses = [];
-        const processedPaths = new Set();
 
         for (const file of filesToProcess) {
           try {
-            const cachedAnalysis = await checkFileAnalysisCache(productId, repoFullName, file.path, file.sha);
-            
-            if (cachedAnalysis) {
-              processedFiles++;
-              await updateAnalysisProgress(
-                analysisId, 
-                Math.round((processedFiles / totalFiles) * 95) + 5, 
-                {
-                  step: `Using cached analysis for ${file.path}`,
-                  timestamp: new Date().toISOString()
-                },
-                file.path
-              );
-              
-              fileAnalyses.push(cachedAnalysis);
-              processedPaths.add(file.path);
-              continue;
-            }
-
             const fileResponse = await fetch(file.url, {
               headers: { 'Authorization': `Bearer ${Deno.env.get('GITHUB_ACCESS_TOKEN')}` }
             });
@@ -343,15 +335,10 @@ serve(async (req) => {
             const fileData = await fileResponse.json();
             const fileContent = atob(fileData.content);
             
-            await updateAnalysisProgress(
-              analysisId, 
-              null, 
-              {
-                step: `Analyzing ${file.path}`,
-                timestamp: new Date().toISOString()
-              },
-              file.path
-            );
+            await updateAnalysisProgress(analysisId, null, {
+              step: `Analyzing ${file.path}`,
+              timestamp: new Date().toISOString()
+            });
 
             const analysis = await analyzeFileContent(fileContent, file.path);
             const hierarchyLevel = file.path.split('/').length - 1;
@@ -372,32 +359,32 @@ serve(async (req) => {
               feature_summaries: analysis
             });
 
-            processedPaths.add(file.path);
             processedFiles++;
-            
             const progress = Math.round((processedFiles / totalFiles) * 95) + 5;
             
-            await updateAnalysisProgress(
-              analysisId, 
-              progress, 
-              {
-                step: `Completed analysis of ${file.path}`,
-                timestamp: new Date().toISOString()
-              },
-              file.path
-            );
+            await updateAnalysisProgress(analysisId, progress, {
+              step: `Completed analysis of ${file.path}`,
+              timestamp: new Date().toISOString()
+            });
 
           } catch (error) {
             console.error(`Error analyzing file ${file.path}:`, error);
-            await updateAnalysisProgress(
-              analysisId, 
-              null, 
-              {
-                step: `Error analyzing ${file.path}: ${error.message}`,
-                timestamp: new Date().toISOString()
-              },
-              file.path
-            );
+            await updateAnalysisProgress(analysisId, null, {
+              step: `Error analyzing ${file.path}: ${error.message}`,
+              timestamp: new Date().toISOString()
+            });
+          }
+        }
+
+        if (resuming) {
+          const { data: previousAnalyses, error } = await supabase
+            .from('file_analyses')
+            .select('file_path, feature_summaries')
+            .eq('product_id', productId)
+            .eq('repository_name', repoFullName);
+
+          if (!error && previousAnalyses) {
+            fileAnalyses.push(...previousAnalyses);
           }
         }
 
