@@ -10,7 +10,7 @@ import {
 import { Repository, Feature } from "@/types";
 import { CreateFeatureDialog } from "./CreateFeatureDialog";
 import { Plus, RefreshCw, FileText, Book, Layout } from "lucide-react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
@@ -46,7 +46,7 @@ export function FeaturesHeader({
   const navigate = useNavigate();
 
   // Check for documentation
-  useState(() => {
+  useEffect(() => {
     const checkDocumentation = async () => {
       const { data: features } = await supabase
         .from('features')
