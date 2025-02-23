@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -205,7 +206,7 @@ export function FeaturesHeader({
                 disabled={processAnalysisMutation.isLoading}
               >
                 <RefreshCw className={`h-4 w-4 mr-2 ${processAnalysisMutation.isLoading ? 'animate-spin' : ''}`} />
-                Process Analysis
+                List Features
               </Button>
               <Button 
                 variant="outline"
