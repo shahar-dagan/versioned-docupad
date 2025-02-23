@@ -24,6 +24,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data: { session } } = await supabase.auth.getSession();
         setUser(session?.user ?? null);
         setLoading(false);
+
+        // If we have a GitHub token, store it
+        if (session?.provider_token) {
+          console.log('GitHub provider token available');
+        }
       } catch (error) {
         console.error('Error checking auth session:', error);
         setLoading(false);
@@ -33,8 +38,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkUser();
 
     // Listen for changes on auth state
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null);
+      
+      // If we have a GitHub token, store it
+      if (session?.provider_token) {
+        console.log('GitHub provider token updated');
+      }
     });
 
     return () => subscription.unsubscribe();
