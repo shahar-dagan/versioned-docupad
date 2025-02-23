@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { RefreshCw, CheckCircle2, XCircle } from "lucide-react";
 
 interface AnalysisProgressDialogProps {
   open: boolean;
@@ -49,7 +50,7 @@ export function AnalysisProgressDialog({
     !steps[steps.length - 1].step.toLowerCase().includes('completed') &&
     !steps[steps.length - 1].step.toLowerCase().includes('finished') &&
     !steps[steps.length - 1].step.toLowerCase().includes('error') &&
-    progress < 100;  // Add this condition to check if progress is less than 100
+    progress < 100;
 
   // Handle dialog state changes
   const handleOpenChange = (newOpen: boolean) => {
@@ -63,6 +64,18 @@ export function AnalysisProgressDialog({
       // Only prevent closing during active analysis
       onOpenChange(true);
     }
+  };
+
+  // Get status icon based on step text
+  const getStepIcon = (step: string) => {
+    const lowerStep = step.toLowerCase();
+    if (lowerStep.includes('error')) {
+      return <XCircle className="h-4 w-4 text-red-500" />;
+    }
+    if (lowerStep.includes('completed') || lowerStep.includes('finished')) {
+      return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+    }
+    return <RefreshCw className="h-4 w-4 animate-spin text-blue-500" />;
   };
 
   // Calculate the step percentage based on total steps
@@ -121,7 +134,7 @@ export function AnalysisProgressDialog({
                   {steps.map((step, index) => (
                     <div
                       key={index}
-                      className={`flex justify-between text-sm ${
+                      className={`flex items-center justify-between gap-2 text-sm ${
                         step.step.includes("Resuming") 
                           ? "text-blue-600 dark:text-blue-400 font-medium"
                           : step.step.toLowerCase().includes('error')
@@ -130,10 +143,13 @@ export function AnalysisProgressDialog({
                       }`}
                     >
                       <div className="flex items-center gap-2">
+                        {getStepIcon(step.step)}
                         <span>{step.step}</span>
                         <span className="text-xs text-muted-foreground">({getStepPercentage(index)}%)</span>
                       </div>
-                      <span>{formatTimestamp(step.timestamp)}</span>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {formatTimestamp(step.timestamp)}
+                      </span>
                     </div>
                   ))}
                 </div>

@@ -55,6 +55,14 @@ export function FeaturesHeader({
   const [hasDocumentation, setHasDocumentation] = useState(false);
   const navigate = useNavigate();
 
+  // Automatically show progress dialog when analysis starts
+  useEffect(() => {
+    if (isAnalyzing || processAnalysisMutation.isLoading) {
+      setShowProgress(true);
+    }
+  }, [isAnalyzing, processAnalysisMutation.isLoading]);
+
+  // Check for documentation
   useEffect(() => {
     const checkDocumentation = async () => {
       const { data: features } = await supabase
@@ -69,96 +77,10 @@ export function FeaturesHeader({
     checkDocumentation();
   }, [productId]);
 
-  useEffect(() => {
-    if (isAnalyzing || processAnalysisMutation.isLoading) {
-      setShowProgress(true);
-    }
-  }, [isAnalyzing, processAnalysisMutation.isLoading]);
-
-  const handleGenerateDocumentation = async () => {
-    setIsGenerating(true);
-    setGenProgress(0);
-    setCurrentStep('Initializing documentation generation...');
-
-    try {
-      setGenProgress(20);
-      setCurrentStep('Fetching all features...');
-      const { data: features, error: fetchError } = await supabase
-        .from('features')
-        .select('*')
-        .eq('product_id', productId);
-
-      if (fetchError) throw fetchError;
-
-      if (!features || features.length === 0) {
-        setCurrentStep('No features found');
-        toast.error('No features found for this product');
-        return;
-      }
-
-      const totalFeatures = features.length;
-      let processedCount = 0;
-
-      setGenProgress(40);
-      setCurrentStep('Regenerating documentation for all features...');
-      
-      for (const feature of features) {
-        const { error: updateError } = await supabase
-          .from('features')
-          .update({
-            user_docs: {
-              overview: `${feature.name} is a feature that ${feature.description || 'provides functionality for the application'}`,
-              steps: [
-                `Navigate to the ${feature.name} section`,
-                `Configure the necessary settings`,
-                `Use the feature according to your needs`
-              ],
-              use_cases: [
-                `When you need to utilize ${feature.name} functionality`,
-                `When integrating ${feature.name} with other features`,
-                `For enhancing user experience with ${feature.name}`
-              ],
-              faq: [
-                {
-                  question: `What is ${feature.name}?`,
-                  answer: feature.description || `${feature.name} is a feature of the application`
-                },
-                {
-                  question: `How do I use ${feature.name}?`,
-                  answer: `Follow the steps provided in the documentation to use ${feature.name} effectively`
-                }
-              ]
-            },
-            last_analyzed_at: new Date().toISOString(),
-          })
-          .eq('id', feature.id);
-
-        if (updateError) {
-          console.error(`Error updating feature ${feature.name}:`, updateError);
-          toast.error(`Failed to generate documentation for ${feature.name}`);
-          continue;
-        }
-
-        processedCount++;
-        const progress = Math.round((processedCount / totalFeatures) * 60) + 40;
-        setGenProgress(progress);
-        setCurrentStep(`Generated documentation for ${feature.name} (${processedCount}/${totalFeatures})`);
-      }
-
-      setGenProgress(100);
-      setCurrentStep('Documentation regenerated successfully');
-      setHasDocumentation(true);
-      toast.success(`Documentation regenerated for all ${totalFeatures} features`);
-    } catch (error) {
-      console.error('Error generating documentation:', error);
-      toast.error('Failed to generate documentation');
-    } finally {
-      setTimeout(() => {
-        setIsGenerating(false);
-        setGenProgress(0);
-        setCurrentStep('');
-      }, 1500);
-    }
+  const handleAnalyzeClick = () => {
+    toast.info("Starting repository analysis...");
+    setShowProgress(true);
+    onAnalyze();
   };
 
   return (
@@ -202,7 +124,10 @@ export function FeaturesHeader({
               )}
               <Button 
                 variant="outline"
-                onClick={() => processAnalysisMutation.mutate()}
+                onClick={() => {
+                  toast.info("Processing repository analysis...");
+                  processAnalysisMutation.mutate();
+                }}
                 disabled={processAnalysisMutation.isLoading}
               >
                 <RefreshCw className={`h-4 w-4 mr-2 ${processAnalysisMutation.isLoading ? 'animate-spin' : ''}`} />
@@ -210,10 +135,20 @@ export function FeaturesHeader({
               </Button>
               <Button 
                 variant="outline"
-                onClick={onAnalyze}
+                onClick={handleAnalyzeClick}
                 disabled={isAnalyzing}
               >
-                Analyze Repository
+                {isAnalyzing ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Analyze Repository
+                  </>
+                )}
               </Button>
             </>
           )}
