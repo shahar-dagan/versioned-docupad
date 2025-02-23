@@ -23,7 +23,7 @@ async function analyzeFileContent(content: string, filePath: string) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'gpt-4',
         messages: [
           {
             role: 'system',
@@ -63,7 +63,6 @@ async function analyzeFileContent(content: string, filePath: string) {
 
     const data = await response.json();
     
-    // Validate the response format
     if (!data.choices?.[0]?.message?.content) {
       console.error('Invalid OpenAI response format:', data);
       throw new Error('Invalid response format from OpenAI');
@@ -71,7 +70,6 @@ async function analyzeFileContent(content: string, filePath: string) {
 
     const parsedContent = JSON.parse(data.choices[0].message.content);
     
-    // Validate the parsed content structure
     if (!parsedContent.features || !Array.isArray(parsedContent.features)) {
       console.error('Invalid features format:', parsedContent);
       return {
@@ -144,7 +142,6 @@ async function consolidateFeatures(productId: string, analysisId: string, fileAn
   console.log('Consolidating features for analysis:', analysisId);
   const features = new Map();
 
-  // Aggregate features from all files
   fileAnalyses.forEach(analysis => {
     if (analysis.feature_summaries?.features) {
       analysis.feature_summaries.features.forEach((feature: any) => {
@@ -169,7 +166,6 @@ async function consolidateFeatures(productId: string, analysisId: string, fileAn
     }
   });
 
-  // Store consolidated features
   for (const [, feature] of features) {
     await supabase
       .from('feature_analysis_results')
@@ -263,10 +259,8 @@ serve(async (req) => {
           }
         }
 
-        // Consolidate and store features
         await consolidateFeatures(productId, analysisId, fileAnalyses);
 
-        // Update analysis as completed
         await supabase
           .from('codeql_analyses')
           .update({
