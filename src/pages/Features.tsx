@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useProduct } from '@/hooks/useProduct';
 import { useRepository } from '@/hooks/useRepository';
 import { useFeatures } from '@/hooks/useFeatures';
+import { toast } from 'sonner';
 
 export default function Features() {
   const { productId } = useParams<{ productId: string }>();
@@ -22,8 +23,6 @@ export default function Features() {
     analysisProgress,
     isLoadingAnalysis,
   } = useFeatures(productId, !!authData && !!productId, repository);
-
-  console.log('Features component render:', { features, isLoadingFeatures, featuresError });
 
   if (!authData) {
     return (
@@ -59,6 +58,27 @@ export default function Features() {
     );
   }
 
+  const handleAnalyze = async () => {
+    try {
+      await analyzeRepositoryMutation.mutateAsync();
+      toast.success('Repository analysis started successfully');
+    } catch (error) {
+      toast.error('Failed to start repository analysis');
+      console.error('Analysis error:', error);
+    }
+  };
+
+  const handleProcessAnalysis = async () => {
+    try {
+      await processAnalysisMutation.mutateAsync();
+      toast.success('Analysis processing completed');
+      refetch();
+    } catch (error) {
+      toast.error('Failed to process analysis');
+      console.error('Processing error:', error);
+    }
+  };
+
   return (
     <div className="container mx-auto py-10">
       <FeaturesHeader
@@ -67,21 +87,13 @@ export default function Features() {
         userId={authData.user.id}
         featuresCount={features?.length || 0}
         repository={repository}
-        onAnalyze={() => analyzeRepositoryMutation.mutate()}
+        onAnalyze={handleAnalyze}
         isAnalyzing={analyzeRepositoryMutation.isPending}
         onFeatureCreated={refetch}
         features={features || []}
         analysisProgress={analysisProgress}
         processAnalysisMutation={{
-          mutate: () => {
-            console.log('Processing analysis...');
-            processAnalysisMutation.mutate(undefined, {
-              onSuccess: () => {
-                console.log('Processing succeeded, refetching...');
-                refetch();
-              }
-            });
-          },
+          mutate: handleProcessAnalysis,
           isLoading: processAnalysisMutation.isPending
         }}
       />

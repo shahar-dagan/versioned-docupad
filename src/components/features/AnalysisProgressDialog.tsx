@@ -25,50 +25,42 @@ export function AnalysisProgressDialog({
     return new Date(timestamp).toLocaleTimeString();
   };
 
-  // Find if we're resuming from a previous analysis
-  const resumeStep = steps?.find(step => {
-    const stepText = step.step.toLowerCase();
-    return stepText.includes("resuming analysis") && stepText.includes("files already analyzed");
-  });
-
-  // Extract the numbers from the resume message
-  const matches = resumeStep?.step.match(/(\d+)\s+files already analyzed.*?(\d+)\s+files/i);
-
-  const analyzedFiles = matches ? parseInt(matches[1]) : 0;
-  const totalFiles = matches ? parseInt(matches[2]) : 0;
-  const initialProgress = totalFiles > 0 ? Math.round((analyzedFiles / totalFiles) * 100) : 0;
-
-  // Calculate remaining progress as a percentage of the remaining work
-  const remainingWork = progress * ((totalFiles - analyzedFiles) / totalFiles);
-  const totalProgress = resumeStep 
-    ? Math.min(100, initialProgress + remainingWork)
-    : progress;
-
   // Check if analysis is still in progress
   const isAnalysisInProgress = steps && steps.length > 0 && 
     !steps[steps.length - 1].step.toLowerCase().includes('completed') &&
     !steps[steps.length - 1].step.toLowerCase().includes('finished') &&
-    !steps[steps.length - 1].step.toLowerCase().includes('error') &&
-    progress < 100;  // Add this condition to check if progress is less than 100
+    !steps[steps.length - 1].step.toLowerCase().includes('error');
 
   // Handle dialog state changes
   const handleOpenChange = (newOpen: boolean) => {
-    // Allow closing if:
-    // 1. Analysis is complete (progress is 100)
-    // 2. There's an error
-    // 3. No analysis is in progress
     if (!isAnalysisInProgress) {
       onOpenChange(newOpen);
-    } else {
-      // Only prevent closing during active analysis
-      onOpenChange(true);
     }
   };
 
-  // Calculate the step percentage based on total steps
-  const getStepPercentage = (index: number) => {
-    if (!steps) return 0;
-    return Math.round((index + 1) / steps.length * 100);
+  // Calculate the actual progress percentage
+  const getProgressPercentage = () => {
+    if (!steps || steps.length === 0) return 0;
+    
+    // If analysis is complete, return 100%
+    if (!isAnalysisInProgress) return 100;
+
+    // Calculate progress based on steps completed
+    const totalSteps = steps.length;
+    const currentStep = steps.findIndex(s => 
+      s.step.toLowerCase().includes('analyzing') ||
+      s.step.toLowerCase().includes('processing')
+    );
+
+    if (currentStep === -1) return progress || 0;
+    return Math.min(Math.round((currentStep / totalSteps) * 100), 100);
+  };
+
+  // Get the current status message
+  const getCurrentStatus = () => {
+    if (!steps || steps.length === 0) return 'Starting analysis...';
+    const lastStep = steps[steps.length - 1];
+    return lastStep.step;
   };
 
   return (
@@ -92,25 +84,10 @@ export function AnalysisProgressDialog({
         <div className="space-y-6 py-4">
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span>Overall Progress</span>
-              <span>{Math.round(totalProgress)}%</span>
+              <span>{getCurrentStatus()}</span>
+              <span>{getProgressPercentage()}%</span>
             </div>
-            {resumeStep ? (
-              <div className="relative">
-                <Progress value={totalProgress} className="h-2" />
-                <div 
-                  className="absolute top-3 text-xs text-muted-foreground"
-                  style={{ 
-                    left: `${initialProgress}%`,
-                    transform: 'translateX(-50%)'
-                  }}
-                >
-                  ↑ Resumed from here ({initialProgress}%)
-                </div>
-              </div>
-            ) : (
-              <Progress value={progress} className="h-2" />
-            )}
+            <Progress value={getProgressPercentage()} className="h-2" />
           </div>
 
           {steps && steps.length > 0 && (
@@ -122,17 +99,14 @@ export function AnalysisProgressDialog({
                     <div
                       key={index}
                       className={`flex justify-between text-sm ${
-                        step.step.includes("Resuming") 
-                          ? "text-blue-600 dark:text-blue-400 font-medium"
-                          : step.step.toLowerCase().includes('error')
+                        step.step.toLowerCase().includes('error')
                           ? "text-red-600 dark:text-red-400 font-medium"
+                          : step.step.toLowerCase().includes('completed') || step.step.toLowerCase().includes('finished')
+                          ? "text-green-600 dark:text-green-400 font-medium"
                           : "text-muted-foreground"
                       }`}
                     >
-                      <div className="flex items-center gap-2">
-                        <span>{step.step}</span>
-                        <span className="text-xs text-muted-foreground">({getStepPercentage(index)}%)</span>
-                      </div>
+                      <span>{step.step}</span>
                       <span>{formatTimestamp(step.timestamp)}</span>
                     </div>
                   ))}
