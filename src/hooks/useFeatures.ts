@@ -17,7 +17,15 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
           *,
           code_changes (
             change_description,
-            created_at
+            file_path,
+            change_type,
+            content,
+            created_at,
+            user_workflows,
+            visual_elements,
+            navigation_patterns,
+            error_handling,
+            user_preferences
           )
         `)
         .eq('product_id', productId)
@@ -49,13 +57,48 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         throw new Error('You must be logged in to analyze repositories');
       }
 
-      // Simplified analysis that focuses on key files and directories
       const response = await supabase.functions.invoke('analyze-repository', {
         body: {
           repoFullName: repository.repository_name,
           productId,
           userId: user.id,
-          mode: 'simple' // Using a simpler analysis mode
+          analysisConfig: {
+            userActionAnalysis: true,
+            visualInterfaceAnalysis: true,
+            navigationAnalysis: true,
+            errorHandlingAnalysis: true,
+            userPreferencesAnalysis: true,
+            analysisPrompt: `
+              Analyze this code from a user-centric perspective, focusing on:
+              
+              1. User Actions & Workflows
+              - Identify specific actions users can take
+              - Map out supported multi-step processes
+              - Determine user problems being solved
+              
+              2. Visual Interface & Information
+              - Key information displayed to users
+              - Available input methods
+              - User feedback mechanisms
+              
+              3. User Navigation
+              - Navigation patterns and flows
+              - Content organization
+              - Navigation aids and shortcuts
+              
+              4. Error Handling & Support
+              - User assistance during errors
+              - Loading state handling
+              - Success confirmations
+              
+              5. User Preferences & State
+              - Customization options
+              - Persistent user settings
+              - State-dependent UI changes
+              
+              Describe all features from the user's perspective.
+            `
+          }
         },
       });
 
@@ -63,6 +106,7 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         throw new Error(response.error.message || 'Failed to analyze repository');
       }
 
+      console.log('Analysis response:', response.data);
       return response.data;
     },
     onError: (error: Error) => {
@@ -73,10 +117,11 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         description: error.message,
       });
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log('Analysis completed successfully:', data);
       toast({
         title: "Analysis Complete",
-        description: "Repository analysis completed successfully.",
+        description: "Repository analysis completed with enhanced user feature detection.",
       });
       queryClient.invalidateQueries({ queryKey: ['features', productId] });
     },
