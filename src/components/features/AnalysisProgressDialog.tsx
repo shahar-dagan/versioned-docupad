@@ -28,12 +28,22 @@ export function AnalysisProgressDialog({
   // Find if we're resuming from a previous analysis
   const resumeStep = steps?.find(step => {
     const stepText = step.step.toLowerCase();
+    console.log('Checking step:', stepText);
     return stepText.includes("resuming analysis") && stepText.includes("files already analyzed");
   });
 
+  console.log('Resume step found:', resumeStep);
+
   // Extract the numbers from the resume message
   const matches = resumeStep?.step.match(/(\d+)\s+files already analyzed.*?(\d+)\s+files/i);
+  console.log('Regex matches:', matches);
+
   const initialProgress = matches ? Math.round((parseInt(matches[1]) / parseInt(matches[2])) * 100) : 0;
+  console.log('Calculated initial progress:', {
+    analyzedFiles: matches?.[1],
+    totalFiles: matches?.[2],
+    initialProgress
+  });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
