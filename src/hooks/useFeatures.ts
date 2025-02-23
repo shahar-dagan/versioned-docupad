@@ -1,106 +1,142 @@
-
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/components/ui/use-toast';
 import { Feature, Repository } from '@/types';
 
 const DOCUPAD_PREDEFINED_DOCS = {
-  "Document Creation": {
-    overview: "Create and edit documents with a user-friendly interface.",
-    benefit: "Save time by quickly creating professional documents.",
-    example: "Writing a project proposal",
+  "Document Editor": {
+    overview: "Create and edit documents right in your browser.",
+    benefit: "Write, format, and organize your content without switching between apps.",
+    example: "Taking notes during a team meeting",
     steps: [
-      "Click 'New Document'",
-      "Choose a template (if desired)",
-      "Enter your document content",
+      "Click 'New Document' in the top menu",
+      "Type your document title and press Enter",
+      "Write your content using the rich text editor",
+      "Use the toolbar to format text and add elements",
       "Click 'Save' to store your work"
     ],
     scenarios: [
       {
-        scenario: "When you want to create a team memo",
-        steps: "Select 'Memo' template → Fill in details → Send to team",
-        outcome: "A professionally formatted memo ready for distribution"
+        scenario: "When you need to create a meeting agenda",
+        steps: "Choose 'Meeting Template' → Fill in topics → Add time slots → Share with team",
+        outcome: "A structured agenda ready to guide your meeting"
       },
       {
-        scenario: "When you need to write documentation",
-        steps: "Start blank document → Use markdown formatting → Add sections",
-        outcome: "Well-structured documentation that's easy to maintain"
+        scenario: "When you want to write a blog post",
+        steps: "Start with 'Blog Template' → Draft content → Add images → Preview → Publish",
+        outcome: "A professionally formatted blog post ready to share"
       }
     ],
     faq: [
       {
-        question: "How do I recover an unsaved document?",
-        answer: "Check the 'Auto-saved drafts' section in your dashboard"
+        question: "Can I work on my document offline?",
+        answer: "Yes! Changes sync automatically when you're back online"
       },
       {
-        question: "Can I collaborate with others?",
-        answer: "Yes! Share the document link to allow team editing"
+        question: "How do I add images to my document?",
+        answer: "Click the image icon in the toolbar or drag and drop images directly"
       }
     ]
   },
-  "Version Control": {
-    overview: "Track changes and maintain document history.",
-    benefit: "Never lose important document versions.",
-    example: "Reviewing document evolution over time",
+  "Team Collaboration": {
+    overview: "Work together with your team in real-time on any document.",
+    benefit: "Get feedback and make decisions faster with live collaboration.",
+    example: "Brainstorming ideas with remote team members",
     steps: [
-      "Open document history",
-      "Select a previous version",
-      "Review changes highlighted in the diff view",
-      "Restore version if needed"
+      "Open your document",
+      "Click 'Share' in the top right",
+      "Enter team members' emails",
+      "Choose edit or view access",
+      "Click 'Send Invites'"
     ],
     scenarios: [
       {
-        scenario: "When you need to revert changes",
-        steps: "View history → Select version → Click 'Restore'",
-        outcome: "Document restored to previous state"
+        scenario: "When reviewing a proposal with clients",
+        steps: "Share view-only link → Set expiry date → Add password protection → Send link",
+        outcome: "Secure document sharing with controlled access"
       },
       {
-        scenario: "When reviewing team edits",
-        steps: "Open version history → Compare changes → Accept/reject edits",
-        outcome: "Clear overview of all document changes"
+        scenario: "When collaborating on team documentation",
+        steps: "Add team members → Enable comments → Set up notifications → Start collaborating",
+        outcome: "Everyone can contribute while tracking all changes"
       }
     ],
     faq: [
       {
-        question: "How long are versions kept?",
-        answer: "Documents retain 30 days of version history"
+        question: "Can I see who's viewing my document?",
+        answer: "Yes, active viewers appear as avatars in the top right corner"
       },
       {
-        question: "Can I compare specific versions?",
-        answer: "Yes, use the 'Compare' tool to see differences between any two versions"
+        question: "How do I resolve conflicting edits?",
+        answer: "The version history shows all changes, letting you choose which to keep"
       }
     ]
   },
-  "Document Sharing": {
-    overview: "Share and collaborate on documents with team members.",
-    benefit: "Streamline team collaboration and feedback.",
-    example: "Getting team input on a proposal",
+  "Document Organization": {
+    overview: "Keep your documents organized in folders and workspaces.",
+    benefit: "Find what you need instantly with smart organization tools.",
+    example: "Managing project documentation across teams",
     steps: [
-      "Open document settings",
-      "Click 'Share'",
-      "Set permissions for team members",
-      "Send invite links"
+      "Click 'New Folder' in the sidebar",
+      "Name your folder",
+      "Drag documents into the folder",
+      "Use tags to categorize content",
+      "Set up quick access favorites"
     ],
     scenarios: [
       {
-        scenario: "When sharing with external clients",
-        steps: "Create view-only link → Set expiration → Send to client",
-        outcome: "Secure, time-limited document access"
+        scenario: "When setting up a new project workspace",
+        steps: "Create project folder → Add subfolders → Set permissions → Invite team",
+        outcome: "An organized project space where everyone knows where things are"
       },
       {
-        scenario: "When collaborating with the team",
-        steps: "Add team members → Set edit rights → Start collaboration",
-        outcome: "Real-time collaborative editing enabled"
+        scenario: "When archiving completed work",
+        steps: "Select documents → Move to archive → Add completion date → Update status",
+        outcome: "Clean workspace while keeping records accessible"
       }
     ],
     faq: [
       {
-        question: "How do I restrict access?",
-        answer: "Use permission settings to control view/edit access"
+        question: "How do I quickly find documents?",
+        answer: "Use the search bar or filter by tags, dates, and authors"
       },
       {
-        question: "Can I see who viewed my document?",
-        answer: "Check the 'Activity Log' for viewer history"
+        question: "Can I move documents between folders?",
+        answer: "Yes, simply drag and drop or use the 'Move to' option"
+      }
+    ]
+  },
+  "Document Export": {
+    overview: "Export your documents in multiple formats for any use case.",
+    benefit: "Share your work in the format that works best for your audience.",
+    example: "Converting a document to PDF for printing",
+    steps: [
+      "Open your document",
+      "Click 'Export' in the menu",
+      "Choose your format (PDF, Word, HTML)",
+      "Adjust export settings",
+      "Click 'Download'"
+    ],
+    scenarios: [
+      {
+        scenario: "When preparing a document for print",
+        steps: "Select PDF format → Adjust margins → Preview → Export high-quality version",
+        outcome: "Print-ready document with perfect formatting"
+      },
+      {
+        scenario: "When sharing with external tools",
+        steps: "Choose format → Set compatibility options → Export → Verify output",
+        outcome: "A properly formatted file ready to use in other applications"
+      }
+    ],
+    faq: [
+      {
+        question: "What formats can I export to?",
+        answer: "PDF, Word, HTML, Markdown, and Plain Text are supported"
+      },
+      {
+        question: "Will my formatting be preserved?",
+        answer: "Yes, we ensure formatting stays consistent across formats"
       }
     ]
   }
