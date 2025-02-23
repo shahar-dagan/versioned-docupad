@@ -11,11 +11,11 @@ import { Repository, Feature } from "@/types";
 import { AnalysisProgressDialog } from "./AnalysisProgressDialog";
 import { CreateFeatureDialog } from "./CreateFeatureDialog";
 import { Plus, RefreshCw, FileText, Book, Layout } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { FeatureMap } from './FeatureMap';
 
 interface FeaturesHeaderProps {
@@ -55,13 +55,6 @@ export function FeaturesHeader({
   const [hasDocumentation, setHasDocumentation] = useState(false);
   const navigate = useNavigate();
 
-  // Automatically show progress dialog when analysis starts
-  useEffect(() => {
-    if (isAnalyzing || processAnalysisMutation.isLoading) {
-      setShowProgress(true);
-    }
-  }, [isAnalyzing, processAnalysisMutation.isLoading]);
-
   // Check for documentation
   useEffect(() => {
     const checkDocumentation = async () => {
@@ -77,13 +70,20 @@ export function FeaturesHeader({
     checkDocumentation();
   }, [productId]);
 
-  const handleAnalyzeClick = () => {
+  // Automatically show progress dialog when analysis starts
+  useEffect(() => {
+    if (isAnalyzing || processAnalysisMutation.isLoading) {
+      setShowProgress(true);
+    }
+  }, [isAnalyzing, processAnalysisMutation.isLoading]);
+
+  const handleAnalyzeClick = useCallback(() => {
     toast.info("Starting repository analysis...");
     setShowProgress(true);
     onAnalyze();
-  };
+  }, [onAnalyze]);
 
-  const handleGenerateDocumentation = async () => {
+  const handleGenerateDocumentation = useCallback(async () => {
     setIsGenerating(true);
     setGenProgress(0);
     setCurrentStep("Starting documentation generation...");
@@ -96,15 +96,15 @@ export function FeaturesHeader({
       setGenProgress(25);
       setCurrentStep("Analyzing features...");
       
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate processing
+      await new Promise(resolve => setTimeout(resolve, 1000));
       setGenProgress(50);
       setCurrentStep("Generating documentation structure...");
       
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate processing
+      await new Promise(resolve => setTimeout(resolve, 1000));
       setGenProgress(75);
       setCurrentStep("Writing documentation content...");
       
-      // Call your documentation generation endpoint
+      // Call documentation generation endpoint
       const { error } = await supabase.functions.invoke('process-documentation', {
         body: { productId }
       });
@@ -125,7 +125,7 @@ export function FeaturesHeader({
       setCurrentStep('');
       setGenProgress(0);
     }
-  };
+  }, [productId]);
 
   return (
     <div className="flex flex-col gap-6 mb-8">
