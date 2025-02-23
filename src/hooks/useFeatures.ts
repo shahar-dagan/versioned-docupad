@@ -1,8 +1,14 @@
 
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/use-toast';
 import { Feature, Repository } from '@/types';
+
+interface AnalysisProgress {
+  progress: number;
+  status: string;
+  steps: { step: string; timestamp: string }[];
+}
 
 export function useFeatures(productId: string | undefined, enabled: boolean, repository?: Repository) {
   const { data: features, isLoading: isLoadingFeatures, error: featuresError, refetch } = useQuery({
@@ -29,6 +35,32 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
       return data as Feature[];
     },
     enabled,
+  });
+
+  const { data: analysisProgress, isLoading: isLoadingAnalysis } = useQuery({
+    queryKey: ['analysis-progress', productId],
+    queryFn: async () => {
+      console.log('Fetching analysis progress for product:', productId);
+      const { data, error } = await supabase
+        .from('codeql_analyses')
+        .select('*')
+        .eq('product_id', productId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error fetching analysis progress:', error);
+        throw error;
+      }
+      console.log('Analysis progress:', data);
+      return data as AnalysisProgress | null;
+    },
+    enabled: enabled && !!productId,
+    refetchInterval: (data) => {
+      // Actively poll while analysis is in progress
+      return data?.status === 'in_progress' ? 2000 : false;
+    },
   });
 
   const analyzeRepositoryMutation = useMutation({
@@ -62,10 +94,17 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
     },
     onError: (error: Error) => {
       console.error('Analysis mutation error:', error);
-      toast.error(`Analysis failed: ${error.message}`);
+      toast({
+        variant: "destructive",
+        title: "Analysis Failed",
+        description: error.message,
+      });
     },
     onSuccess: () => {
-      toast.success('Repository analysis complete');
+      toast({
+        title: "Analysis Started",
+        description: "The repository analysis has begun. You can monitor its progress here.",
+      });
       refetch();
     },
   });
@@ -76,5 +115,7 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
     featuresError,
     refetch,
     analyzeRepositoryMutation,
+    analysisProgress,
+    isLoadingAnalysis,
   };
 }

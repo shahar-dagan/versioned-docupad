@@ -18,6 +18,8 @@ export default function Features() {
     featuresError,
     refetch,
     analyzeRepositoryMutation,
+    analysisProgress,
+    isLoadingAnalysis,
   } = useFeatures(productId, !!authData && !!productId, repository);
 
   if (!authData) {
@@ -65,6 +67,7 @@ export default function Features() {
         onAnalyze={() => analyzeRepositoryMutation.mutate()}
         isAnalyzing={analyzeRepositoryMutation.isPending}
         onFeatureCreated={refetch}
+        analysisProgress={analysisProgress}
       />
       <FeaturesList
         features={features || []}
