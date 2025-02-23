@@ -1,5 +1,5 @@
 
-import { useQuery, useMutation, useQueryClient, Query } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/components/ui/use-toast';
 import { Feature, Repository } from '@/types';
@@ -94,7 +94,8 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         .maybeSingle();
 
       if (analysisError) throw analysisError;
-
+      
+      console.log('Analysis progress data:', analysisData);
       return analysisData;
     },
     enabled: enabled && !!productId,
@@ -128,6 +129,7 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         throw new Error('You must be logged in to analyze repositories');
       }
 
+      console.log('Creating new analysis record...');
       const { data: analysis, error: analysisError } = await supabase
         .from('codeql_analyses')
         .insert({
@@ -146,6 +148,7 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         throw analysisError;
       }
 
+      console.log('Created analysis record:', analysis);
       queryClient.invalidateQueries({ queryKey: ['analysis-progress', productId] });
 
       const response = await supabase.functions.invoke('analyze-repository', {
