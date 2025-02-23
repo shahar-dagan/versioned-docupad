@@ -11,6 +11,12 @@ export interface Feature {
     change_description: string;
     created_at: string;
   }[];
+  user_docs?: {
+    overview?: string;
+    steps?: string[];
+    use_cases?: string[];
+    faq?: Array<{ question: string; answer: string }>;
+  };
 }
 
 export interface Repository {
