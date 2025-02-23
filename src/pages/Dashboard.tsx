@@ -8,6 +8,7 @@ import { DashboardStats } from '@/components/dashboard/DashboardStats';
 import { ProfileMenu } from '@/components/dashboard/ProfileMenu';
 import { RecentProducts } from '@/components/dashboard/RecentProducts';
 import { useDashboardData } from '@/hooks/useDashboardData';
+import { PREDEFINED_FEATURES } from '@/pages/Whiteboard'; // Import the predefined features
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -42,6 +43,9 @@ export default function Dashboard() {
 
   const { products, stats, refetchProducts } = useDashboardData();
 
+  // Get the total number of features from PREDEFINED_FEATURES
+  const totalFeatures = PREDEFINED_FEATURES.length;
+
   return (
     <div ref={containerRef} className="container mx-auto py-10">
       <div className="flex justify-between items-center mb-8">
@@ -63,8 +67,8 @@ export default function Dashboard() {
       </div>
 
       <DashboardStats
-        productCount={stats?.totalProducts || 0}
-        featureCount={stats?.totalFeatures || 0}
+        productCount={products?.length || 0}
+        featureCount={totalFeatures}
         teamMemberCount={stats?.totalTeamMembers || 0}
       />
 
