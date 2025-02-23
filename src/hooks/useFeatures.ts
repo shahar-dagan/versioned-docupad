@@ -61,9 +61,10 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
       return data as AnalysisProgress | null;
     },
     enabled: enabled && !!productId,
-    refetchInterval: (currentData: AnalysisProgress | null) => {
-      if (!currentData) return false;
-      return currentData.status === 'in_progress' ? 2000 : false;
+    refetchInterval: (query) => {
+      const data = query.state.data as AnalysisProgress | null;
+      if (!data) return false;
+      return data.status === 'in_progress' ? 2000 : false;
     },
   });
 
