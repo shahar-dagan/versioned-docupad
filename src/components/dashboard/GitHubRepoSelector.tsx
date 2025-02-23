@@ -85,7 +85,9 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
         options: {
           redirectTo: `${window.location.origin}/dashboard`,
           scopes: 'repo',
-          refreshToken: true,
+          queryParams: {
+            access_type: 'offline'
+          },
         },
       });
 
