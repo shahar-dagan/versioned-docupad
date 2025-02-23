@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -18,7 +19,7 @@ export default function Auth() {
 
   if (user) {
     console.log('User is already logged in:', user);
-    return <Navigate to="/" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   const handleGitHubSignIn = async () => {
