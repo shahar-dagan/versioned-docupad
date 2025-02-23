@@ -1,4 +1,3 @@
-
 import {
   Dialog,
   DialogContent,
@@ -35,7 +34,6 @@ export function AnalysisProgressDialog({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Simplified progress check - use progress prop if no steps available
   const isAnalysisInProgress = progress < 100 || (steps && steps.length > 0 && 
     !steps[steps.length - 1].step.toLowerCase().includes('completed') &&
     !steps[steps.length - 1].step.toLowerCase().includes('finished') &&
@@ -66,7 +64,10 @@ export function AnalysisProgressDialog({
   };
 
   const getProgressPercentage = () => {
-    if (!steps || steps.length === 0) return progress || 0;
+    if (!steps || steps.length === 0) {
+      const smoothProgress = Math.min(progress || 0, 100);
+      return smoothProgress;
+    }
     
     if (!isAnalysisInProgress) return 100;
 
@@ -76,8 +77,13 @@ export function AnalysisProgressDialog({
       s.step.toLowerCase().includes('processing')
     );
 
-    if (currentStep === -1) return progress || 0;
-    return Math.min(Math.round((currentStep / totalSteps) * 100), 100);
+    if (currentStep === -1) {
+      return Math.min(progress || 0, 100);
+    }
+
+    const baseProgress = Math.floor((currentStep / totalSteps) * 100);
+    const stepProgress = progress ? Math.min(progress % (100 / totalSteps), 100 / totalSteps) : 0;
+    return Math.min(baseProgress + stepProgress, 100);
   };
 
   const getCurrentStatus = () => {
