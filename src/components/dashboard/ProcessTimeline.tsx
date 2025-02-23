@@ -13,7 +13,7 @@ interface Analysis {
   repository_name: string;
   created_at: string;
   steps: { step: string; timestamp: string }[];
-  products: { name: string };
+  products: { name: string } | null;
 }
 
 export function ProcessTimeline() {
@@ -31,7 +31,7 @@ export function ProcessTimeline() {
             repository_name,
             created_at,
             steps,
-            products (
+            products!inner (
               name
             )
           `)
@@ -43,7 +43,13 @@ export function ProcessTimeline() {
           throw error;
         }
 
-        return data as Analysis[];
+        // Transform the data to match our interface
+        const transformedData = data?.map(item => ({
+          ...item,
+          products: item.products ? Array.isArray(item.products) ? item.products[0] : item.products : null
+        }));
+
+        return transformedData as Analysis[];
       } catch (error) {
         console.error('Failed to fetch analyses:', error);
         return [];
