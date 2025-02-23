@@ -1,4 +1,3 @@
-
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/components/ui/use-toast';
@@ -55,7 +54,7 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
     enabled,
   });
 
-  const { data: analysisProgress, isLoading: isLoadingAnalysis } = useQuery({
+  const { data: analysisProgress, isLoading: isLoadingAnalysis, refetch: refetchAnalysis } = useQuery({
     queryKey: ['analysis-progress', productId],
     queryFn: async () => {
       console.log('Fetching analysis progress for product:', productId);
@@ -77,6 +76,12 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         const isCompleted = analysisData.status === 'completed' || 
                           analysisData.status === 'failed' ||
                           analysisData.status === 'error';
+
+        // If analysis is completed, trigger a features refetch
+        if (isCompleted && analysisData.status === 'completed') {
+          console.log('Analysis completed, triggering features refetch');
+          refetch();
+        }
 
         // If analysis is not completed, ensure we keep polling
         if (!isCompleted) {
@@ -109,7 +114,7 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
     },
     enabled: enabled && !!productId,
     refetchInterval: (query) => {
-      const data = query.state.data as AnalysisProgress | null;
+      const data = query.state.data as any;
       // If no data or status is missing, poll quickly to get initial state
       if (!data || !data.status) return 1000;
       
@@ -200,12 +205,18 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         throw new Error('You must be logged in to process analysis');
       }
 
-      return supabase.functions.invoke('process-analysis', {
+      const response = await supabase.functions.invoke('process-analysis', {
         body: { 
           productId,
           userId: user.id
         }
       });
+
+      // Trigger both refetches after successful processing
+      await refetchAnalysis();
+      await refetch();
+
+      return response;
     },
     onError: (error: Error) => {
       console.error('Process analysis error:', error);
@@ -220,7 +231,6 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         title: "Analysis Processing Complete",
         description: "Features have been generated from the analysis results.",
       });
-      refetch();
     },
   });
 
