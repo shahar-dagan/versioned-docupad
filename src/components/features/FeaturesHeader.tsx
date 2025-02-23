@@ -10,11 +10,12 @@ import {
 import { Repository } from "@/types";
 import { AnalysisProgressDialog } from "./AnalysisProgressDialog";
 import { CreateFeatureDialog } from "./CreateFeatureDialog";
-import { Plus, RefreshCw, FileText } from "lucide-react";
+import { Plus, RefreshCw, FileText, Book } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
+import { Link, useNavigate } from "react-router-dom";
 
 interface FeaturesHeaderProps {
   productName: string;
@@ -48,6 +49,23 @@ export function FeaturesHeader({
   const [isGenerating, setIsGenerating] = useState(false);
   const [genProgress, setGenProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState<string>('');
+  const [hasDocumentation, setHasDocumentation] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Check if any features have documentation
+    const checkDocumentation = async () => {
+      const { data: features } = await supabase
+        .from('features')
+        .select('user_docs')
+        .eq('product_id', productId)
+        .not('user_docs', 'is', null);
+      
+      setHasDocumentation(features && features.length > 0);
+    };
+
+    checkDocumentation();
+  }, [productId]);
 
   useEffect(() => {
     if (isAnalyzing || processAnalysisMutation.isLoading) {
@@ -94,6 +112,7 @@ export function FeaturesHeader({
 
       setGenProgress(100);
       setCurrentStep('Documentation generated successfully');
+      setHasDocumentation(true);
       toast.success('Documentation generated for all features');
     } catch (error) {
       console.error('Error generating documentation:', error);
@@ -121,14 +140,24 @@ export function FeaturesHeader({
         <div className="flex gap-2">
           {repository && (
             <>
-              <Button 
-                variant="outline"
-                onClick={handleGenerateDocumentation}
-                disabled={isGenerating}
-              >
-                <FileText className={`h-4 w-4 mr-2`} />
-                {isGenerating ? 'Generating...' : 'Generate Documentation'}
-              </Button>
+              {hasDocumentation ? (
+                <Button 
+                  variant="outline"
+                  onClick={() => navigate(`/products/${productId}/docs`)}
+                >
+                  <Book className="h-4 w-4 mr-2" />
+                  View Documentation
+                </Button>
+              ) : (
+                <Button 
+                  variant="outline"
+                  onClick={handleGenerateDocumentation}
+                  disabled={isGenerating}
+                >
+                  <FileText className={`h-4 w-4 mr-2`} />
+                  {isGenerating ? 'Generating...' : 'Generate Documentation'}
+                </Button>
+              )}
               <Button 
                 variant="outline"
                 onClick={() => processAnalysisMutation.mutate()}

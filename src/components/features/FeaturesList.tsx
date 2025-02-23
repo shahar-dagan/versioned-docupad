@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Book } from 'lucide-react';
 
 interface FeaturesListProps {
   features: Feature[];
@@ -60,11 +61,21 @@ export function FeaturesList({ features, productId }: FeaturesListProps) {
               <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-green-100 text-green-800">
                 {feature.status || 'Active'}
               </span>
-              <Button variant="outline" asChild>
-                <Link to={`/products/${productId}/features/${feature.id}/changes`}>
-                  View Changes
-                </Link>
-              </Button>
+              <div className="flex gap-2">
+                {feature.user_docs && (
+                  <Button variant="outline" asChild>
+                    <Link to={`/products/${productId}/docs`}>
+                      <Book className="h-4 w-4 mr-2" />
+                      View Docs
+                    </Link>
+                  </Button>
+                )}
+                <Button variant="outline" asChild>
+                  <Link to={`/products/${productId}/features/${feature.id}/changes`}>
+                    View Changes
+                  </Link>
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
