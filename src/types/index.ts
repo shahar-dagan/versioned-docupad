@@ -11,6 +11,17 @@ export interface Feature {
     change_description: string;
     created_at: string;
   }[];
+  technical_docs?: {
+    architecture?: string;
+    setup?: string;
+    api_details?: string;
+    code_snippets?: Array<{
+      language: string;
+      code: string;
+      description: string;
+    }>;
+    dependencies?: string[];
+  };
   user_docs?: {
     overview?: string;
     steps?: string[];

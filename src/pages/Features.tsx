@@ -1,3 +1,4 @@
+
 import { useParams } from 'react-router-dom';
 import { FeaturesList } from '@/components/features/FeaturesList';
 import { FeaturesHeader } from '@/components/features/FeaturesHeader';
@@ -8,7 +9,7 @@ import { useFeatures } from '@/hooks/useFeatures';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { FeatureMap } from '@/components/features/FeatureMap';
-import { ListBullet, Network } from 'lucide-react';
+import { List, Network } from 'lucide-react';
 
 export default function Features() {
   const { productId } = useParams<{ productId: string }>();
@@ -25,6 +26,13 @@ export default function Features() {
     analysisProgress,
     isLoadingAnalysis,
   } = useFeatures(productId, !!authData && !!productId, repository);
+
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
+
+  // Check if we're in the DocuPad admin environment
+  const isDocuPadAdmin = window.location.hostname === 'app.docupad.com' || 
+                        window.location.hostname === 'localhost' ||
+                        window.location.hostname === '127.0.0.1';
 
   console.log('Features component render:', { features, isLoadingFeatures, featuresError });
 
@@ -87,10 +95,40 @@ export default function Features() {
           isLoading: processAnalysisMutation.isPending
         }}
       />
-      <FeaturesList
-        features={features || []}
-        productId={productId || ''}
-      />
+
+      {isDocuPadAdmin && (
+        <div className="flex justify-end mb-6 gap-2">
+          <Button
+            variant={viewMode === 'list' ? 'default' : 'outline'}
+            onClick={() => setViewMode('list')}
+            className="gap-2"
+          >
+            <List className="h-4 w-4" />
+            List View
+          </Button>
+          <Button
+            variant={viewMode === 'map' ? 'default' : 'outline'}
+            onClick={() => setViewMode('map')}
+            className="gap-2"
+          >
+            <Network className="h-4 w-4" />
+            Relationship Map
+          </Button>
+        </div>
+      )}
+
+      {viewMode === 'map' && isDocuPadAdmin ? (
+        <div className="border rounded-lg shadow-lg bg-white">
+          <div className="h-[600px]">
+            <FeatureMap features={features || []} onUpdate={refetch} />
+          </div>
+        </div>
+      ) : (
+        <FeaturesList
+          features={features || []}
+          productId={productId || ''}
+        />
+      )}
     </div>
   );
 }
