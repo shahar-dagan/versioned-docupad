@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -54,11 +53,6 @@ export function FeaturesHeader({
   const [currentStep, setCurrentStep] = useState<string>('');
   const [hasDocumentation, setHasDocumentation] = useState(false);
   const navigate = useNavigate();
-
-  // Check if we're in the DocuPad admin environment
-  const isDocuPadAdmin = window.location.hostname === 'app.docupad.com' || 
-                        window.location.hostname === 'localhost' ||
-                        window.location.hostname === '127.0.0.1';
 
   useEffect(() => {
     const checkDocumentation = async () => {
@@ -220,15 +214,13 @@ export function FeaturesHeader({
         <div className="flex gap-2">
           {repository && (
             <>
-              {isDocuPadAdmin && (
-                <Button 
-                  variant="outline"
-                  onClick={openWhiteboard}
-                >
-                  <Layout className="h-4 w-4 mr-2" />
-                  Whiteboard
-                </Button>
-              )}
+              <Button 
+                variant="outline"
+                onClick={openWhiteboard}
+              >
+                <Layout className="h-4 w-4 mr-2" />
+                Whiteboard
+              </Button>
               {hasDocumentation ? (
                 <Button 
                   variant="outline"
