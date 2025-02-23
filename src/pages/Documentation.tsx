@@ -89,13 +89,62 @@ export default function Documentation() {
       if (error) throw error;
       return data as Feature[];
     },
+    onSuccess: (data) => {
+      if (!selectedFeature && data && data.length > 0) {
+        // Find priority features
+        const priorityFeatures = [
+          "Create New Products",
+          "Delete Products",
+          "View Products",
+          "Link GitHub"
+        ];
+        
+        const priorityFeature = data.find(feature => 
+          priorityFeatures.some(pf => 
+            feature.name.toLowerCase().includes(pf.toLowerCase())
+          )
+        );
+
+        if (priorityFeature) {
+          setSelectedFeature(priorityFeature.id);
+        } else {
+          setSelectedFeature(data[0].id);
+        }
+      }
+    },
     staleTime: 30000,
     gcTime: 5 * 60 * 1000,
   });
 
-  const filteredFeatures = features?.filter(feature =>
-    feature.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    feature.description.toLowerCase().includes(searchQuery.toLowerCase())
+  const prioritizeFeatures = (features: Feature[] | undefined) => {
+    if (!features) return [];
+    
+    const priorityFeatures = [
+      "Create New Products",
+      "Delete Products",
+      "View Products",
+      "Link GitHub"
+    ];
+    
+    return [...features].sort((a, b) => {
+      const aIsPriority = priorityFeatures.some(pf => 
+        a.name.toLowerCase().includes(pf.toLowerCase())
+      );
+      const bIsPriority = priorityFeatures.some(pf => 
+        b.name.toLowerCase().includes(pf.toLowerCase())
+      );
+      
+      if (aIsPriority && !bIsPriority) return -1;
+      if (!aIsPriority && bIsPriority) return 1;
+      return 0;
+    });
+  };
+
+  const filteredFeatures = prioritizeFeatures(
+    features?.filter(feature =>
+      feature.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      feature.description?.toLowerCase().includes(searchQuery.toLowerCase())
+    )
   );
 
   const selectedFeatureData = features?.find(f => f.id === selectedFeature) || features?.[0];
