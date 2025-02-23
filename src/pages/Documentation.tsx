@@ -61,7 +61,7 @@ export default function Documentation() {
   const [selectedFeature, setSelectedFeature] = useState<string | null>(null);
   const { authData } = useAuth();
 
-  const isAdmin = authData?.user?.email?.endsWith('@docupad.com') || false;
+  const isAdmin = !!authData?.user;
 
   const { data: product } = useQuery({
     queryKey: ['product', productId],
