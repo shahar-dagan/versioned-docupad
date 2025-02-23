@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -16,47 +15,91 @@ const corsHeaders = {
 
 async function analyzeFileContent(content: string, filePath: string) {
   console.log('Analyzing file:', filePath);
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openAIApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'gpt-4',
-      messages: [
-        {
-          role: 'system',
-          content: `You are an expert at analyzing React components and identifying UI features. Analyze the code and identify:
-          1. Main UI components and their hierarchy
-          2. User interactions and their effects
-          3. UI state management
-          4. Visual elements and their styling
-          5. Navigation features
-          Provide a structured analysis focusing on feature identification. Format your response as JSON with the following structure:
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
           {
-            "features": [
-              {
-                "name": "string",
-                "description": "string",
-                "confidence": number between 0 and 1,
-                "location": "string (file path)",
-                "type": "component|hook|utility|context|etc",
-                "dependencies": ["array of imports"]
-              }
-            ]
-          }`
-        },
-        {
-          role: 'user',
-          content: `File path: ${filePath}\n\nContent:\n${content}`
-        }
-      ],
-    }),
-  });
+            role: 'system',
+            content: `You are an expert at analyzing React components and identifying UI features. Analyze the code and identify:
+            1. Main UI components and their hierarchy
+            2. User interactions and their effects
+            3. UI state management
+            4. Visual elements and their styling
+            5. Navigation features
+            Provide a structured analysis focusing on feature identification. Format your response as JSON with the following structure:
+            {
+              "features": [
+                {
+                  "name": "string",
+                  "description": "string",
+                  "confidence": number between 0 and 1,
+                  "location": "string (file path)",
+                  "type": "component|hook|utility|context|etc",
+                  "dependencies": ["array of imports"]
+                }
+              ]
+            }`
+          },
+          {
+            role: 'user',
+            content: `File path: ${filePath}\n\nContent:\n${content}`
+          }
+        ],
+      }),
+    });
 
-  const data = await response.json();
-  return JSON.parse(data.choices[0].message.content);
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('OpenAI API error:', errorData);
+      throw new Error(`OpenAI API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    // Validate the response format
+    if (!data.choices?.[0]?.message?.content) {
+      console.error('Invalid OpenAI response format:', data);
+      throw new Error('Invalid response format from OpenAI');
+    }
+
+    const parsedContent = JSON.parse(data.choices[0].message.content);
+    
+    // Validate the parsed content structure
+    if (!parsedContent.features || !Array.isArray(parsedContent.features)) {
+      console.error('Invalid features format:', parsedContent);
+      return {
+        features: [{
+          name: "Error analyzing file",
+          description: "Failed to parse file features",
+          confidence: 0,
+          location: filePath,
+          type: "error",
+          dependencies: []
+        }]
+      };
+    }
+
+    return parsedContent;
+  } catch (error) {
+    console.error('Error analyzing file content:', error);
+    return {
+      features: [{
+        name: "Error analyzing file",
+        description: error.message || "Unknown error occurred",
+        confidence: 0,
+        location: filePath,
+        type: "error",
+        dependencies: []
+      }]
+    };
+  }
 }
 
 async function updateAnalysisProgress(analysisId: string, progress: number, step: { step: string; timestamp: string }) {
@@ -159,6 +202,10 @@ serve(async (req) => {
           headers: { 'Authorization': `Bearer ${Deno.env.get('GITHUB_ACCESS_TOKEN')}` }
         });
         
+        if (!response.ok) {
+          throw new Error(`GitHub API error: ${response.status}`);
+        }
+
         const data = await response.json();
         const files = data.tree.filter((file: any) => 
           file.type === 'blob' && 
@@ -171,10 +218,15 @@ serve(async (req) => {
 
         for (const file of files) {
           try {
-            const fileContent = await fetch(file.url, {
+            const fileResponse = await fetch(file.url, {
               headers: { 'Authorization': `Bearer ${Deno.env.get('GITHUB_ACCESS_TOKEN')}` }
-            }).then(res => res.text());
+            });
+            
+            if (!fileResponse.ok) {
+              throw new Error(`Failed to fetch file content: ${fileResponse.status}`);
+            }
 
+            const fileContent = await fileResponse.text();
             const analysis = await analyzeFileContent(fileContent, file.path);
             const hierarchyLevel = file.path.split('/').length - 1;
             const parentDirectory = file.path.split('/').slice(0, -1).join('/');
@@ -204,6 +256,10 @@ serve(async (req) => {
 
           } catch (error) {
             console.error(`Error analyzing file ${file.path}:`, error);
+            await updateAnalysisProgress(analysisId, null, {
+              step: `Error analyzing ${file.path}: ${error.message}`,
+              timestamp: new Date().toISOString()
+            });
           }
         }
 
@@ -225,7 +281,8 @@ serve(async (req) => {
           .from('codeql_analyses')
           .update({
             status: 'failed',
-            progress: 0
+            progress: 0,
+            error_message: error.message
           })
           .eq('id', analysisId);
       }
