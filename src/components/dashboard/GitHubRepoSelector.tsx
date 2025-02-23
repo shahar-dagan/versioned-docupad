@@ -9,16 +9,16 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
 
 interface Repository {
-  id: number;
+  id: string;
   name: string;
   full_name: string;
+  url: string;
 }
 
 interface GitHubRepoSelectorProps {
-  onSelect: (repo: string) => void;
+  onSelect: (repo: Repository) => void;
   isLoading?: boolean;
 }
 
@@ -36,15 +36,23 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
       if (!response.ok) {
         throw new Error('Failed to fetch repositories');
       }
-      const data: Repository[] = await response.json();
-      return data;
+      const data = await response.json();
+      return data.map((repo: any) => ({
+        id: repo.id.toString(),
+        name: repo.name,
+        full_name: repo.full_name,
+        url: repo.html_url,
+      }));
     },
     enabled: false,
   });
 
   const handleRepoSelect = (value: string) => {
     setSelectedRepo(value);
-    onSelect(value);
+    const selectedRepository = repos?.find(repo => repo.full_name === value);
+    if (selectedRepository) {
+      onSelect(selectedRepository);
+    }
   };
 
   return (
