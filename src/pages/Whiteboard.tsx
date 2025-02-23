@@ -1,8 +1,17 @@
 
+import { useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { useFeatures } from '@/hooks/useFeatures';
 import { useAuth } from '@/hooks/useAuth';
-import { FeatureMap } from '@/components/features/FeatureMap';
+import {
+  ReactFlow,
+  MiniMap,
+  Controls,
+  Background,
+  useNodesState,
+  useEdgesState,
+  addEdge
+} from 'reactflow';
+import 'reactflow/dist/style.css';
 
 export const PREDEFINED_FEATURES = [
   // Product Management Group
@@ -243,9 +252,66 @@ export const PREDEFINED_FEATURES = [
   }
 ];
 
+const initialNodes = [
+  { id: '1', position: { x: 0, y: 0 }, data: { label: 'Product Management' } },
+  { id: '2', position: { x: -200, y: 100 }, data: { label: 'Create Products' } },
+  { id: '3', position: { x: -200, y: 200 }, data: { label: 'Delete Products' } },
+  { id: '4', position: { x: -200, y: 300 }, data: { label: 'View Product List' } },
+  { id: '5', position: { x: -200, y: 400 }, data: { label: 'Add Product Descriptions' } },
+  { id: '6', position: { x: 200, y: 0 }, data: { label: 'Feature Tracking' } },
+  { id: '7', position: { x: 200, y: 100 }, data: { label: 'Add Features' } },
+  { id: '8', position: { x: 200, y: 200 }, data: { label: 'View Features' } },
+  { id: '9', position: { x: 200, y: 300 }, data: { label: 'Track Feature Status' } },
+  { id: '10', position: { x: 200, y: 400 }, data: { label: 'Document Feature Changes' } },
+  { id: '11', position: { x: 450, y: 0 }, data: { label: 'Documentation' } },
+  { id: '12', position: { x: 450, y: 100 }, data: { label: 'View Documentation' } },
+  { id: '13', position: { x: 450, y: 200 }, data: { label: 'Navigate by Feature' } },
+  { id: '14', position: { x: 450, y: 300 }, data: { label: 'Search Documentation' } },
+  { id: '15', position: { x: 0, y: -200 }, data: { label: 'Authentication & User Management' } },
+  { id: '16', position: { x: -200, y: -300 }, data: { label: 'Sign Up' } },
+  { id: '17', position: { x: -200, y: -200 }, data: { label: 'Sign In' } },
+  { id: '18', position: { x: -200, y: -100 }, data: { label: 'Manage Profile' } },
+  { id: '19', position: { x: 0, y: 200 }, data: { label: 'Repository Integration' } },
+  { id: '20', position: { x: 0, y: 300 }, data: { label: 'Link GitHub Repositories' } },
+  { id: '21', position: { x: 0, y: 400 }, data: { label: 'Analyze Repository Code' } },
+  { id: '22', position: { x: 700, y: 0 }, data: { label: 'Team Collaboration' } },
+  { id: '23', position: { x: 700, y: 100 }, data: { label: 'View Team Members' } },
+  { id: '24', position: { x: 700, y: 200 }, data: { label: 'Project Statistics' } },
+  { id: '25', position: { x: 700, y: 300 }, data: { label: 'Track Team Activity' } },
+];
+
+const initialEdges = [
+  { id: 'e1-2', source: '1', target: '2' },
+  { id: 'e1-3', source: '1', target: '3' },
+  { id: 'e1-4', source: '1', target: '4' },
+  { id: 'e1-5', source: '1', target: '5' },
+  { id: 'e6-7', source: '6', target: '7' },
+  { id: 'e6-8', source: '6', target: '8' },
+  { id: 'e6-9', source: '6', target: '9' },
+  { id: 'e6-10', source: '6', target: '10' },
+  { id: 'e11-12', source: '11', target: '12' },
+  { id: 'e11-13', source: '11', target: '13' },
+  { id: 'e11-14', source: '11', target: '14' },
+  { id: 'e15-16', source: '15', target: '16' },
+  { id: 'e15-17', source: '15', target: '17' },
+  { id: 'e15-18', source: '15', target: '18' },
+  { id: 'e19-20', source: '19', target: '20' },
+  { id: 'e19-21', source: '19', target: '21' },
+  { id: 'e22-23', source: '22', target: '23' },
+  { id: 'e22-24', source: '22', target: '24' },
+  { id: 'e22-25', source: '22', target: '25' },
+];
+
 export default function Whiteboard() {
   const { productId } = useParams<{ productId: string }>();
   const { authData } = useAuth();
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  const onConnect = useCallback(
+    (params) => setEdges((eds) => addEdge(params, eds)),
+    [setEdges]
+  );
 
   if (!authData) {
     return (
@@ -261,10 +327,18 @@ export default function Whiteboard() {
 
   return (
     <div className="h-screen w-screen">
-      <FeatureMap 
-        features={PREDEFINED_FEATURES} 
-        onUpdate={() => {}} // No updates needed for predefined features
-      />
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        fitView
+      >
+        <MiniMap />
+        <Controls />
+        <Background variant="dots" gap={12} size={1} />
+      </ReactFlow>
     </div>
   );
 }
