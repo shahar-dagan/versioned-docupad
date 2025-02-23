@@ -8,15 +8,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Repository, Feature } from "@/types";
-import { AnalysisProgressDialog } from "./AnalysisProgressDialog";
 import { CreateFeatureDialog } from "./CreateFeatureDialog";
 import { Plus, RefreshCw, FileText, Book, Layout } from "lucide-react";
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { useNavigate } from "react-router-dom";
-import { FeatureMap } from './FeatureMap';
 
 interface FeaturesHeaderProps {
   productName: string;
@@ -28,11 +26,6 @@ interface FeaturesHeaderProps {
   onAnalyze: () => void;
   isAnalyzing: boolean;
   onFeatureCreated: () => void;
-  analysisProgress: any;
-  processAnalysisMutation: {
-    mutate: () => void;
-    isLoading: boolean;
-  };
 }
 
 export function FeaturesHeader({
@@ -45,10 +38,7 @@ export function FeaturesHeader({
   onAnalyze,
   isAnalyzing,
   onFeatureCreated,
-  analysisProgress,
-  processAnalysisMutation,
 }: FeaturesHeaderProps) {
-  const [showProgress, setShowProgress] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [genProgress, setGenProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState<string>('');
@@ -56,7 +46,7 @@ export function FeaturesHeader({
   const navigate = useNavigate();
 
   // Check for documentation
-  useEffect(() => {
+  useState(() => {
     const checkDocumentation = async () => {
       const { data: features } = await supabase
         .from('features')
@@ -70,29 +60,14 @@ export function FeaturesHeader({
     checkDocumentation();
   }, [productId]);
 
-  // Automatically show progress dialog when analysis starts
-  useEffect(() => {
-    if (isAnalyzing || processAnalysisMutation.isLoading) {
-      setShowProgress(true);
-    }
-  }, [isAnalyzing, processAnalysisMutation.isLoading]);
-
-  const handleAnalyzeClick = useCallback(() => {
-    toast.info("Starting repository analysis...");
-    setShowProgress(true);
-    onAnalyze();
-  }, [onAnalyze]);
-
   const handleGenerateDocumentation = useCallback(async () => {
     setIsGenerating(true);
     setGenProgress(0);
     setCurrentStep("Starting documentation generation...");
     
     try {
-      // Start documentation generation
       toast.info("Starting documentation generation...");
       
-      // Update progress as documentation is being generated
       setGenProgress(25);
       setCurrentStep("Analyzing features...");
       
@@ -104,7 +79,6 @@ export function FeaturesHeader({
       setGenProgress(75);
       setCurrentStep("Writing documentation content...");
       
-      // Call documentation generation endpoint
       const { error } = await supabase.functions.invoke('process-documentation', {
         body: { productId }
       });
@@ -115,7 +89,6 @@ export function FeaturesHeader({
       setCurrentStep("Documentation generated successfully!");
       toast.success("Documentation generated successfully!");
       
-      // Refresh documentation status
       setHasDocumentation(true);
     } catch (error) {
       console.error('Documentation generation error:', error);
@@ -168,18 +141,7 @@ export function FeaturesHeader({
               )}
               <Button 
                 variant="outline"
-                onClick={() => {
-                  toast.info("Processing repository analysis...");
-                  processAnalysisMutation.mutate();
-                }}
-                disabled={processAnalysisMutation.isLoading}
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${processAnalysisMutation.isLoading ? 'animate-spin' : ''}`} />
-                List Features
-              </Button>
-              <Button 
-                variant="outline"
-                onClick={handleAnalyzeClick}
+                onClick={onAnalyze}
                 disabled={isAnalyzing}
               >
                 {isAnalyzing ? (
@@ -226,13 +188,6 @@ export function FeaturesHeader({
           <Progress value={genProgress} className="h-2" />
         </div>
       )}
-
-      <AnalysisProgressDialog
-        open={showProgress}
-        onOpenChange={setShowProgress}
-        progress={processAnalysisMutation.isLoading ? (analysisProgress?.progress || 0) : 0}
-        steps={analysisProgress?.steps || []}
-      />
     </div>
   );
 }
