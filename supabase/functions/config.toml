@@ -1,11 +1,5 @@
 
 project_id = "zdyzxhngkvlbmfhaljel"
-[[functions]]
-name = "analyze-repository"
-verify_jwt = true
-[[functions]]
-name = "github"
-verify_jwt = true
-[[functions]]
-name = "github-test"
+
+[voice-to-text]
 verify_jwt = true
