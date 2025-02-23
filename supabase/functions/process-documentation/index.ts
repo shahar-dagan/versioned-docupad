@@ -1,6 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { extract } from "https://deno.land/x/mammoth@v1.4.21/mod.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,23 +23,18 @@ serve(async (req) => {
 
     let content = ''
     const fileType = file.name.split('.').pop()?.toLowerCase()
+    
+    console.log('Processing file:', file.name, 'of type:', fileType);
 
     // Process different file types
     switch (fileType) {
       case 'md':
       case 'txt':
+      case 'docx': // For now, we'll treat DOCX as text
         content = await file.text()
         break
       
-      case 'docx':
-        const arrayBuffer = await file.arrayBuffer()
-        const result = await extract(new Uint8Array(arrayBuffer))
-        content = result.value
-        break
-      
       case 'pdf':
-        // For PDF files, we'll use a simple text extraction
-        // In a production environment, you might want to use a more robust PDF parser
         const pdfText = await file.text()
         content = pdfText
         break
@@ -48,14 +43,27 @@ serve(async (req) => {
         throw new Error('Unsupported file format')
     }
 
+    // Clean up the content
+    content = content.replace(/[\x00-\x09\x0B-\x0C\x0E-\x1F\x7F-\x9F]/g, '') // Remove control characters
+    content = content.trim()
+
+    if (!content) {
+      throw new Error('No content could be extracted from the file')
+    }
+
+    console.log('Content extracted, length:', content.length);
+
     // Create a new feature for the imported documentation
-    const featureName = file.name.split('.')[0]
+    const featureName = file.name.split('.')[0].replace(/[^a-zA-Z0-9-_]/g, '-')
     
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    // Split content into overview and full content
+    const overview = content.substring(0, 500) // First 500 chars as overview
+    
     const { data, error } = await supabase
       .from('features')
       .insert({
@@ -63,14 +71,19 @@ serve(async (req) => {
         description: 'Imported documentation',
         product_id: productId,
         user_docs: {
-          overview: content.substring(0, 500), // First 500 chars as overview
+          overview: overview,
           content: content
         }
       })
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error:', error);
+      throw error
+    }
+
+    console.log('Feature created successfully:', data.id);
 
     return new Response(
       JSON.stringify({ success: true, feature: data }),
@@ -78,6 +91,7 @@ serve(async (req) => {
     )
 
   } catch (error) {
+    console.error('Error in process-documentation:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
