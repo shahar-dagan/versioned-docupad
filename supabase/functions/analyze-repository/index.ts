@@ -148,12 +148,29 @@ async function updateAnalysisProgress(
   console.log('Updating analysis progress:', { analysisId, progress, step, lastProcessedFile });
   
   try {
+    // First, get the current steps
+    const { data: currentAnalysis, error: fetchError } = await supabase
+      .from('codeql_analyses')
+      .select('steps')
+      .eq('id', analysisId)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching current analysis:', fetchError);
+      return;
+    }
+
+    // Prepare the new steps array
+    const currentSteps = currentAnalysis?.steps || [];
+    const newSteps = [...currentSteps, step];
+
+    // Update with the new steps array
     const { error: updateError } = await supabase
       .from('codeql_analyses')
       .update({
         progress,
         status: progress === 100 ? 'completed' : 'in_progress',
-        steps: step ? [step] : [], // Initialize with single step instead of appending
+        steps: newSteps,
         analysis_results: {
           last_processed_file: lastProcessedFile,
           current_step: step
