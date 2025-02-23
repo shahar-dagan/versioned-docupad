@@ -59,6 +59,11 @@ export function DocumentationContent({ feature }: DocumentationContentProps) {
   const [actionableFeatures, setActionableFeatures] = useState<any[]>([]);
   const { authData } = useAuth();
 
+  // Check if we're in the DocuPad admin environment
+  const isDocuPadAdmin = window.location.hostname === 'app.docupad.com' || 
+                        window.location.hostname === 'localhost' ||
+                        window.location.hostname === '127.0.0.1';
+
   useEffect(() => {
     if (feature) {
       analyzeUserActions(feature as any).then(features => {
@@ -150,51 +155,53 @@ export function DocumentationContent({ feature }: DocumentationContentProps) {
           <VoiceInterface text={getDocumentationText()} />
         </div>
         <div className="flex items-center gap-2">
-          {isEditing ? (
+          {isDocuPadAdmin && (
             <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsEditing(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleSave}
-              >
-                Save Changes
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsEditing(true)}
-              >
-                Edit Docs
-              </Button>
-              <Button
-                variant={viewMode === 'user' ? 'default' : 'outline'}
-                size="sm"
-                className="gap-2"
-                onClick={() => setViewMode('user')}
-              >
-                <User className="h-4 w-4" />
-                How to Use
-              </Button>
-              <Button
-                variant={viewMode === 'technical' ? 'default' : 'outline'}
-                size="sm"
-                className="gap-2"
-                onClick={() => setViewMode('technical')}
-              >
-                <Code className="h-4 w-4" />
-                Technical Details
-              </Button>
+              {isEditing ? (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsEditing(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleSave}
+                  >
+                    Save Changes
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditing(true)}
+                >
+                  Edit Docs
+                </Button>
+              )}
             </>
           )}
+          <Button
+            variant={viewMode === 'user' ? 'default' : 'outline'}
+            size="sm"
+            className="gap-2"
+            onClick={() => setViewMode('user')}
+          >
+            <User className="h-4 w-4" />
+            How to Use
+          </Button>
+          <Button
+            variant={viewMode === 'technical' ? 'default' : 'outline'}
+            size="sm"
+            className="gap-2"
+            onClick={() => setViewMode('technical')}
+          >
+            <Code className="h-4 w-4" />
+            Technical Details
+          </Button>
         </div>
       </div>
 
