@@ -34,10 +34,10 @@ export default function Products() {
   const linkRepoMutation = useRepositoryLink();
   const { user } = useAuth();
 
-  const { data: products, refetch, isLoading, isError } = useQuery({
+  const { data: products, refetch, isLoading, isError, error } = useQuery({
     queryKey: ['products'],
     queryFn: async () => {
-      console.log('Fetching products...');
+      console.log('Fetching products for user:', user?.id);
       const { data, error } = await supabase
         .from('products')
         .select(`
@@ -50,15 +50,14 @@ export default function Products() {
 
       if (error) {
         console.error('Error fetching products:', error);
-        toast.error('Failed to fetch products');
         throw error;
       }
       
-      console.log('Products fetched:', data);
+      console.log('Products fetched successfully:', data);
       return data as (Product & { github_repositories: { repository_name: string } | null })[];
     },
     enabled: !!user, // Only fetch if user is logged in
-    retry: false // Don't retry on error since we'll show an error message
+    retry: 1, // Only retry once
   });
 
   const handleCreateProduct = async (e: React.FormEvent) => {
@@ -70,6 +69,7 @@ export default function Products() {
     }
 
     try {
+      console.log('Creating product:', { name, description, author_id: user.id });
       const { error } = await supabase.from('products').insert([
         {
           name,
@@ -93,6 +93,7 @@ export default function Products() {
 
   const handleDeleteProduct = async (productId: string) => {
     try {
+      console.log('Deleting product:', productId);
       const { error } = await supabase
         .from('products')
         .delete()
@@ -179,7 +180,9 @@ export default function Products() {
         </div>
       ) : isError ? (
         <div className="text-center py-8">
-          <p className="text-red-500">Error loading products. Please try again later.</p>
+          <p className="text-red-500">
+            {error instanceof Error ? error.message : 'Error loading products. Please try again later.'}
+          </p>
         </div>
       ) : products && products.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
