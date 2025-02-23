@@ -41,13 +41,14 @@ serve(async (req) => {
     }
 
     const audioBuffer = await response.arrayBuffer()
+    const audioBase64 = btoa(String.fromCharCode(...new Uint8Array(audioBuffer)))
 
     return new Response(
-      audioBuffer,
+      JSON.stringify({ audio: audioBase64 }),
       {
         headers: {
           ...corsHeaders,
-          'Content-Type': 'audio/mpeg',
+          'Content-Type': 'application/json',
         },
       },
     )

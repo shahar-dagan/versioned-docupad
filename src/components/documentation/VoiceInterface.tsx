@@ -16,28 +16,17 @@ export function VoiceInterface({ text, voiceId = "EXAVITQu4vr4xnSDxMaL" }: Voice
 
   const handleTextToSpeech = async () => {
     try {
-      const response = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + voiceId, {
-        method: 'POST',
-        headers: {
-          'Accept': 'audio/mpeg',
-          'Content-Type': 'application/json',
-          'xi-api-key': process.env.ELEVEN_LABS_API_KEY!,
-        },
-        body: JSON.stringify({
-          text,
-          model_id: "eleven_monolingual_v1",
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75
-          }
-        })
+      const { data, error } = await supabase.functions.invoke('text-to-speech', {
+        body: { text, voiceId }
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to convert text to speech');
+      if (error) {
+        throw error;
       }
 
-      const audioBlob = await response.blob();
+      // Convert the base64 audio data to a Blob
+      const audioData = Uint8Array.from(atob(data.audio), c => c.charCodeAt(0));
+      const audioBlob = new Blob([audioData], { type: 'audio/mpeg' });
       const audioUrl = URL.createObjectURL(audioBlob);
       const newAudio = new Audio(audioUrl);
       
