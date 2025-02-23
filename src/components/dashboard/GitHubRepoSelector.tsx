@@ -80,11 +80,11 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
 
   const handleConnectGitHub = async () => {
     try {
-      // Get the current URL but ensure we're using the correct preview URL format
-      const currentUrl = window.location.href;
-      const redirectUrl = currentUrl.includes('lovable.app') 
-        ? currentUrl.replace('id-preview--', '')
-        : currentUrl;
+      // Always use the main domain for redirects in production
+      const isDevelopment = window.location.hostname === 'localhost';
+      const redirectUrl = isDevelopment 
+        ? `${window.location.origin}/dashboard`
+        : 'https://versioned-docupad.lovable.app/dashboard';
 
       console.log('Starting GitHub OAuth with redirect to:', redirectUrl);
 
@@ -116,7 +116,6 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
     }
   };
 
-  // Show error toast when query fails
   if (error) {
     console.error('Error in repo query:', error);
     return (
