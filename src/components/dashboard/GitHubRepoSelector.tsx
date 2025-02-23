@@ -23,7 +23,7 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
   const [selectedRepo, setSelectedRepo] = useState<string>('');
   const { user } = useAuth();
 
-  const { data: repos, isLoading: isLoadingRepos, error } = useQuery({
+  const { data: repos, isLoading: isLoadingRepos, error, refetch } = useQuery({
     queryKey: ['github-repos', user?.id],
     queryFn: async () => {
       console.log('Fetching GitHub repos...');
@@ -80,22 +80,12 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
 
   const handleConnectGitHub = async () => {
     try {
-      // Always use the main domain for redirects in production
-      const isDevelopment = window.location.hostname === 'localhost';
-      const redirectUrl = isDevelopment 
-        ? `${window.location.origin}/dashboard`
-        : 'https://versioned-docupad.lovable.app/dashboard';
-
-      console.log('Starting GitHub OAuth with redirect to:', redirectUrl);
-
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: {
-          redirectTo: redirectUrl,
+          redirectTo: `${window.location.origin}/dashboard`,
           scopes: 'repo',
-          queryParams: {
-            access_type: 'offline',
-          },
+          refreshToken: true,
         },
       });
 
@@ -117,11 +107,13 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
   };
 
   if (error) {
-    console.error('Error in repo query:', error);
     return (
       <div className="flex items-center gap-4">
         <Button onClick={handleConnectGitHub} variant="default">
           Connect GitHub Account
+        </Button>
+        <Button onClick={() => refetch()} variant="outline" className="ml-2">
+          Retry
         </Button>
       </div>
     );
@@ -129,21 +121,20 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
 
   return (
     <div className="flex items-center gap-4">
-      <Select onValueChange={(value) => {
-        setSelectedRepo(value);
-        const selectedRepository = repos?.find(repo => repo.repository_name === value);
-        if (selectedRepository) {
-          onSelect(selectedRepository);
-        }
-      }} value={selectedRepo}>
+      <Select 
+        onValueChange={(value) => {
+          setSelectedRepo(value);
+          const selectedRepository = repos?.find(repo => repo.repository_name === value);
+          if (selectedRepository) {
+            onSelect(selectedRepository);
+          }
+        }} 
+        value={selectedRepo}
+      >
         <SelectTrigger className="w-[280px]">
           <SelectValue placeholder="Select a repository" />
         </SelectTrigger>
-        <SelectContent 
-          className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg z-50 min-w-[280px]"
-          position="popper"
-          sideOffset={4}
-        >
+        <SelectContent>
           {isLoadingRepos ? (
             <SelectItem value="loading" disabled>
               Loading repositories...
@@ -153,7 +144,6 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
               <SelectItem 
                 key={repo.id} 
                 value={repo.repository_name}
-                className="hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
               >
                 {repo.repository_name}
               </SelectItem>
