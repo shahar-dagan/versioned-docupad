@@ -100,14 +100,23 @@ async function analyzeFileContent(content: string, filePath: string) {
   }
 }
 
-async function updateAnalysisProgress(analysisId: string, progress: number, step: { step: string; timestamp: string }) {
+async function updateAnalysisProgress(analysisId: string, progress: number | null, step: { step: string; timestamp: string }) {
   console.log('Updating analysis progress:', { analysisId, progress, step });
+  
+  const { data: currentAnalysis } = await supabase
+    .from('codeql_analyses')
+    .select('steps')
+    .eq('id', analysisId)
+    .single();
+
+  const updatedSteps = [...(currentAnalysis?.steps || []), step];
+
   await supabase
     .from('codeql_analyses')
     .update({
       progress,
       status: progress < 100 ? 'in_progress' : 'completed',
-      steps: supabase.sql`array_append(steps, ${step}::jsonb)`,
+      steps: updatedSteps
     })
     .eq('id', analysisId);
 }
