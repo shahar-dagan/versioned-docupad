@@ -80,28 +80,14 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
 
   const handleConnectGitHub = async () => {
     try {
-      const redirectUrl = `${window.location.origin}/dashboard`;
-      console.log('Setting redirect URL to:', redirectUrl);
-      
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      // Force a full page redirect to GitHub OAuth
+      await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: {
-          redirectTo: redirectUrl,
+          redirectTo: window.location.origin + '/dashboard',
           scopes: 'repo',
-          skipBrowserRedirect: false, // Ensure we do a full page redirect
         },
       });
-
-      if (error) {
-        console.error('GitHub OAuth error:', error);
-        throw error;
-      }
-
-      // This part won't execute as we're doing a full page redirect
-      if (!data.url) {
-        throw new Error('No URL returned from OAuth provider');
-      }
-
     } catch (error) {
       console.error('Error connecting to GitHub:', error);
       toast.error('Failed to connect to GitHub. Please try again.');
