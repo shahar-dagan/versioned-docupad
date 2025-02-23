@@ -28,6 +28,7 @@ export function DocumentationGenerator({ featureId }: { featureId: string }) {
             change_description,
             file_path,
             change_type,
+            content,
             created_at
           )
         `)
