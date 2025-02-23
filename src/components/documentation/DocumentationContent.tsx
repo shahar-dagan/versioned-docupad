@@ -1,4 +1,3 @@
-
 import { Book, Code, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DocumentationSuggestions } from './DocumentationSuggestions';
@@ -6,6 +5,7 @@ import { TechnicalDocumentation } from './TechnicalDocumentation';
 import { UserDocumentation } from './UserDocumentation';
 import { useState, useEffect } from 'react';
 import { analyzeUserActions } from './utils/userActionAnalysis';
+import { VoiceInterface } from './VoiceInterface';
 
 interface Feature {
   id: string;
@@ -75,6 +75,20 @@ export function DocumentationContent({ feature }: DocumentationContentProps) {
     );
   }
 
+  const getDocumentationText = () => {
+    const sections = [];
+    if (viewMode === 'technical' && feature.technical_docs) {
+      if (feature.technical_docs.architecture) sections.push(feature.technical_docs.architecture);
+      if (feature.technical_docs.setup) sections.push(feature.technical_docs.setup);
+      if (feature.technical_docs.api_details) sections.push(feature.technical_docs.api_details);
+    } else if (viewMode === 'user' && feature.user_docs) {
+      if (feature.user_docs.overview) sections.push(feature.user_docs.overview);
+      if (feature.user_docs.steps) sections.push(feature.user_docs.steps.join('. '));
+      if (feature.user_docs.use_cases) sections.push(`Use cases: ${feature.user_docs.use_cases.join('. ')}`);
+    }
+    return sections.join('. ');
+  };
+
   return (
     <div className="prose prose-slate max-w-none">
       <div className="flex items-center justify-between mb-6">
@@ -83,6 +97,7 @@ export function DocumentationContent({ feature }: DocumentationContentProps) {
           <p className="text-lg text-muted-foreground mt-2 mb-0">
             {feature.description}
           </p>
+          <VoiceInterface text={getDocumentationText()} />
         </div>
         <div className="flex items-center gap-2">
           <Button
