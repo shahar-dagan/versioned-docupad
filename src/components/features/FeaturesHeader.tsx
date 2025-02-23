@@ -1,31 +1,30 @@
 
-import { Link } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { ArrowLeft, Book, ChevronRight, Wand2 } from 'lucide-react';
-import { Repository } from '@/types';
-import { CreateFeatureDialog } from './CreateFeatureDialog';
-import { AnalysisProgressDialog } from './AnalysisProgressDialog';
+import { Button } from "@/components/ui/button";
 import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
-import { useState } from 'react';
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Repository } from "@/types";
+import { AnalysisProgressDialog } from "./AnalysisProgressDialog";
+import { CreateFeatureDialog } from "./CreateFeatureDialog";
+import { Plus, RefreshCw } from "lucide-react";
+import { toast } from "../ui/use-toast";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 interface FeaturesHeaderProps {
   productName: string;
   productId: string;
   userId: string;
   featuresCount: number;
-  repository?: Repository;
+  repository: Repository | null;
   onAnalyze: () => void;
   isAnalyzing: boolean;
   onFeatureCreated: () => void;
-  analysisProgress?: {
-    progress: number | null;
-    status: string;
-    steps: { step: string; timestamp: string }[];
-  } | null;
+  analysisProgress: any;
 }
 
 export function FeaturesHeader({
@@ -40,82 +39,93 @@ export function FeaturesHeader({
   analysisProgress,
 }: FeaturesHeaderProps) {
   const [showProgress, setShowProgress] = useState(false);
-  const isInProgress = analysisProgress?.status === 'pending' || analysisProgress?.status === 'in_progress';
-  const progressValue = analysisProgress?.progress || 0;
 
-  const handleAnalyze = () => {
-    setShowProgress(true);
-    onAnalyze();
+  useEffect(() => {
+    if (isAnalyzing) {
+      setShowProgress(true);
+    }
+  }, [isAnalyzing]);
+
+  const handleProcessAnalysis = async () => {
+    try {
+      const { error } = await supabase.functions.invoke('process-analysis', {
+        body: { productId }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Analysis Processing Complete",
+        description: "Features have been generated from the analysis results.",
+      });
+
+      // Refresh the features list
+      onFeatureCreated();
+    } catch (error) {
+      console.error('Error processing analysis:', error);
+      toast({
+        variant: "destructive",
+        title: "Processing Failed",
+        description: "Failed to process analysis results. Please try again.",
+      });
+    }
   };
 
   return (
-    <div className="mb-8">
-      <div className="flex items-center gap-2 mb-8 text-sm text-muted-foreground">
-        <Link to="/products" className="hover:text-foreground transition-colors">
-          Products
-        </Link>
-        <ChevronRight className="h-4 w-4" />
-        <span className="font-medium text-foreground">{productName}</span>
-      </div>
-
-      <Button variant="ghost" asChild className="mb-4">
-        <Link to="/products">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Products
-        </Link>
-      </Button>
-      
-      <div className="flex justify-between items-start">
+    <div className="flex flex-col gap-6 mb-8">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-bold">{productName} Features</h1>
-          {featuresCount === 0 ? (
-            <p className="text-muted-foreground mt-2">
-              No features yet. Create your first feature using the "Add Feature" button.
-            </p>
-          ) : (
-            <p className="text-muted-foreground mt-2">
-              Showing {featuresCount} feature{featuresCount === 1 ? '' : 's'}
-            </p>
-          )}
+          <h1 className="text-3xl font-bold tracking-tight">
+            Features for {productName}
+          </h1>
+          <p className="text-muted-foreground mt-2">
+            {featuresCount} feature{featuresCount !== 1 ? "s" : ""} discovered
+          </p>
         </div>
         <div className="flex gap-2">
           {repository && (
-            <HoverCard>
-              <HoverCardTrigger asChild>
-                <Button onClick={handleAnalyze}>
-                  <Wand2 className="mr-2 h-4 w-4" />
-                  {isAnalyzing ? 'Analysis in Progress' : 'Analyze Repository'}
-                </Button>
-              </HoverCardTrigger>
-              <HoverCardContent className="w-80">
-                <div className="space-y-2">
-                  <h4 className="text-sm font-semibold">Repository Analysis</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Analyzes your codebase to detect features, patterns, and potential improvements.
-                  </p>
-                </div>
-              </HoverCardContent>
-            </HoverCard>
+            <>
+              <Button 
+                variant="outline"
+                onClick={handleProcessAnalysis}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Process Analysis
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={onAnalyze}
+                disabled={isAnalyzing}
+              >
+                Analyze Repository
+              </Button>
+            </>
           )}
-          <Link to={`/products/${productId}/docs`}>
-            <Button variant="outline">
-              <Book className="mr-2 h-4 w-4" />
-              View Documentation
-            </Button>
-          </Link>
-          <CreateFeatureDialog
-            productId={productId}
-            userId={userId}
-            onFeatureCreated={onFeatureCreated}
-          />
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Feature
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create a new feature</DialogTitle>
+              </DialogHeader>
+              <CreateFeatureDialog
+                productId={productId}
+                userId={userId}
+                onFeatureCreated={onFeatureCreated}
+              />
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
-
       <AnalysisProgressDialog
-        open={showProgress && (isInProgress || isAnalyzing)}
+        open={showProgress}
         onOpenChange={setShowProgress}
-        progress={progressValue}
-        steps={analysisProgress?.steps}
+        progress={analysisProgress?.progress || 0}
+        steps={analysisProgress?.steps || []}
       />
     </div>
   );
