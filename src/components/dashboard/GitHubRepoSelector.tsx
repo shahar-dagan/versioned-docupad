@@ -80,8 +80,8 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
 
   const handleConnectGitHub = async () => {
     try {
-      // Always redirect to /dashboard after auth
-      const redirectUrl = `${window.location.origin}/dashboard`;
+      // First redirect to /auth/callback, which will then redirect to /dashboard
+      const redirectUrl = `${window.location.origin}/auth/callback`;
       
       console.log('Starting GitHub OAuth with redirect URL:', redirectUrl);
 
@@ -90,6 +90,10 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
         options: {
           redirectTo: redirectUrl,
           scopes: 'repo',
+          queryParams: {
+            // Request refresh token for long-term access
+            access_type: 'offline'
+          }
         },
       });
 
