@@ -49,9 +49,10 @@ interface Feature {
 
 interface DocumentationContentProps {
   feature: Feature | undefined;
+  isAdmin: boolean;
 }
 
-export function DocumentationContent({ feature }: DocumentationContentProps) {
+export function DocumentationContent({ feature, isAdmin }: DocumentationContentProps) {
   const [viewMode, setViewMode] = useState<'technical' | 'user'>('user');
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState('');
@@ -144,8 +145,9 @@ export function DocumentationContent({ feature }: DocumentationContentProps) {
           <DocumentationExport 
             documentationText={getDocumentationText()}
             featureName={feature.name}
+            isAdmin={isAdmin}
           />
-          {isDocuPadAdmin && (
+          {isAdmin && (
             <>
               {isEditing ? (
                 <>

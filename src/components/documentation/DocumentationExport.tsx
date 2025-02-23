@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,9 +11,12 @@ import { toast } from "sonner";
 interface DocumentationExportProps {
   documentationText: string;
   featureName: string;
+  isAdmin: boolean;
 }
 
-export function DocumentationExport({ documentationText, featureName }: DocumentationExportProps) {
+export function DocumentationExport({ documentationText, featureName, isAdmin }: DocumentationExportProps) {
+  if (!isAdmin) return null;
+
   const exportAsTxt = () => {
     const blob = new Blob([documentationText], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -29,7 +31,6 @@ export function DocumentationExport({ documentationText, featureName }: Document
   };
 
   const exportAsMarkdown = () => {
-    // Convert the documentation to markdown format
     const markdownContent = `# ${featureName}\n\n${documentationText}`;
     const blob = new Blob([markdownContent], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);

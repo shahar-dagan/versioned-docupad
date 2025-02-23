@@ -10,6 +10,7 @@ import { MobileNav } from '@/components/documentation/MobileNav';
 import { DocumentationGenerator } from '@/components/documentation/DocumentationGenerator';
 import { DocsChat } from '@/components/documentation/DocsChat';
 import { VoiceAgent } from '@/components/documentation/VoiceAgent';
+import { useAuth } from '@/hooks/useAuth';
 
 interface DocumentationSuggestion {
   type: 'technical' | 'user';
@@ -58,6 +59,9 @@ export default function Documentation() {
   const { productId } = useParams<{ productId: string }>();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFeature, setSelectedFeature] = useState<string | null>(null);
+  const { authData } = useAuth();
+
+  const isAdmin = authData?.user?.email?.endsWith('@docupad.com') || false;
 
   const { data: product } = useQuery({
     queryKey: ['product', productId],
@@ -149,12 +153,15 @@ export default function Documentation() {
               <VoiceAgent />
               <DocsChat documentationText={getDocumentationText()} />
             </div>
-            {selectedFeature && (
+            {selectedFeature && isAdmin && (
               <div className="mb-8">
                 <DocumentationGenerator featureId={selectedFeature} />
               </div>
             )}
-            <DocumentationContent feature={selectedFeatureData} />
+            <DocumentationContent 
+              feature={selectedFeatureData}
+              isAdmin={isAdmin}
+            />
           </div>
         </main>
       </div>
