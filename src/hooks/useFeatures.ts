@@ -1,5 +1,4 @@
-
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/components/ui/use-toast';
 import { Feature, Repository } from '@/types';
@@ -29,6 +28,8 @@ interface FileAnalysis {
 }
 
 export function useFeatures(productId: string | undefined, enabled: boolean, repository?: Repository) {
+  const queryClient = useQueryClient();
+  
   const { data: features, isLoading: isLoadingFeatures, error: featuresError, refetch } = useQuery({
     queryKey: ['features', productId],
     queryFn: async () => {
@@ -245,11 +246,7 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         throw new Error('You must be logged in to process analysis');
       }
 
-      // If we have a last analysis and no changes, return it
-      if (lastAnalysis && !analysisProgress?.analysis_results) {
-        console.log('Using last analysis results:', lastAnalysis);
-        return lastAnalysis;
-      }
+      console.log('Starting analysis processing...');
 
       const response = await supabase.functions.invoke('process-analysis', {
         body: { 
@@ -262,15 +259,10 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         throw new Error(response.error.message || 'Failed to process analysis');
       }
 
-      console.log('Processing completed, refetching data...');
-      
-      // Invalidate and refetch all related queries
-      await Promise.all([
-        refetchAnalysis(),
-        refetch()
-      ]);
-
       return response.data;
+    },
+    onMutate: () => {
+      console.log('Analysis processing started...');
     },
     onError: (error: Error) => {
       console.error('Process analysis error:', error);
@@ -283,7 +275,11 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
     onSuccess: async (data) => {
       console.log('Processing succeeded:', data);
       
-      // Force an immediate refetch of the features
+      // Invalidate all relevant queries
+      await queryClient.invalidateQueries({ queryKey: ['features', productId] });
+      await queryClient.invalidateQueries({ queryKey: ['analysis-progress', productId] });
+      
+      // Force immediate refetch
       await refetch();
       
       toast({
@@ -302,7 +298,5 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
     processAnalysisMutation,
     analysisProgress,
     isLoadingAnalysis,
-    lastAnalysis,
-    lastAnalysisError,
   };
 }

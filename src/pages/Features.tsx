@@ -23,6 +23,8 @@ export default function Features() {
     isLoadingAnalysis,
   } = useFeatures(productId, !!authData && !!productId, repository);
 
+  console.log('Features component render:', { features, isLoadingFeatures, featuresError });
+
   if (!authData) {
     return (
       <div className="container mx-auto py-10">
@@ -70,7 +72,15 @@ export default function Features() {
         onFeatureCreated={refetch}
         analysisProgress={analysisProgress}
         processAnalysisMutation={{
-          mutate: () => processAnalysisMutation.mutate(),
+          mutate: () => {
+            console.log('Processing analysis...');
+            processAnalysisMutation.mutate(undefined, {
+              onSuccess: () => {
+                console.log('Processing succeeded, refetching...');
+                refetch();
+              }
+            });
+          },
           isLoading: processAnalysisMutation.isPending
         }}
       />
