@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button';
 import { useQuery } from '@tanstack/react-query';
 import { Repository } from '@/types';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { toast } from 'sonner';
 
 interface GitHubRepoSelectorProps {
   onSelect: (repo: Repository) => void;
@@ -19,25 +21,20 @@ interface GitHubRepoSelectorProps {
 
 export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorProps) {
   const [selectedRepo, setSelectedRepo] = useState<string>('');
+  const { user } = useAuth();
 
-  const { data: repos, isLoading: isLoadingRepos } = useQuery({
-    queryKey: ['github-repos'],
+  const { data: repos, isLoading: isLoadingRepos, error } = useQuery({
+    queryKey: ['github-repos', user?.id],
     queryFn: async () => {
       console.log('Fetching GitHub repos...');
       
-      // Get the GitHub token from Supabase using the correct column name
-      const { data: secretData, error: secretError } = await supabase
-        .from('secrets')
-        .select('value')
-        .eq('name', 'GITHUB_ACCESS_TOKEN')
-        .single();
+      const { data: session } = await supabase.auth.getSession();
+      const githubToken = session.session?.provider_token;
 
-      if (secretError || !secretData) {
-        console.error('Failed to get GitHub token:', secretError);
-        throw new Error('GitHub token not configured');
+      if (!githubToken) {
+        console.error('No GitHub token found');
+        throw new Error('GitHub not connected');
       }
-
-      const githubToken = secretData.value;
       
       const response = await fetch('https://api.github.com/user/repos', {
         headers: {
@@ -63,8 +60,38 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
         repository_id: repo.id.toString(),
       }));
     },
-    enabled: true,
+    enabled: !!user,
+    retry: false,
+    onError: (error) => {
+      console.error('Error fetching repos:', error);
+      toast.error('Failed to fetch GitHub repositories. Please make sure your GitHub account is connected.');
+    }
   });
+
+  const handleConnectGitHub = async () => {
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'github',
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`,
+          scopes: 'repo',
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data.url) {
+        throw new Error('No URL returned from OAuth provider');
+      }
+
+      window.location.href = data.url;
+    } catch (error) {
+      console.error('Error connecting to GitHub:', error);
+      toast.error('Failed to connect to GitHub');
+    }
+  };
 
   const handleRepoSelect = (value: string) => {
     setSelectedRepo(value);
@@ -73,6 +100,16 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
       onSelect(selectedRepository);
     }
   };
+
+  if (error) {
+    return (
+      <div className="flex items-center gap-4">
+        <Button onClick={handleConnectGitHub}>
+          Connect GitHub Account
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-4">
