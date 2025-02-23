@@ -79,41 +79,78 @@ export function FeaturesHeader({
     setCurrentStep('Initializing documentation generation...');
 
     try {
-      // Step 1: Get all features
+      // Step 1: Get all features that don't have documentation yet
       setGenProgress(20);
-      setCurrentStep('Fetching features...');
+      setCurrentStep('Fetching features without documentation...');
       const { data: features, error: fetchError } = await supabase
         .from('features')
         .select('*')
-        .eq('product_id', productId);
+        .eq('product_id', productId)
+        .is('user_docs', null);
 
       if (fetchError) throw fetchError;
+
+      if (!features || features.length === 0) {
+        setCurrentStep('All features already have documentation');
+        toast.success('All features already have documentation');
+        setHasDocumentation(true);
+        return;
+      }
+
+      const totalFeatures = features.length;
+      let processedCount = 0;
 
       // Step 2: Generate documentation for each feature
       setGenProgress(40);
       setCurrentStep('Generating documentation...');
       
-      for (const feature of features || []) {
+      for (const feature of features) {
         const { error: updateError } = await supabase
           .from('features')
           .update({
             user_docs: {
-              overview: `Generated overview for ${feature.name}`,
-              steps: [`Step 1 for ${feature.name}`, `Step 2 for ${feature.name}`],
-              use_cases: [`Use case 1 for ${feature.name}`],
-              faq: [{ question: `FAQ 1 for ${feature.name}?`, answer: 'Answer 1' }]
+              overview: `${feature.name} is a feature that ${feature.description || 'provides functionality for the application'}`,
+              steps: [
+                `Navigate to the ${feature.name} section`,
+                `Configure the necessary settings`,
+                `Use the feature according to your needs`
+              ],
+              use_cases: [
+                `When you need to utilize ${feature.name} functionality`,
+                `When integrating ${feature.name} with other features`,
+                `For enhancing user experience with ${feature.name}`
+              ],
+              faq: [
+                {
+                  question: `What is ${feature.name}?`,
+                  answer: feature.description || `${feature.name} is a feature of the application`
+                },
+                {
+                  question: `How do I use ${feature.name}?`,
+                  answer: `Follow the steps provided in the documentation to use ${feature.name} effectively`
+                }
+              ]
             },
             last_analyzed_at: new Date().toISOString(),
           })
           .eq('id', feature.id);
 
-        if (updateError) throw updateError;
+        if (updateError) {
+          console.error(`Error updating feature ${feature.name}:`, updateError);
+          toast.error(`Failed to generate documentation for ${feature.name}`);
+          continue; // Continue with next feature even if one fails
+        }
+
+        processedCount++;
+        const progress = Math.round((processedCount / totalFeatures) * 60) + 40; // 40-100% range
+        setGenProgress(progress);
+        setCurrentStep(`Generated documentation for ${feature.name} (${processedCount}/${totalFeatures})`);
       }
 
       setGenProgress(100);
       setCurrentStep('Documentation generated successfully');
       setHasDocumentation(true);
-      toast.success('Documentation generated for all features');
+      toast.success('Documentation generated for all remaining features');
     } catch (error) {
       console.error('Error generating documentation:', error);
       toast.error('Failed to generate documentation');
