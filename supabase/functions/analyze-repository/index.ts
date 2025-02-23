@@ -309,13 +309,16 @@ serve(async (req) => {
           product_id: productId,
           author_id: userId,
           status: 'active',
-          suggestions: feature.suggestions,
-          technical_docs: feature.technical_details,
+          suggestions: feature.suggestions.map(s => 
+            typeof s === 'string' ? s : s.description
+          ),
+          technical_docs: feature.technical_details, // Changed from metadata to technical_docs
           last_analyzed_at: new Date().toISOString()
         }]);
 
       if (featureError) {
         console.error('Error creating feature:', featureError);
+        console.error('Feature data:', feature); // Added more detailed error logging
       } else {
         createdFeatures++;
       }
