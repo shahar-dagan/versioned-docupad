@@ -9,6 +9,7 @@ import { ProfileMenu } from '@/components/dashboard/ProfileMenu';
 import { RecentProducts } from '@/components/dashboard/RecentProducts';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { PREDEFINED_FEATURES } from '@/pages/Whiteboard';
+import { DashboardVoiceGuide } from '@/components/dashboard/DashboardVoiceGuide';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -21,7 +22,6 @@ export default function Dashboard() {
     }
   }, [user, navigate]);
 
-  // Add cleanup for resize observers
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -42,8 +42,6 @@ export default function Dashboard() {
   }, []);
 
   const { products, stats, refetchProducts } = useDashboardData();
-
-  // Get the total number of features from PREDEFINED_FEATURES
   const totalFeatures = PREDEFINED_FEATURES.length;
 
   return (
@@ -56,6 +54,7 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex items-center gap-4">
+          <DashboardVoiceGuide />
           <Button asChild>
             <Link to="/products">
               <Plus className="mr-2 h-4 w-4" />

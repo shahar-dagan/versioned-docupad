@@ -1,5 +1,6 @@
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import "https://deno.land/x/xhr@0.1.0/mod.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,65 +13,51 @@ serve(async (req) => {
   }
 
   try {
-    const { text, voiceId = "EXAVITQu4vr4xnSDxMaL" } = await req.json()
+    const { text, voice } = await req.json()
 
     if (!text) {
       throw new Error('Text is required')
     }
 
-    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+    const response = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + voice, {
       method: 'POST',
       headers: {
         'Accept': 'audio/mpeg',
+        'xi-api-key': Deno.env.get('ELEVENLABS_API_KEY') || '',
         'Content-Type': 'application/json',
-        'xi-api-key': Deno.env.get('ELEVEN_LABS_API_KEY')!,
       },
       body: JSON.stringify({
         text,
         model_id: "eleven_monolingual_v1",
         voice_settings: {
           stability: 0.5,
-          similarity_boost: 0.75
+          similarity_boost: 0.5
         }
       }),
     })
 
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to generate speech')
+      throw new Error('Failed to generate speech')
     }
 
-    // Get the audio data as an ArrayBuffer
-    const audioBuffer = await response.arrayBuffer()
-    
-    // Process the audio data in chunks to prevent stack overflow
-    const chunkSize = 32768 // 32KB chunks
-    const chunks = []
-    const view = new Uint8Array(audioBuffer)
-    
-    for (let i = 0; i < view.length; i += chunkSize) {
-      const chunk = view.slice(i, i + chunkSize)
-      const binary = String.fromCharCode(...chunk)
-      chunks.push(binary)
-    }
-    
-    // Join all chunks and convert to base64
-    const base64Audio = btoa(chunks.join(''))
+    const arrayBuffer = await response.arrayBuffer()
+    const base64Audio = btoa(
+      String.fromCharCode(...new Uint8Array(arrayBuffer))
+    )
 
     return new Response(
-      JSON.stringify({ audio: base64Audio }),
+      JSON.stringify({ audioContent: base64Audio }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      },
+      }
     )
   } catch (error) {
-    console.error('Text to speech error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      },
+      }
     )
   }
 })
