@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
@@ -49,12 +50,15 @@ export default function Products() {
 
       if (error) {
         console.error('Error fetching products:', error);
+        toast.error('Failed to fetch products');
         throw error;
       }
+      
       console.log('Products fetched:', data);
       return data as (Product & { github_repositories: { repository_name: string } | null })[];
     },
     enabled: !!user, // Only fetch if user is logged in
+    retry: false // Don't retry on error since we'll show an error message
   });
 
   const handleCreateProduct = async (e: React.FormEvent) => {
@@ -89,18 +93,13 @@ export default function Products() {
 
   const handleDeleteProduct = async (productId: string) => {
     try {
-      console.log('Deleting product:', productId);
       const { error } = await supabase
         .from('products')
         .delete()
         .eq('id', productId);
 
-      if (error) {
-        console.error('Error deleting product:', error);
-        throw error;
-      }
+      if (error) throw error;
 
-      console.log('Product deleted successfully');
       toast.success('Product deleted successfully');
       await refetch();
     } catch (error) {
