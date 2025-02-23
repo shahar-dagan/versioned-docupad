@@ -1,15 +1,16 @@
 
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
 import { ArrowLeft, Book, ChevronRight, Wand2 } from 'lucide-react';
 import { Repository } from '@/types';
 import { CreateFeatureDialog } from './CreateFeatureDialog';
+import { AnalysisProgressDialog } from './AnalysisProgressDialog';
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
+import { useState } from 'react';
 
 interface FeaturesHeaderProps {
   productName: string;
@@ -38,13 +39,14 @@ export function FeaturesHeader({
   onFeatureCreated,
   analysisProgress,
 }: FeaturesHeaderProps) {
-  const formatTimestamp = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString();
-  };
-
+  const [showProgress, setShowProgress] = useState(false);
   const isInProgress = analysisProgress?.status === 'pending' || analysisProgress?.status === 'in_progress';
-  const showProgress = isAnalyzing || isInProgress;
   const progressValue = analysisProgress?.progress || 0;
+
+  const handleAnalyze = () => {
+    setShowProgress(true);
+    onAnalyze();
+  };
 
   return (
     <div className="mb-8">
@@ -76,64 +78,45 @@ export function FeaturesHeader({
             </p>
           )}
         </div>
-        <div className="flex flex-col gap-4">
-          <div className="flex gap-2">
-            {repository && (
-              <HoverCard>
-                <HoverCardTrigger asChild>
-                  <Button onClick={onAnalyze} disabled={showProgress}>
-                    <Wand2 className="mr-2 h-4 w-4" />
-                    {showProgress ? 'Analysis in Progress' : 'Analyze Repository'}
-                  </Button>
-                </HoverCardTrigger>
-                <HoverCardContent className="w-80">
-                  <div className="space-y-2">
-                    <h4 className="text-sm font-semibold">Repository Analysis</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Analyzes your codebase to detect features, patterns, and potential improvements.
-                    </p>
-                  </div>
-                </HoverCardContent>
-              </HoverCard>
-            )}
-            <Link to={`/products/${productId}/docs`}>
-              <Button variant="outline">
-                <Book className="mr-2 h-4 w-4" />
-                View Documentation
-              </Button>
-            </Link>
-            <CreateFeatureDialog
-              productId={productId}
-              userId={userId}
-              onFeatureCreated={onFeatureCreated}
-            />
-          </div>
-          
-          {showProgress && (
-            <div className="w-full space-y-2 bg-secondary/50 p-4 rounded-lg">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium">
-                  Analysis Progress
-                </span>
-                <span className="text-sm text-muted-foreground">
-                  {progressValue}%
-                </span>
-              </div>
-              <Progress value={progressValue} className="w-full" />
-              {analysisProgress?.steps && analysisProgress.steps.length > 0 && (
-                <div className="mt-4 space-y-1 max-h-32 overflow-y-auto">
-                  {analysisProgress.steps.map((step, index) => (
-                    <div key={index} className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">{step.step}</span>
-                      <span className="text-muted-foreground">{formatTimestamp(step.timestamp)}</span>
-                    </div>
-                  ))}
+        <div className="flex gap-2">
+          {repository && (
+            <HoverCard>
+              <HoverCardTrigger asChild>
+                <Button onClick={handleAnalyze}>
+                  <Wand2 className="mr-2 h-4 w-4" />
+                  {isAnalyzing ? 'Analysis in Progress' : 'Analyze Repository'}
+                </Button>
+              </HoverCardTrigger>
+              <HoverCardContent className="w-80">
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold">Repository Analysis</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Analyzes your codebase to detect features, patterns, and potential improvements.
+                  </p>
                 </div>
-              )}
-            </div>
+              </HoverCardContent>
+            </HoverCard>
           )}
+          <Link to={`/products/${productId}/docs`}>
+            <Button variant="outline">
+              <Book className="mr-2 h-4 w-4" />
+              View Documentation
+            </Button>
+          </Link>
+          <CreateFeatureDialog
+            productId={productId}
+            userId={userId}
+            onFeatureCreated={onFeatureCreated}
+          />
         </div>
       </div>
+
+      <AnalysisProgressDialog
+        open={showProgress && (isInProgress || isAnalyzing)}
+        onOpenChange={setShowProgress}
+        progress={progressValue}
+        steps={analysisProgress?.steps}
+      />
     </div>
   );
 }
