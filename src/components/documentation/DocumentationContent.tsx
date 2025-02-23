@@ -1,3 +1,4 @@
+
 import { Book, Code, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DocumentationSuggestions } from './DocumentationSuggestions';
@@ -10,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
 
 interface Feature {
   id: string;
