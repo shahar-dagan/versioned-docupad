@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -18,6 +19,40 @@ export default function Auth() {
   const [searchParams] = useSearchParams();
 
   useEffect(() => {
+    // Handle OAuth redirect
+    const handleOAuthRedirect = async () => {
+      try {
+        // Get the hash fragment
+        const hash = window.location.hash;
+        if (hash) {
+          console.log('Found hash fragment:', hash);
+          const { data: { session }, error } = await supabase.auth.getSession();
+          
+          if (error) {
+            throw error;
+          }
+
+          if (session) {
+            console.log('Successfully retrieved session:', session);
+            navigate('/dashboard');
+            toast({
+              title: "Success",
+              description: "Successfully signed in with GitHub",
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error handling OAuth redirect:', error);
+        toast({
+          title: "Error",
+          description: "Failed to complete authentication. Please try again.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    handleOAuthRedirect();
+
     // Check for error in URL params
     const error = searchParams.get('error');
     const errorDescription = searchParams.get('error_description');
@@ -30,16 +65,7 @@ export default function Auth() {
         variant: "destructive",
       });
     }
-
-    // Check for successful OAuth redirects
-    const accessToken = searchParams.get('access_token');
-    const refreshToken = searchParams.get('refresh_token');
-    
-    if (accessToken || refreshToken) {
-      console.log('Received tokens from OAuth redirect');
-      navigate('/dashboard');
-    }
-  }, [searchParams, toast, navigate]);
+  }, [navigate, toast, searchParams]);
 
   // If user is already logged in, redirect to dashboard
   if (user) {
@@ -53,7 +79,7 @@ export default function Auth() {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: {
-          redirectTo: 'http://localhost:5173/auth', // Local development redirect URL
+          redirectTo: `${window.location.origin}/auth`,
           scopes: 'repo'
         }
       });
