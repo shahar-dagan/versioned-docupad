@@ -1,175 +1,177 @@
-
 import { ExtendedFeature, FeatureContext, DocumentationPatterns, UserDocs } from '../types';
 import { PROMPTS } from '@/lib/prompts';
 
 const DOCUPAD_PREDEFINED_DOCS = {
-  "Product Management": {
-    overview: "Create and manage your product documentation workspace.",
-    benefit: "Keep all your product information organized in one place.",
-    example: "Setting up documentation for a new software release",
+  "Create New Products": {
+    overview: "Add new products to your project to track various applications, tools, or features your team is working on.",
+    benefit: "Organize and manage different projects in one centralized location.",
+    example: "Starting documentation for a new software application",
     steps: [
-      "Click 'New Product' in the dashboard",
-      "Enter your product name and description",
-      "Choose a category for your product",
-      "Add any relevant tags",
-      "Click 'Create Product' to finish"
+      "Click 'Create Product' from the dashboard",
+      "Enter the product name in the provided field",
+      "Add a description to the product (optional)",
+      "Click 'Save'",
+      "Your new product will appear in the product list"
     ],
     scenarios: [
       {
-        scenario: "When you need to set up a new product",
-        steps: "Click 'New Product' → Fill details → Add description → Create",
-        outcome: "New product workspace ready for documentation"
+        scenario: "When launching a new mobile app",
+        steps: "Create product → Add app details → Set up initial documentation",
+        outcome: "New product workspace ready for development tracking"
       },
       {
-        scenario: "When linking a GitHub repository",
-        steps: "Open product settings → Click 'Link Repository' → Select repository → Confirm",
-        outcome: "Repository connected and ready for feature analysis"
+        scenario: "When expanding your product line",
+        steps: "Create product → Define scope → Invite team members",
+        outcome: "New product configured for team collaboration"
+      },
+      {
+        scenario: "When testing a feature prototype",
+        steps: "Create product → Add prototype details → Start feature tracking",
+        outcome: "Testing environment ready for documentation"
       }
     ],
     faq: [
       {
-        question: "How do I delete a product?",
-        answer: "Open product settings, scroll to bottom, click 'Delete Product'. This action cannot be undone"
+        question: "Can I edit the product name later?",
+        answer: "Yes, simply click on the product and select 'Edit' to update any details"
       },
       {
-        question: "Can I change the product description later?",
-        answer: "Yes, you can edit product details anytime from the product settings page"
+        question: "What if I enter the wrong information?",
+        answer: "You can update product details anytime from the product page"
       }
     ]
   },
-  "Feature Tracking": {
-    overview: "Track and document features across your product.",
-    benefit: "Keep your team aligned on feature development and documentation.",
-    example: "Documenting a new API integration",
+  "Delete Products": {
+    overview: "Remove products you no longer need to keep your workspace clean and focused.",
+    benefit: "Maintain a clutter-free workspace with only active products.",
+    example: "Removing a discontinued project",
     steps: [
-      "Navigate to your product's features page",
-      "Click 'Add Feature'",
-      "Enter feature name and details",
-      "Set feature status",
-      "Save and start tracking"
+      "Navigate to the product list",
+      "Locate the product you want to delete",
+      "Click the 'Delete' icon next to the product name",
+      "Confirm the deletion in the pop-up window",
+      "The product will be removed from your list"
     ],
     scenarios: [
       {
-        scenario: "When documenting a new feature",
-        steps: "Add feature → Write description → Set status → Add technical details",
-        outcome: "Complete feature documentation ready for team review"
+        scenario: "When a project gets canceled",
+        steps: "Find product → Click Delete → Confirm removal",
+        outcome: "Product and associated documentation removed"
       },
       {
-        scenario: "When updating feature status",
-        steps: "Select feature → Update status → Add progress notes → Save changes",
-        outcome: "Team stays informed of feature progress"
+        scenario: "When clearing test products",
+        steps: "Identify test products → Delete each → Confirm actions",
+        outcome: "Workspace cleaned of test data"
       }
     ],
     faq: [
       {
-        question: "How do I analyze features from code?",
-        answer: "Click 'Analyze Repository' to automatically detect and document features from your codebase"
+        question: "Can I recover a deleted product?",
+        answer: "No, deletion is permanent. Make sure you want to remove it"
       },
       {
-        question: "Can I track feature changes over time?",
-        answer: "Yes, each feature maintains a change history you can view in the feature details page"
+        question: "How can I prevent accidental deletions?",
+        answer: "A confirmation pop-up helps avoid mistakes, and only admin users can delete products"
       }
     ]
   },
-  "Documentation Tools": {
-    overview: "Create and manage comprehensive documentation for your features.",
-    benefit: "Help users and developers understand your product better.",
-    example: "Writing user guides for a new feature",
+  "View Products": {
+    overview: "Access and manage all your products from a centralized list view.",
+    benefit: "Quick access to all projects and their documentation.",
+    example: "Reviewing all active projects",
     steps: [
-      "Select a feature to document",
-      "Choose documentation type (user/technical)",
-      "Use the built-in editor to write content",
-      "Add code examples or screenshots",
-      "Publish your documentation"
+      "Go to the 'Products' section",
+      "Browse through the list of products",
+      "Use filters or search to find specific products",
+      "Click on any product to view details"
     ],
     scenarios: [
       {
-        scenario: "When creating user documentation",
-        steps: "Select feature → Choose 'User Docs' → Write guide → Add examples → Publish",
-        outcome: "Clear user documentation that helps people use your feature"
+        scenario: "When reviewing ongoing projects",
+        steps: "Open Products → Apply filters → Review status",
+        outcome: "Complete overview of all active products"
       },
       {
-        scenario: "When writing technical docs",
-        steps: "Open feature → Select 'Technical Docs' → Add implementation details → Include code samples",
-        outcome: "Detailed technical documentation for developers"
+        scenario: "When assigning team members",
+        steps: "Find product → Open settings → Add team members",
+        outcome: "Team successfully assigned to product"
       }
     ],
     faq: [
       {
-        question: "How do I find specific documentation?",
-        answer: "Use the search bar at the top of the documentation page or navigate by feature"
+        question: "Can I sort the product list?",
+        answer: "Yes, use the sort options at the top of the list to organize by name, date, or status"
       },
       {
-        question: "Can I export documentation?",
-        answer: "Yes, you can export docs in various formats including PDF and Markdown"
+        question: "How do I quickly find a product?",
+        answer: "Use the search bar at the top of the list to find products by name or description"
       }
     ]
   },
-  "Team Management": {
-    overview: "Collaborate with your team on documentation.",
-    benefit: "Keep everyone involved in the documentation process.",
-    example: "Onboarding new team members",
+  "Add Descriptions": {
+    overview: "Provide detailed information about your products for better documentation.",
+    benefit: "Clear product context for team members and stakeholders.",
+    example: "Adding technical specifications to a product",
     steps: [
-      "Go to team settings",
-      "Click 'Add Team Member'",
-      "Enter their email",
-      "Set their role",
-      "Send invitation"
+      "Select a product from the list",
+      "Click 'Edit Description'",
+      "Enter your description in the text box",
+      "Click 'Save' to update"
     ],
     scenarios: [
       {
-        scenario: "When adding new team members",
-        steps: "Open Team → Add member → Set permissions → Send invite",
-        outcome: "New team member can start contributing"
+        scenario: "When onboarding new team members",
+        steps: "Open product → Add context → Save details",
+        outcome: "Clear product documentation for new team members"
       },
       {
-        scenario: "When reviewing team activity",
-        steps: "View Dashboard → Check statistics → Review recent changes",
-        outcome: "Clear overview of team's documentation efforts"
+        scenario: "When updating project scope",
+        steps: "Edit description → Update goals → Save changes",
+        outcome: "Updated project information available to all"
       }
     ],
     faq: [
       {
-        question: "How do I track team contributions?",
-        answer: "Check the dashboard for team statistics and activity tracking"
+        question: "Is there a character limit?",
+        answer: "Yes, descriptions are limited to 500 characters for clarity"
       },
       {
-        question: "Can I set different permission levels?",
-        answer: "Yes, you can assign admin, editor, or viewer roles to team members"
+        question: "Can I use formatting in descriptions?",
+        answer: "Yes, markdown formatting is supported for better readability"
       }
     ]
   },
-  "Repository Integration": {
-    overview: "Connect and analyze your GitHub repositories.",
-    benefit: "Automatically generate documentation from your code.",
-    example: "Analyzing a new codebase",
+  "Link GitHub": {
+    overview: "Connect your product with its GitHub repository for seamless development tracking.",
+    benefit: "Automatic code analysis and documentation updates.",
+    example: "Connecting a new project's codebase",
     steps: [
-      "Go to repository settings",
-      "Click 'Connect Repository'",
-      "Select your GitHub repository",
-      "Authorize access",
-      "Start analysis"
+      "Select a product",
+      "Click 'Link Repository'",
+      "Choose your GitHub repository",
+      "Confirm the connection",
+      "Repository will be analyzed automatically"
     ],
     scenarios: [
       {
-        scenario: "When analyzing a new repository",
-        steps: "Link repository → Start analysis → Review results → Generate docs",
-        outcome: "Automated documentation based on your code"
+        scenario: "When starting a new project",
+        steps: "Create product → Link repo → Start tracking",
+        outcome: "Automated documentation pipeline set up"
       },
       {
-        scenario: "When tracking code changes",
-        steps: "View changes → Check impact → Update documentation",
-        outcome: "Documentation stays in sync with code"
+        scenario: "When adding code analysis",
+        steps: "Find product → Link GitHub → Configure analysis",
+        outcome: "Code changes automatically documented"
       }
     ],
     faq: [
       {
-        question: "How often is the analysis updated?",
-        answer: "Analysis runs automatically with each repository change, or you can trigger it manually"
+        question: "Can I link multiple repositories?",
+        answer: "Yes, you can link multiple repositories to a single product"
       },
       {
-        question: "What code changes are tracked?",
-        answer: "We track feature additions, modifications, and removals across your codebase"
+        question: "What if I need to change the repository?",
+        answer: "You can unlink the current repository and link a new one at any time"
       }
     ]
   }
@@ -185,11 +187,9 @@ const analyzeFeature = (feature: ExtendedFeature): string[] => {
   const functionalityPatterns = new Set<string>();
   const userInteractions = new Set<string>();
 
-  // Extract user interactions from code
   feature.code_changes?.forEach(change => {
     if (!change.content) return;
 
-    // Look for event handlers
     const eventMatches = change.content.match(/on[A-Z]\w+={[^}]+}/g) || [];
     eventMatches.forEach(match => {
       const eventType = match.match(/on([A-Z]\w+)/) || [];
@@ -198,17 +198,14 @@ const analyzeFeature = (feature: ExtendedFeature): string[] => {
       }
     });
 
-    // Look for form submissions
     if (change.content.includes('handleSubmit') || change.content.includes('onSubmit')) {
       userInteractions.add('Form submission');
     }
 
-    // Look for navigation
     if (change.content.includes('useNavigate') || change.content.includes('<Link')) {
       userInteractions.add('Navigation');
     }
 
-    // Look for data operations
     if (change.content.includes('useQuery') || change.content.includes('useMutation')) {
       userInteractions.add('Data management');
     }
@@ -221,7 +218,6 @@ const analyzeFeature = (feature: ExtendedFeature): string[] => {
 };
 
 const createUserFriendlyGuides = (feature: ExtendedFeature) => {
-  // Try to match feature name with predefined docs
   const predefinedDoc = Object.entries(DOCUPAD_PREDEFINED_DOCS).find(([key]) => 
     feature.name.toLowerCase().includes(key.toLowerCase())
   );
@@ -237,7 +233,6 @@ const createUserFriendlyGuides = (feature: ExtendedFeature) => {
     };
   }
 
-  // Default behavior for features without predefined docs
   const guides: Record<string, {
     title: string;
     explanation: string;
@@ -247,7 +242,6 @@ const createUserFriendlyGuides = (feature: ExtendedFeature) => {
   feature.code_changes?.forEach(change => {
     if (!change.content) return;
 
-    // Extract form interactions
     const formMatches = change.content.match(/<form[^>]*>[\s\S]*?<\/form>/g) || [];
     formMatches.forEach(form => {
       guides[`Using ${feature.name} Form`] = {
@@ -262,7 +256,6 @@ const createUserFriendlyGuides = (feature: ExtendedFeature) => {
       };
     });
 
-    // Extract button interactions
     const buttonMatches = change.content.match(/<button[^>]*>[\s\S]*?<\/button>/g) || [];
     buttonMatches.forEach(button => {
       const actionText = button.match(/>([^<]+)</)?.[1] || 'action';
@@ -283,12 +276,20 @@ const createUserFriendlyGuides = (feature: ExtendedFeature) => {
 };
 
 export const generateDocumentation = (feature: ExtendedFeature, context: FeatureContext, patterns: DocumentationPatterns): UserDocs => {
-  const predefinedDoc = Object.entries(DOCUPAD_PREDEFINED_DOCS).find(([key]) => 
-    feature.name.toLowerCase().includes(key.toLowerCase())
+  const priorityFeatures = [
+    "Create New Products",
+    "Delete Products",
+    "View Products",
+    "Add Descriptions",
+    "Link GitHub"
+  ];
+
+  const matchingPriorityFeature = priorityFeatures.find(pf => 
+    feature.name.toLowerCase().includes(pf.toLowerCase())
   );
 
-  if (predefinedDoc) {
-    const [_, docs] = predefinedDoc;
+  if (matchingPriorityFeature) {
+    const docs = DOCUPAD_PREDEFINED_DOCS[matchingPriorityFeature];
     return {
       overview: `${docs.overview}\n\n${docs.benefit}\n\nExample use case: ${docs.example}`,
       steps: docs.steps,
@@ -297,7 +298,6 @@ export const generateDocumentation = (feature: ExtendedFeature, context: Feature
     };
   }
 
-  // Fallback to generated documentation
   const guides = createUserFriendlyGuides(feature);
   const mainFeatures = analyzeFeature(feature);
 
