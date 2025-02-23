@@ -33,27 +33,6 @@ export function UserDocumentation({ userDocs }: UserDocumentationProps) {
     );
   }
 
-  const renderVisualAid = (visual: VisualAid) => (
-    <div className="my-4">
-      {visual.type === 'screenshot' ? (
-        <img 
-          src={visual.url} 
-          alt={visual.caption}
-          className="rounded-lg border shadow-sm w-full"
-        />
-      ) : (
-        <video 
-          controls 
-          className="w-full rounded-lg border shadow-sm"
-        >
-          <source src={visual.url} type="video/mp4" />
-          Your browser does not support the video tag.
-        </video>
-      )}
-      <p className="text-sm text-muted-foreground mt-2">{visual.caption}</p>
-    </div>
-  );
-
   return (
     <div className="space-y-8">
       {userDocs.overview && (
@@ -98,7 +77,24 @@ export function UserDocumentation({ userDocs }: UserDocumentationProps) {
           </CardHeader>
           <CardContent className="space-y-6">
             {userDocs.visuals.map((visual, index) => (
-              <div key={index}>{renderVisualAid(visual)}</div>
+              <div key={index}>
+                {visual.type === 'screenshot' ? (
+                  <img 
+                    src={visual.url} 
+                    alt={visual.caption}
+                    className="rounded-lg border shadow-sm w-full"
+                  />
+                ) : (
+                  <video 
+                    controls 
+                    className="w-full rounded-lg border shadow-sm"
+                  >
+                    <source src={visual.url} type="video/mp4" />
+                    Your browser does not support the video tag.
+                  </video>
+                )}
+                <p className="text-sm text-muted-foreground mt-2">{visual.caption}</p>
+              </div>
             ))}
           </CardContent>
         </Card>
@@ -152,3 +148,4 @@ export function UserDocumentation({ userDocs }: UserDocumentationProps) {
     </div>
   );
 }
+
