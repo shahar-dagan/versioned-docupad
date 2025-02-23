@@ -1,3 +1,4 @@
+
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/components/ui/use-toast';
@@ -53,7 +54,7 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
     },
     enabled,
     staleTime: 0,
-    cacheTime: 0,
+    gcTime: 0, // Changed from cacheTime to gcTime for React Query v5
   });
 
   const { data: analysisProgress, isLoading: isLoadingAnalysis, refetch: refetchAnalysis } = useQuery({
