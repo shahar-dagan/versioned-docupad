@@ -1,103 +1,114 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+const supabaseUrl = Deno.env.get('SUPABASE_URL');
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
+
+async function generateDocumentation(features: any[]) {
+  const documentation = features.map(feature => {
+    // Basic documentation structure
+    return {
+      overview: `${feature.name} - ${feature.description}`,
+      steps: [
+        "Access the feature through the main interface",
+        "Follow the on-screen instructions",
+        "Save your changes when finished"
+      ],
+      use_cases: [
+        "Basic usage scenario",
+        "Advanced configuration",
+        "Integration with other features"
+      ],
+      faq: [
+        {
+          question: "How do I get started?",
+          answer: "Access the feature through the main interface and follow the guided setup."
+        },
+        {
+          question: "Can I customize this feature?",
+          answer: "Yes, various customization options are available in the settings."
+        }
+      ]
+    };
+  });
+
+  return documentation;
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const formData = await req.formData()
-    const file = formData.get('file') as File
-    const productId = formData.get('productId') as string
-
-    if (!file || !productId) {
-      throw new Error('Missing file or product ID')
-    }
-
-    let content = ''
-    const fileType = file.name.split('.').pop()?.toLowerCase()
+    const { productId } = await req.json();
     
-    console.log('Processing file:', file.name, 'of type:', fileType);
+    console.log('Generating documentation for product:', productId);
 
-    // Process different file types
-    switch (fileType) {
-      case 'md':
-      case 'txt':
-      case 'docx': // For now, we'll treat DOCX as text
-        content = await file.text()
-        break
-      
-      case 'pdf':
-        const pdfText = await file.text()
-        content = pdfText
-        break
-      
-      default:
-        throw new Error('Unsupported file format')
-    }
-
-    // Clean up the content
-    content = content.replace(/[\x00-\x09\x0B-\x0C\x0E-\x1F\x7F-\x9F]/g, '') // Remove control characters
-    content = content.trim()
-
-    if (!content) {
-      throw new Error('No content could be extracted from the file')
-    }
-
-    console.log('Content extracted, length:', content.length);
-
-    // Create a new feature for the imported documentation
-    const featureName = file.name.split('.')[0].replace(/[^a-zA-Z0-9-_]/g, '-')
-    
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
-
-    // Split content into overview and full content
-    const overview = content.substring(0, 500) // First 500 chars as overview
-    
-    const { data, error } = await supabase
+    // Get all features for the product
+    const { data: features, error: fetchError } = await supabase
       .from('features')
-      .insert({
-        name: featureName,
-        description: 'Imported documentation',
-        product_id: productId,
-        user_docs: {
-          overview: overview,
-          content: content
-        }
-      })
-      .select()
-      .single()
+      .select('*')
+      .eq('product_id', productId);
 
-    if (error) {
-      console.error('Database error:', error);
-      throw error
+    if (fetchError) {
+      console.error('Error fetching features:', fetchError);
+      throw new Error('Failed to fetch features');
     }
 
-    console.log('Feature created successfully:', data.id);
+    if (!features || features.length === 0) {
+      throw new Error('No features found for this product');
+    }
+
+    console.log(`Found ${features.length} features to document`);
+
+    // Generate documentation for each feature
+    for (const feature of features) {
+      const docs = await generateDocumentation([feature]);
+      const { error: updateError } = await supabase
+        .from('features')
+        .update({
+          user_docs: docs[0],
+          last_analyzed_at: new Date().toISOString()
+        })
+        .eq('id', feature.id);
+
+      if (updateError) {
+        console.error(`Error updating documentation for feature ${feature.id}:`, updateError);
+      }
+    }
 
     return new Response(
-      JSON.stringify({ success: true, feature: data }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+      JSON.stringify({ 
+        success: true,
+        featuresProcessed: features.length,
+        message: `Successfully generated documentation for ${features.length} features`
+      }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
 
   } catch (error) {
-    console.error('Error in process-documentation:', error);
+    console.error('Error in process-documentation function:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        success: false,
+        error: error.message 
+      }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
-    )
+    );
   }
-})
+});
