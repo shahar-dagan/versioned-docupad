@@ -9,7 +9,7 @@ import { useFeatures } from '@/hooks/useFeatures';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { FeatureMap } from '@/components/features/FeatureMap';
-import { List, Network } from 'lucide-react';
+import { List, Layout } from 'lucide-react';
 
 export default function Features() {
   const { productId } = useParams<{ productId: string }>();
@@ -111,8 +111,8 @@ export default function Features() {
             onClick={() => setViewMode('map')}
             className="gap-2"
           >
-            <Network className="h-4 w-4" />
-            Relationship Map
+            <Layout className="h-4 w-4" />
+            Whiteboard
           </Button>
         </div>
       )}
