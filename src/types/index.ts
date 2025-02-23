@@ -21,6 +21,8 @@ export interface Feature {
       description: string;
     }>;
     dependencies?: string[];
+    type?: 'user_action' | 'display' | 'navigation' | 'feedback' | 'form';
+    location?: string;
   };
   user_docs?: {
     overview?: string;
