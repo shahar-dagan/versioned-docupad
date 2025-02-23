@@ -45,6 +45,11 @@ export function AnalysisProgressDialog({
     initialProgress
   });
 
+  // Calculate the total progress by adding the initial progress to the current progress scaled to the remaining percentage
+  const totalProgress = resumeStep 
+    ? initialProgress + (progress * (100 - initialProgress) / 100)
+    : progress;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
@@ -55,11 +60,11 @@ export function AnalysisProgressDialog({
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span>Overall Progress</span>
-              <span>{progress}%</span>
+              <span>{Math.round(totalProgress)}%</span>
             </div>
             {resumeStep ? (
               <div className="relative">
-                <Progress value={progress} className="h-2" />
+                <Progress value={totalProgress} className="h-2" />
                 <div 
                   className="absolute top-3 text-xs text-muted-foreground"
                   style={{ 
