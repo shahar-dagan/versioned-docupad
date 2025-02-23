@@ -1,3 +1,4 @@
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/components/ui/use-toast';
@@ -97,18 +98,15 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
       return analysisData;
     },
     enabled: enabled && !!productId,
-    refetchInterval: (data) => {
+    refetchInterval: (data: AnalysisProgress | null) => {
       if (!data) return 1000;
-      const status = data?.status;
-      
-      if (status === 'completed' || status === 'failed' || status === 'error') {
+      if (data.status === 'completed' || data.status === 'failed' || data.status === 'error') {
         return false;
       }
-      
       return 1000;
     },
     staleTime: 0,
-    cacheTime: 0,
+    gcTime: 0,
     retry: 1,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
