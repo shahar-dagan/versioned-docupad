@@ -19,44 +19,68 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+
     // Check active sessions and sets the user
     const checkUser = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        setUser(session?.user ?? null);
-        setLoading(false);
-
-        // If we have a GitHub token, log it for debugging
-        if (session?.provider_token) {
-          console.log('GitHub provider token available:', !!session.provider_token);
+        if (mounted) {
+          setUser(session?.user ?? null);
+          setLoading(false);
         }
+
+        // Log session state for debugging
+        console.log('Initial session state:', {
+          hasSession: !!session,
+          hasUser: !!session?.user,
+          hasProviderToken: !!session?.provider_token,
+          provider: session?.user?.app_metadata?.provider
+        });
       } catch (error) {
         console.error('Error checking auth session:', error);
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
     checkUser();
 
-    // Listen for changes on auth state
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUser(session?.user ?? null);
-      
-      // Log auth state changes for debugging
-      console.log('Auth state changed:', {
-        event: _event,
-        hasUser: !!session?.user,
-        hasProviderToken: !!session?.provider_token
-      });
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (mounted) {
+        setUser(session?.user ?? null);
+        
+        // Log auth state changes for debugging
+        console.log('Auth state changed:', {
+          event,
+          hasUser: !!session?.user,
+          hasProviderToken: !!session?.provider_token,
+          provider: session?.user?.app_metadata?.provider
+        });
+
+        // Handle token refresh
+        if (event === 'TOKEN_REFRESHED' && session) {
+          console.log('Token refreshed successfully');
+        }
+      }
     });
 
-    return () => subscription.unsubscribe();
+    // Cleanup subscription on unmount
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signUp = async (email: string, password: string) => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth`,
+      },
     });
     if (error) throw error;
   };
