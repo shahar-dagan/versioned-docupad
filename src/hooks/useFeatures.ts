@@ -42,7 +42,7 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
           )
         `)
         .eq('product_id', productId)
-        .order('updated_at', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching features:', error);
@@ -52,6 +52,8 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
       return data as Feature[];
     },
     enabled,
+    staleTime: 0,
+    cacheTime: 0,
   });
 
   const { data: analysisProgress, isLoading: isLoadingAnalysis, refetch: refetchAnalysis } = useQuery({
@@ -72,6 +74,7 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
       }
 
       if (analysisData) {
+        console.log('Analysis data:', analysisData);
         // Check if analysis is in a terminal state
         const isCompleted = analysisData.status === 'completed' || 
                           analysisData.status === 'failed' ||
@@ -114,7 +117,7 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
     },
     enabled: enabled && !!productId,
     refetchInterval: (query) => {
-      const data = query.state.data as any;
+      const data = query.state.data as AnalysisProgress;
       // If no data or status is missing, poll quickly to get initial state
       if (!data || !data.status) return 1000;
       
@@ -126,6 +129,7 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
       // For in-progress analyses, poll every 5 seconds
       return 5000;
     },
+    staleTime: 0,
   });
 
   const analyzeRepositoryMutation = useMutation({
@@ -212,11 +216,17 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         }
       });
 
-      // Trigger both refetches after successful processing
-      await refetchAnalysis();
-      await refetch();
+      if (response.error) {
+        throw new Error(response.error.message || 'Failed to process analysis');
+      }
 
-      return response;
+      console.log('Processing completed, refetching data...');
+      await Promise.all([
+        refetchAnalysis(),
+        refetch()
+      ]);
+
+      return response.data;
     },
     onError: (error: Error) => {
       console.error('Process analysis error:', error);
@@ -226,11 +236,13 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         description: error.message,
       });
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log('Processing succeeded:', data);
       toast({
         title: "Analysis Processing Complete",
         description: "Features have been generated from the analysis results.",
       });
+      refetch();
     },
   });
 
