@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -53,7 +52,6 @@ export function FeaturesHeader({
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check if any features have documentation
     const checkDocumentation = async () => {
       const { data: features } = await supabase
         .from('features')
@@ -79,30 +77,26 @@ export function FeaturesHeader({
     setCurrentStep('Initializing documentation generation...');
 
     try {
-      // Step 1: Get all features that don't have documentation yet
       setGenProgress(20);
-      setCurrentStep('Fetching features without documentation...');
+      setCurrentStep('Fetching all features...');
       const { data: features, error: fetchError } = await supabase
         .from('features')
         .select('*')
-        .eq('product_id', productId)
-        .is('user_docs', null);
+        .eq('product_id', productId);
 
       if (fetchError) throw fetchError;
 
       if (!features || features.length === 0) {
-        setCurrentStep('All features already have documentation');
-        toast.success('All features already have documentation');
-        setHasDocumentation(true);
+        setCurrentStep('No features found');
+        toast.error('No features found for this product');
         return;
       }
 
       const totalFeatures = features.length;
       let processedCount = 0;
 
-      // Step 2: Generate documentation for each feature
       setGenProgress(40);
-      setCurrentStep('Generating documentation...');
+      setCurrentStep('Regenerating documentation for all features...');
       
       for (const feature of features) {
         const { error: updateError } = await supabase
@@ -138,19 +132,19 @@ export function FeaturesHeader({
         if (updateError) {
           console.error(`Error updating feature ${feature.name}:`, updateError);
           toast.error(`Failed to generate documentation for ${feature.name}`);
-          continue; // Continue with next feature even if one fails
+          continue;
         }
 
         processedCount++;
-        const progress = Math.round((processedCount / totalFeatures) * 60) + 40; // 40-100% range
+        const progress = Math.round((processedCount / totalFeatures) * 60) + 40;
         setGenProgress(progress);
         setCurrentStep(`Generated documentation for ${feature.name} (${processedCount}/${totalFeatures})`);
       }
 
       setGenProgress(100);
-      setCurrentStep('Documentation generated successfully');
+      setCurrentStep('Documentation regenerated successfully');
       setHasDocumentation(true);
-      toast.success('Documentation generated for all remaining features');
+      toast.success(`Documentation regenerated for all ${totalFeatures} features`);
     } catch (error) {
       console.error('Error generating documentation:', error);
       toast.error('Failed to generate documentation');
