@@ -80,27 +80,21 @@ export function GitHubRepoSelector({ onSelect, isLoading }: GitHubRepoSelectorPr
 
   const handleConnectGitHub = async () => {
     try {
-      // Store the current route to redirect back after auth
-      const currentPath = window.location.pathname;
-      localStorage.setItem('githubRedirectPath', currentPath);
+      // Always redirect to /dashboard after auth
+      const redirectUrl = `${window.location.origin}/dashboard`;
+      
+      console.log('Starting GitHub OAuth with redirect URL:', redirectUrl);
 
-      // Determine the callback URL based on environment
-      const baseUrl = window.location.hostname.includes('lovable.dev')
-        ? window.location.origin
-        : 'https://versioned-docupad.lovable.app';
-
-      await supabase.auth.signInWithOAuth({
+      const { error: signInError } = await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: {
-          redirectTo: `${baseUrl}/auth/callback`,
+          redirectTo: redirectUrl,
           scopes: 'repo',
-          queryParams: {
-            // Add access to private repositories
-            access_type: 'offline',
-            prompt: 'consent'
-          }
         },
       });
+
+      if (signInError) throw signInError;
+      
     } catch (error) {
       console.error('Error connecting to GitHub:', error);
       toast.error('Failed to connect to GitHub. Please try again.');
