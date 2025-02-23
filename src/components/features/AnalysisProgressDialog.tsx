@@ -28,26 +28,15 @@ export function AnalysisProgressDialog({
   // Find if we're resuming from a previous analysis
   const resumeStep = steps?.find(step => {
     const stepText = step.step.toLowerCase();
-    console.log('Checking step:', stepText);
     return stepText.includes("resuming analysis") && stepText.includes("files already analyzed");
   });
 
-  console.log('Resume step found:', resumeStep);
-
   // Extract the numbers from the resume message
   const matches = resumeStep?.step.match(/(\d+)\s+files already analyzed.*?(\d+)\s+files/i);
-  console.log('Regex matches:', matches);
 
   const analyzedFiles = matches ? parseInt(matches[1]) : 0;
   const totalFiles = matches ? parseInt(matches[2]) : 0;
   const initialProgress = totalFiles > 0 ? Math.round((analyzedFiles / totalFiles) * 100) : 0;
-
-  console.log('Progress calculation:', {
-    analyzedFiles,
-    totalFiles,
-    initialProgress,
-    currentProgress: progress,
-  });
 
   // Calculate remaining progress as a percentage of the remaining work
   const remainingWork = progress * ((totalFiles - analyzedFiles) / totalFiles);
@@ -55,32 +44,23 @@ export function AnalysisProgressDialog({
     ? Math.min(100, initialProgress + remainingWork)
     : progress;
 
-  console.log('Final progress:', {
-    remainingWork,
-    totalProgress
-  });
-
   // Check if analysis is still in progress
   const isAnalysisInProgress = steps && steps.length > 0 && 
     !steps[steps.length - 1].step.toLowerCase().includes('completed') &&
     !steps[steps.length - 1].step.toLowerCase().includes('finished') &&
-    !steps[steps.length - 1].step.toLowerCase().includes('error');
+    !steps[steps.length - 1].step.toLowerCase().includes('error') &&
+    progress < 100;  // Add this condition to check if progress is less than 100
 
-  // Prevent dialog from closing if analysis is in progress
+  // Handle dialog state changes
   const handleOpenChange = (newOpen: boolean) => {
-    console.log('Dialog open change attempted:', { 
-      newOpen, 
-      totalProgress, 
-      progress,
-      isAnalysisInProgress,
-      lastStep: steps?.[steps.length - 1]?.step
-    });
-    
-    // Only allow closing if analysis is complete or there's an error
-    if (!isAnalysisInProgress || (steps && steps[steps.length - 1].step.toLowerCase().includes('error'))) {
+    // Allow closing if:
+    // 1. Analysis is complete (progress is 100)
+    // 2. There's an error
+    // 3. No analysis is in progress
+    if (!isAnalysisInProgress) {
       onOpenChange(newOpen);
     } else {
-      // Prevent closing by maintaining the open state
+      // Only prevent closing during active analysis
       onOpenChange(true);
     }
   };
@@ -96,13 +76,11 @@ export function AnalysisProgressDialog({
       <DialogContent 
         className="sm:max-w-[500px]" 
         onPointerDownOutside={(e) => {
-          // Always prevent closing by clicking outside during analysis
           if (isAnalysisInProgress) {
             e.preventDefault();
           }
         }}
         onEscapeKeyDown={(e) => {
-          // Prevent closing with Escape key if analysis is in progress
           if (isAnalysisInProgress) {
             e.preventDefault();
           }
