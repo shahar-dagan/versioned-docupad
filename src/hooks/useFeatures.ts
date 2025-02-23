@@ -1,5 +1,5 @@
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, Query } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/components/ui/use-toast';
 import { Feature, Repository } from '@/types';
@@ -81,7 +81,7 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
     enabled: enabled && !!productId,
   });
 
-  const { data: analysisProgress, isLoading: isLoadingAnalysis, refetch: refetchAnalysis } = useQuery({
+  const { data: analysisProgress, isLoading: isLoadingAnalysis, refetch: refetchAnalysis } = useQuery<AnalysisProgress | null, Error>({
     queryKey: ['analysis-progress', productId],
     queryFn: async () => {
       console.log('Fetching analysis progress for product:', productId);
@@ -98,7 +98,8 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
       return analysisData;
     },
     enabled: enabled && !!productId,
-    refetchInterval: (data: AnalysisProgress | null) => {
+    refetchInterval: (query) => {
+      const data = query.state.data as AnalysisProgress | null;
       if (!data) return 1000;
       if (data.status === 'completed' || data.status === 'failed' || data.status === 'error') {
         return false;
