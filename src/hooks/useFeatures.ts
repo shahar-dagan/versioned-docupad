@@ -1,3 +1,4 @@
+
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/components/ui/use-toast';
@@ -244,6 +245,7 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         throw new Error('You must be logged in to process analysis');
       }
 
+      // If we have a last analysis and no changes, return it
       if (lastAnalysis && !analysisProgress?.analysis_results) {
         console.log('Using last analysis results:', lastAnalysis);
         return lastAnalysis;
@@ -261,6 +263,8 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
       }
 
       console.log('Processing completed, refetching data...');
+      
+      // Invalidate and refetch all related queries
       await Promise.all([
         refetchAnalysis(),
         refetch()
@@ -276,13 +280,16 @@ export function useFeatures(productId: string | undefined, enabled: boolean, rep
         description: error.message,
       });
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       console.log('Processing succeeded:', data);
+      
+      // Force an immediate refetch of the features
+      await refetch();
+      
       toast({
         title: "Analysis Processing Complete",
         description: "Features have been generated from the analysis results.",
       });
-      refetch();
     },
   });
 
