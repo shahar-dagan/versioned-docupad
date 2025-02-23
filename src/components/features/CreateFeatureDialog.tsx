@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus } from 'lucide-react';
+import { Plus, Mic, MicOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -27,6 +27,66 @@ export function CreateFeatureDialog({ productId, userId, onFeatureCreated }: Cre
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (e) => chunks.push(e.data);
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+        await handleVoiceInput(audioBlob);
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Error accessing microphone:', error);
+      toast.error('Unable to access microphone. Please check your permissions.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && isRecording) {
+      mediaRecorder.stop();
+      mediaRecorder.stream.getTracks().forEach(track => track.stop());
+      setIsRecording(false);
+      setMediaRecorder(null);
+    }
+  };
+
+  const handleVoiceInput = async (audioBlob: Blob) => {
+    setIsProcessing(true);
+    try {
+      // Convert blob to base64
+      const reader = new FileReader();
+      reader.readAsDataURL(audioBlob);
+      reader.onloadend = async () => {
+        const base64Audio = reader.result?.toString().split(',')[1];
+        if (!base64Audio) throw new Error('Failed to convert audio to base64');
+
+        const { data, error } = await supabase.functions.invoke('transcribe-audio', {
+          body: { audio: base64Audio }
+        });
+
+        if (error) throw error;
+
+        setDescription((prev) => prev ? `${prev}\n${data.text}` : data.text);
+        toast.success('Voice input transcribed successfully');
+      };
+    } catch (error) {
+      console.error('Transcription error:', error);
+      toast.error('Failed to transcribe voice input');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const handleCreateFeature = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,14 +159,35 @@ export function CreateFeatureDialog({ productId, userId, onFeatureCreated }: Cre
                 disabled={isSubmitting}
               />
             </div>
-            <div>
+            <div className="space-y-2">
               <Textarea
                 placeholder="Feature Description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 required
                 disabled={isSubmitting}
+                className="min-h-[100px]"
               />
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant={isRecording ? "destructive" : "secondary"}
+                  size="sm"
+                  onClick={isRecording ? stopRecording : startRecording}
+                  disabled={isProcessing}
+                >
+                  {isProcessing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : isRecording ? (
+                    <MicOff className="h-4 w-4" />
+                  ) : (
+                    <Mic className="h-4 w-4" />
+                  )}
+                  <span className="ml-2">
+                    {isProcessing ? "Processing..." : isRecording ? "Stop" : "Voice Input"}
+                  </span>
+                </Button>
+              </div>
             </div>
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? 'Creating...' : 'Create Feature'}
