@@ -1,3 +1,4 @@
+
 import { Link } from 'react-router-dom';
 import { Github, Trash2, CheckCircle, Book } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -154,12 +155,12 @@ export function ProductCard({ product, onLinkRepo, onDelete }: ProductCardProps)
               View Features
             </Link>
           </Button>
-          <Link to={`/products/${product.id}/docs`}>
-            <Button variant="outline">
+          <Button variant="outline" className="w-full" asChild>
+            <Link to={`/products/${product.id}/docs`}>
               <Book className="mr-2 h-4 w-4" />
               View Documentation
-            </Button>
-          </Link>
+            </Link>
+          </Button>
           <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
             <DialogTrigger asChild>
               <Button 
