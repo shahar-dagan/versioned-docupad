@@ -13,20 +13,41 @@ interface Analysis {
   repository_name: string;
   created_at: string;
   steps: { step: string; timestamp: string }[];
+  products: { name: string };
 }
 
 export function ProcessTimeline() {
   const { data: analyses } = useQuery({
     queryKey: ['ongoing-analyses'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('codeql_analyses')
-        .select('*, products(name)')
-        .in('status', ['pending', 'processing'])
-        .order('created_at', { ascending: false });
+      try {
+        const { data, error } = await supabase
+          .from('codeql_analyses')
+          .select(`
+            id,
+            product_id,
+            status,
+            progress,
+            repository_name,
+            created_at,
+            steps,
+            products (
+              name
+            )
+          `)
+          .in('status', ['pending', 'processing'])
+          .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      return data as (Analysis & { products: { name: string } })[];
+        if (error) {
+          console.error('Error fetching analyses:', error);
+          throw error;
+        }
+
+        return data as Analysis[];
+      } catch (error) {
+        console.error('Failed to fetch analyses:', error);
+        return [];
+      }
     },
     refetchInterval: 1000, // Refetch every second
   });
@@ -46,7 +67,7 @@ export function ProcessTimeline() {
                     to={`/products/${analysis.product_id}/features`}
                     className="hover:underline"
                   >
-                    {analysis.products.name}
+                    {analysis.products?.name || 'Unknown Product'}
                   </Link>
                 </h3>
                 <p className="text-sm text-muted-foreground">
